@@ -1,3 +1,4 @@
+import "./chunk-MJBQLJKK.js";
 import {
   extendChartView,
   extendComponentModel,
@@ -9,8 +10,8 @@ import {
   number_exports,
   time_exports,
   util_exports as util_exports2
-} from "./chunk-TJNLFNIV.js";
-import "./chunk-734HJZDM.js";
+} from "./chunk-QZWVIEMS.js";
+import "./chunk-RCYQG3I7.js";
 import {
   Axis_default,
   Chart_default,
@@ -50,7 +51,7 @@ import {
   throttle,
   use,
   version
-} from "./chunk-4XOBQNQQ.js";
+} from "./chunk-34HNQTYO.js";
 import {
   brushSingle,
   color_exports,

@@ -83,7 +83,7 @@ import {
   traverseElements,
   updateProps,
   warn
-} from "./chunk-4XOBQNQQ.js";
+} from "./chunk-34HNQTYO.js";
 import {
   BoundingRect_default,
   CompoundPath_default,
@@ -8641,4 +8641,4 @@ export {
   stopPreviousKeyframeAnimationAndRestore,
   applyKeyframeAnimation
 };
-//# sourceMappingURL=chunk-NXZBTUNA.js.map
+//# sourceMappingURL=chunk-XK3PY5WX.js.map

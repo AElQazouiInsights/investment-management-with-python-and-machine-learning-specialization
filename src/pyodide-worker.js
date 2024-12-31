@@ -23,6 +23,11 @@ const filesToMount = [
     url: '/assets/data/edhec-hedgefundindices.csv',
     path: '/assets/data/edhec-hedgefundindices.csv',
     type: 'text'
+  },
+  {
+    url: '/assets/data/stocks_dynamic.csv',
+    path: '/assets/data/stocks_dynamic.csv',
+    type: 'text'
   }
 ];
 
@@ -79,8 +84,18 @@ onmessage = async (e) => {
       "scipy",
       "statsmodels",
       "matplotlib",
+      "micropip",
     ]);
 
+    // Install tabulate using micropip
+    await pyodide.runPythonAsync(`
+      import micropip
+      await micropip.install([
+      'tabulate', 
+      'yfinance'
+      ])
+    `);
+    
     pyodide.runPython(`
       import sys
       sys.path.append('/assets')
