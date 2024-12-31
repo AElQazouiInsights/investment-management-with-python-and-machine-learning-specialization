@@ -4,7 +4,7 @@ import {
   getLabelLineStatesModels,
   setLabelLineStyle,
   updateLabelLinePoints
-} from "./chunk-734HJZDM.js";
+} from "./chunk-RCYQG3I7.js";
 import {
   Arc_default,
   AxisModelCommonMixin,
@@ -85,7 +85,7 @@ import {
   toCamelCase,
   updateProps,
   use
-} from "./chunk-4XOBQNQQ.js";
+} from "./chunk-34HNQTYO.js";
 import {
   BoundingRect_default,
   CompoundPath_default,
@@ -675,6 +675,7 @@ export {
   extendComponentModel,
   extendComponentView,
   extendSeriesModel,
-  extendChartView
+  extendChartView,
+  installLabelLayout
 };
-//# sourceMappingURL=chunk-TJNLFNIV.js.map
+//# sourceMappingURL=chunk-QZWVIEMS.js.map

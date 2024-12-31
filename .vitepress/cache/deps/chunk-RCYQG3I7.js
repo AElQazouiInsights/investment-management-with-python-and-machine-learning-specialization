@@ -22,7 +22,7 @@ import {
   makeSeriesEncodeForAxisCoordSys,
   normalizeToArray,
   shouldOmitUnusedDimensions
-} from "./chunk-4XOBQNQQ.js";
+} from "./chunk-34HNQTYO.js";
 import {
   PathProxy_default,
   Path_default,
@@ -904,4 +904,4 @@ export {
   setLabelLineStyle,
   getLabelLineStatesModels
 };
-//# sourceMappingURL=chunk-734HJZDM.js.map
+//# sourceMappingURL=chunk-RCYQG3I7.js.map

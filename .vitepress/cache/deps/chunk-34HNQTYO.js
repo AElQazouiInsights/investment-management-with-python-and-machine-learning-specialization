@@ -2117,6 +2117,29 @@ function mergePath(pathEls, opts) {
   };
   return pathBundle;
 }
+function clonePath(sourcePath, opts) {
+  opts = opts || {};
+  var path = new Path_default();
+  if (sourcePath.shape) {
+    path.setShape(sourcePath.shape);
+  }
+  path.setStyle(sourcePath.style);
+  if (opts.bakeTransform) {
+    transformPath(path.path, sourcePath.getComputedTransform());
+  } else {
+    if (opts.toLocal) {
+      path.setLocalTransform(sourcePath.getComputedTransform());
+    } else {
+      path.copyTransform(sourcePath);
+    }
+  }
+  path.buildPath = sourcePath.buildPath;
+  path.applyTransform = path.applyTransform;
+  path.z = sourcePath.z;
+  path.z2 = sourcePath.z2;
+  path.zlevel = sourcePath.zlevel;
+  return path;
+}
 
 // node_modules/zrender/lib/graphic/shape/Circle.js
 var CircleShape = /* @__PURE__ */ function() {
@@ -3221,6 +3244,9 @@ function removeElementWithFadeOut(el, animatableModel, dataIndex) {
 }
 function saveOldStyle(el) {
   transitionStore(el).oldStyle = el.style;
+}
+function getOldStyle(el) {
+  return transitionStore(el).oldStyle;
 }
 
 // node_modules/echarts/lib/util/graphic.js
@@ -17670,6 +17696,7 @@ export {
   isHighDownDispatcher,
   enableComponentHighDownFeatures,
   createFromString,
+  clonePath,
   Circle_default,
   Ellipse_default,
   Sector_default,
@@ -17689,6 +17716,7 @@ export {
   removeElement,
   removeElementWithFadeOut,
   saveOldStyle,
+  getOldStyle,
   extendShape,
   extendPath,
   registerShape,
@@ -17776,6 +17804,7 @@ export {
   getPaddingFromTooltipModel,
   TooltipMarkupStyleCreator,
   defaultSeriesFormatTooltip,
+  SERIES_UNIVERSAL_TRANSITION_PROP,
   Series_default,
   Component_default2,
   createRenderPlanner,
@@ -17864,4 +17893,4 @@ export {
   shiftLayoutOnY,
   hideOverlap
 };
-//# sourceMappingURL=chunk-4XOBQNQQ.js.map
+//# sourceMappingURL=chunk-34HNQTYO.js.map

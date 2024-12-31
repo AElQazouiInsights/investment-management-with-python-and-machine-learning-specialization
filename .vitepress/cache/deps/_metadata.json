@@ -1,101 +1,113 @@
 {
-  "hash": "1fa4baaa",
-  "configHash": "17726e90",
-  "lockfileHash": "ee493691",
-  "browserHash": "4a7e716c",
+  "hash": "af19c4a6",
+  "configHash": "c3d62049",
+  "lockfileHash": "9cb5f73b",
+  "browserHash": "a9aeb5cc",
   "optimized": {
     "vue": {
       "src": "../../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
       "file": "vue.js",
-      "fileHash": "a43d400b",
+      "fileHash": "292180e8",
       "needsInterop": false
     },
     "vitepress > @vue/devtools-api": {
       "src": "../../../node_modules/@vue/devtools-api/dist/index.js",
       "file": "vitepress___@vue_devtools-api.js",
-      "fileHash": "c813157f",
+      "fileHash": "05ced284",
       "needsInterop": false
     },
     "vitepress > @vueuse/core": {
       "src": "../../../node_modules/@vueuse/core/index.mjs",
       "file": "vitepress___@vueuse_core.js",
-      "fileHash": "9f62f958",
+      "fileHash": "ed45acda",
       "needsInterop": false
     },
-    "@codemirror/view": {
-      "src": "../../../node_modules/@codemirror/view/dist/index.js",
-      "file": "@codemirror_view.js",
-      "fileHash": "540960c0",
-      "needsInterop": false
-    },
-    "@codemirror/commands": {
-      "src": "../../../node_modules/@codemirror/commands/dist/index.js",
-      "file": "@codemirror_commands.js",
-      "fileHash": "c24d2654",
-      "needsInterop": false
-    },
-    "@codemirror/language": {
-      "src": "../../../node_modules/@codemirror/language/dist/index.js",
-      "file": "@codemirror_language.js",
-      "fileHash": "bdf4ed7f",
-      "needsInterop": false
-    },
-    "echarts/core": {
-      "src": "../../../node_modules/echarts/core.js",
-      "file": "echarts_core.js",
-      "fileHash": "7fb556dc",
-      "needsInterop": false
-    },
-    "echarts/renderers": {
-      "src": "../../../node_modules/echarts/renderers.js",
-      "file": "echarts_renderers.js",
-      "fileHash": "f577f9bf",
-      "needsInterop": false
-    },
-    "echarts/charts": {
-      "src": "../../../node_modules/echarts/charts.js",
-      "file": "echarts_charts.js",
-      "fileHash": "f7e0c55a",
-      "needsInterop": false
-    },
-    "echarts/components": {
-      "src": "../../../node_modules/echarts/components.js",
-      "file": "echarts_components.js",
-      "fileHash": "bb418b56",
+    "echarts": {
+      "src": "../../../node_modules/echarts/index.js",
+      "file": "echarts.js",
+      "fileHash": "ccd45c85",
       "needsInterop": false
     },
     "vue-echarts": {
       "src": "../../../node_modules/vue-echarts/dist/index.js",
       "file": "vue-echarts.js",
-      "fileHash": "8a8ad6e6",
+      "fileHash": "e2a2981a",
+      "needsInterop": false
+    },
+    "@codemirror/view": {
+      "src": "../../../node_modules/@codemirror/view/dist/index.js",
+      "file": "@codemirror_view.js",
+      "fileHash": "29fc0d6c",
+      "needsInterop": false
+    },
+    "@codemirror/commands": {
+      "src": "../../../node_modules/@codemirror/commands/dist/index.js",
+      "file": "@codemirror_commands.js",
+      "fileHash": "73cc50b8",
+      "needsInterop": false
+    },
+    "@codemirror/language": {
+      "src": "../../../node_modules/@codemirror/language/dist/index.js",
+      "file": "@codemirror_language.js",
+      "fileHash": "21708c7f",
+      "needsInterop": false
+    },
+    "echarts/core": {
+      "src": "../../../node_modules/echarts/core.js",
+      "file": "echarts_core.js",
+      "fileHash": "0828a4d6",
+      "needsInterop": false
+    },
+    "echarts/renderers": {
+      "src": "../../../node_modules/echarts/renderers.js",
+      "file": "echarts_renderers.js",
+      "fileHash": "99e841ec",
+      "needsInterop": false
+    },
+    "echarts/charts": {
+      "src": "../../../node_modules/echarts/charts.js",
+      "file": "echarts_charts.js",
+      "fileHash": "fc3003bf",
+      "needsInterop": false
+    },
+    "echarts/components": {
+      "src": "../../../node_modules/echarts/components.js",
+      "file": "echarts_components.js",
+      "fileHash": "821790fe",
       "needsInterop": false
     },
     "@codemirror/state": {
       "src": "../../../node_modules/@codemirror/state/dist/index.js",
       "file": "@codemirror_state.js",
-      "fileHash": "73f9dd02",
+      "fileHash": "688c75d3",
       "needsInterop": false
     },
     "@lezer/highlight": {
       "src": "../../../node_modules/@lezer/highlight/dist/index.js",
       "file": "@lezer_highlight.js",
-      "fileHash": "459fa8e4",
+      "fileHash": "65d19e49",
       "needsInterop": false
     },
     "@codemirror/lang-python": {
       "src": "../../../node_modules/@codemirror/lang-python/dist/index.js",
       "file": "@codemirror_lang-python.js",
-      "fileHash": "fd613daf",
+      "fileHash": "db717ff3",
       "needsInterop": false
     },
     "@lezer/common": {
       "src": "../../../node_modules/@lezer/common/dist/index.js",
       "file": "@lezer_common.js",
-      "fileHash": "7d259981",
+      "fileHash": "950398e4",
       "needsInterop": false
     }
   },
   "chunks": {
+    "chunk-Y55WL76P": {
+      "file": "chunk-Y55WL76P.js"
+    },
+    "chunk-VJWGEPT5": {
+      "file": "chunk-VJWGEPT5.js"
+    },
     "chunk-SLYJLAHX": {
       "file": "chunk-SLYJLAHX.js"
     },
@@ -108,29 +120,35 @@
     "chunk-RG2HXPUS": {
       "file": "chunk-RG2HXPUS.js"
     },
-    "chunk-AAODDLYV": {
-      "file": "chunk-AAODDLYV.js"
+    "chunk-MJBQLJKK": {
+      "file": "chunk-MJBQLJKK.js"
     },
-    "chunk-NXZBTUNA": {
-      "file": "chunk-NXZBTUNA.js"
+    "chunk-QZWVIEMS": {
+      "file": "chunk-QZWVIEMS.js"
     },
-    "chunk-Y55WL76P": {
-      "file": "chunk-Y55WL76P.js"
+    "chunk-KO4RA7IW": {
+      "file": "chunk-KO4RA7IW.js"
     },
-    "chunk-VJWGEPT5": {
-      "file": "chunk-VJWGEPT5.js"
+    "chunk-JV4FIOF5": {
+      "file": "chunk-JV4FIOF5.js"
     },
-    "chunk-TJNLFNIV": {
-      "file": "chunk-TJNLFNIV.js"
+    "chunk-RCYQG3I7": {
+      "file": "chunk-RCYQG3I7.js"
     },
-    "chunk-734HJZDM": {
-      "file": "chunk-734HJZDM.js"
+    "chunk-VABTW3NL": {
+      "file": "chunk-VABTW3NL.js"
     },
-    "chunk-4XOBQNQQ": {
-      "file": "chunk-4XOBQNQQ.js"
+    "chunk-XK3PY5WX": {
+      "file": "chunk-XK3PY5WX.js"
+    },
+    "chunk-34HNQTYO": {
+      "file": "chunk-34HNQTYO.js"
     },
     "chunk-NRHPTEP4": {
       "file": "chunk-NRHPTEP4.js"
+    },
+    "chunk-AAODDLYV": {
+      "file": "chunk-AAODDLYV.js"
     },
     "chunk-PZ5AY32C": {
       "file": "chunk-PZ5AY32C.js"

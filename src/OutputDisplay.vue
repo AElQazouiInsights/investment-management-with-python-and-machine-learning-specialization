@@ -14,6 +14,7 @@
           :key="index"
           class="mb-8"
         >
+          <!-- Use ClientOnly to avoid SSR issues with ECharts -->
           <ClientOnly>
             <VChart class="chart" :option="chartOption" autoresize />
           </ClientOnly>
@@ -25,15 +26,14 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { defineAsyncComponent } from 'vue'
 
 // Dynamically import VChart to prevent SSR processing
-import { defineAsyncComponent } from 'vue'
 const VChart = defineAsyncComponent(() => import('vue-echarts'))
 
-// import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, BarChart } from 'echarts/charts'
+import { LineChart, BarChart, ScatterChart } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -47,6 +47,7 @@ use([
   CanvasRenderer,
   LineChart,
   BarChart,
+  ScatterChart,
   TitleComponent,
   TooltipComponent,
   LegendComponent,
@@ -72,10 +73,10 @@ watch(() => props.output, (newVal) => {
   // Split at <ECHARTS_DATA>
   const parts = newVal.split('<ECHARTS_DATA>')
 
-  // 3a) Everything before <ECHARTS_DATA> is plain text
+  // Everything before <ECHARTS_DATA> is plain text
   textOutput.value = parts[0].trim()
 
-  // 3b) Everything after is JSON for ECharts
+  // Everything after is JSON for ECharts
   if (parts[1]) {
     try {
       rawChartData.value = JSON.parse(parts[1])
@@ -90,78 +91,88 @@ watch(() => props.output, (newVal) => {
 
 /**
  * 4) Build a "chartOption" object for each key in the JSON (besides "dates", "x", or "crisis").
- *    - If we find "dates" or "x", we treat it as the x-axis data.
- *    - If we find "crisis", we add vertical dashed lines (markLine).
- *    - Each chart key should contain:
- *        - "series": { sub-series data }
- *        - "type": chart type (e.g., "line", "bar")
- *        - "yAxisName": label for the y-axis
+ *    - If we find "dates" or "x", we treat it as the x-axis data (category-based).
+ *    - If dataObj.xAxis?.type === 'value', we skip using that category data.
+ *    - If dataObj.visualMap exists, we attach it without breaking other graphs.
+ *    - color is optional and won't break older charts if not specified.
  */
-const chartObjects = computed(() => {
+ const chartObjects = computed(() => {
   if (!rawChartData.value) return []
 
-  // Potential x-axis data
-  const xData = rawChartData.value.dates
-           || rawChartData.value.x
-           || []
-
-  // Potential crisis lines
+  // Fallback xData or crisis if older charts need it
+  const xData = rawChartData.value.dates || rawChartData.value.x || []
   const crisis = rawChartData.value.crisis || []
 
-  // Omit known special keys from the chart loops
   const { x, dates, crisis: _, ...chartSets } = rawChartData.value
-
   const result = []
 
   for (const key of Object.keys(chartSets)) {
-    // For each key, e.g., "stockPrices", "returns", etc.
     const dataObj = chartSets[key]
+    if (!dataObj || typeof dataObj !== 'object' || !dataObj.series) continue
 
-    // Ensure the chart key contains 'series'
-    if (typeof dataObj !== 'object' || dataObj === null || !dataObj.series) continue
-
-    // Extract 'type' and 'yAxisName', defaulting to 'line' and empty string
     const chartType = dataObj.type || 'line'
     const yAxisName = dataObj.yAxisName || ''
+    const subKeys = Object.keys(dataObj.series)
 
-    // Extract 'series' object
-    const seriesData = dataObj.series
+    // Build sub-series
+    const series = subKeys.map(subKey => {
+      // For each sub-series, we specify encode if it's a numeric x-axis
+      const oneSeries = {
+        name: subKey,
+        type: chartType,
+        data: dataObj.series[subKey] || []
+      }
 
-    // Each sub-key in seriesData is a separate line/bar
-    const subKeys = Object.keys(seriesData)
+      // If xAxis is numeric, explicitly encode x=0, y=1
+      if (dataObj.xAxis?.type === 'value') {
+        oneSeries.encode = { x: 0, y: 1 }
+      }
+      return oneSeries
+    })
 
-    // Build multiple series
-    const series = subKeys.map(subKey => ({
-      name: subKey,     // e.g., "Stock A"
-      type: chartType,  // e.g., "line" or "bar"
-      data: seriesData[subKey],
-      // Optionally, add more styling here (e.g., color)
-    }))
+    // Merge or default xAxis config
+    let xAxisOption
+    if (dataObj.xAxis?.type === 'value') {
+      xAxisOption = {
+        type: 'value',
+        // e.g. "Volatility (%)"
+        ...dataObj.xAxis
+      }
+      // Remove 'data' property if it exists to avoid category mode
+      delete xAxisOption.data
+    } else {
+      // Category fallback (older charts)
+      xAxisOption = {
+        type: 'category',
+        data: xData,
+        ...dataObj.xAxis
+      }
+    }
 
-    // Build an ECharts option for this particular "key"
+    // Build final chartOption
     const chartOption = {
       title: {
-        text: key.replace(/([A-Z])/g, ' $1').trim()  // e.g., "stockPrices" -> "stock Prices"
+        text: dataObj.title || key
       },
-      tooltip: { trigger: 'axis' },
-      legend: {
-        data: subKeys
-      },
-      xAxis: {
-        type: 'category',
-        data: xData
-      },
+      tooltip: { trigger: 'item' },
+      legend: { data: subKeys },
+      xAxis: xAxisOption,
       yAxis: {
-        type: 'value',
-        name: yAxisName
+        type: dataObj.yAxis?.type || 'value',
+        name: yAxisName,
+        ...dataObj.yAxis
       },
       series
     }
 
+    // If visualMap is specified, attach it
+    if (dataObj.visualMap) {
+      chartOption.visualMap = dataObj.visualMap
+    }
+
     // If there's a crisis array, add dashed lines
     if (crisis.length > 0) {
-      // Add markLine to each series
-      for (const s of chartOption.series) {
+      chartOption.series.forEach(s => {
         s.markLine = {
           data: crisis.map(c => ({
             xAxis: c.date,
@@ -177,15 +188,15 @@ const chartObjects = computed(() => {
             }
           }))
         }
-      }
+      })
     }
-
 
     result.push(chartOption)
   }
 
   return result
 })
+
 </script>
 
 <style scoped>
@@ -202,8 +213,7 @@ const chartObjects = computed(() => {
 .text-output pre {
   /* Remove the default monospaced font */
   font-family: inherit;
-  /* Ensure the text wraps appropriately */
-  white-space: pre-wrap;
+  white-space: pre-wrap; /* ensure the text wraps properly */
 }
 
 h3 {
