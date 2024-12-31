@@ -1,0 +1,6 @@
+.vitepress
+.vscode
+dist/
+docs/
+patches/
+netlify.toml
