@@ -93,10 +93,10 @@ watch(() => props.output, (newVal) => {
  * 4) Build a "chartOption" object for each key in the JSON (besides "dates", "x", or "crisis").
  *    - If we find "dates" or "x", we treat it as the x-axis data (category-based).
  *    - If dataObj.xAxis?.type === 'value', we skip using that category data.
- *    - If dataObj.visualMap exists, we attach it without breaking other graphs.
- *    - color is optional and won't break older charts if not specified.
+ *    - If dataObj.visualMap exists (dimension=2), we attach it, letting "Portfolios" be scatter with color dimension.
+ *    - color is optional for older charts (no break).
  */
- const chartObjects = computed(() => {
+const chartObjects = computed(() => {
   if (!rawChartData.value) return []
 
   // Fallback xData or crisis if older charts need it
@@ -110,24 +110,38 @@ watch(() => props.output, (newVal) => {
     const dataObj = chartSets[key]
     if (!dataObj || typeof dataObj !== 'object' || !dataObj.series) continue
 
-    const chartType = dataObj.type || 'line'
+    // Read any metadata from dataObj
+    const chartType = dataObj.type || 'line'      // fallback
     const yAxisName = dataObj.yAxisName || ''
-    const subKeys = Object.keys(dataObj.series)
+    const subKeys   = Object.keys(dataObj.series)
+    const chartTitle = dataObj.title || key       // fallback
 
     // Build sub-series
     const series = subKeys.map(subKey => {
-      // For each sub-series, we specify encode if it's a numeric x-axis
-      const oneSeries = {
-        name: subKey,
-        type: chartType,
-        data: dataObj.series[subKey] || []
+      // data is array of [x,y,(optional colorDim)]
+      let rawData = dataObj.series[subKey] || []
+
+      // Decide type by subKey or fallback
+      // e.g. "Portfolios" => scatter, "Frontier" => line
+      let finalType = chartType
+      if (subKey === "Portfolios") {
+        finalType = "scatter"
+      } else if (subKey === "Frontier") {
+        finalType = "line"
       }
 
-      // If xAxis is numeric, explicitly encode x=0, y=1
+      // For numeric x-axis, set encode
+      let encodeObj = {}
       if (dataObj.xAxis?.type === 'value') {
-        oneSeries.encode = { x: 0, y: 1 }
+        encodeObj = { x: 0, y: 1 }
       }
-      return oneSeries
+
+      return {
+        name: subKey,
+        type: finalType,
+        data: rawData,
+        encode: encodeObj
+      }
     })
 
     // Merge or default xAxis config
@@ -135,13 +149,11 @@ watch(() => props.output, (newVal) => {
     if (dataObj.xAxis?.type === 'value') {
       xAxisOption = {
         type: 'value',
-        // e.g. "Volatility (%)"
         ...dataObj.xAxis
       }
-      // Remove 'data' property if it exists to avoid category mode
+      // Remove 'data' to avoid category mode
       delete xAxisOption.data
     } else {
-      // Category fallback (older charts)
       xAxisOption = {
         type: 'category',
         data: xData,
@@ -152,7 +164,7 @@ watch(() => props.output, (newVal) => {
     // Build final chartOption
     const chartOption = {
       title: {
-        text: dataObj.title || key
+        text: chartTitle
       },
       tooltip: { trigger: 'item' },
       legend: { data: subKeys },
@@ -165,7 +177,7 @@ watch(() => props.output, (newVal) => {
       series
     }
 
-    // If visualMap is specified, attach it
+    // If visualMap is specified, attach it (for scatter color dimension=2)
     if (dataObj.visualMap) {
       chartOption.visualMap = dataObj.visualMap
     }
@@ -196,7 +208,6 @@ watch(() => props.output, (newVal) => {
 
   return result
 })
-
 </script>
 
 <style scoped>
@@ -211,9 +222,8 @@ watch(() => props.output, (newVal) => {
 }
 
 .text-output pre {
-  /* Remove the default monospaced font */
-  font-family: inherit;
-  white-space: pre-wrap; /* ensure the text wraps properly */
+  font-family: inherit;  /* remove default monospaced font */
+  white-space: pre-wrap; /* ensure text wraps properly */
 }
 
 h3 {
