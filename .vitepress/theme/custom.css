@@ -1,0 +1,14 @@
+.VPDoc {
+  max-width: 100% !important;
+}
+
+.editor-wrapper {
+  margin: 1rem 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
+.CodeMirror {
+  height: auto !important;
+  font-family: var(--vp-font-family-mono) !important;
+}
