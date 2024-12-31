@@ -3,7 +3,8 @@
 import { defineConfig } from 'vitepress'
 import { vitepressPythonEditor } from '../src/vite-plugin'
 
-const base = '/investment-management-with-python-and-machine-learning-specialization/'
+// const base = '/investment-management-with-python-and-machine-learning-specialization/'
+const base = '/'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
