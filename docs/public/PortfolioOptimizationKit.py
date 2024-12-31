@@ -37,6 +37,14 @@ def get_hfi_returns():
     # the index is already of type datetime
     return hfi
 
+def get_stock_dynamic():
+    """
+    Get stock Close price data from Yahoo Finance
+    """
+    filepath = path_to_data_folder() + "stocks_dynamic.csv"
+    stocks = pd.read_csv(filepath, index_col=0, parse_dates=True, na_values=-99.99) / 100.0
+    # the index is already of type datetime
+    return stocks
 
 def get_brka_rets(monthly=False):
     """
