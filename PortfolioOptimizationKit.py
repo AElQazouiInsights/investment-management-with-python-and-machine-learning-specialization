@@ -630,6 +630,36 @@ def summary_stats_terminal(
     )
     return stats
 
+def get_portfolio_features(weights, rets, covmat, risk_free_rate, periods_per_year):
+    """
+    Calculate and print portfolio return, volatility, and Sharpe ratio.
+
+    Parameters:
+    - weights: Array of asset weights in the portfolio.
+    - rets: Annualized returns for each asset.
+    - covmat: Covariance matrix of asset returns.
+    - risk_free_rate: Risk-free rate for Sharpe ratio calculation.
+    - periods_per_year: Number of periods in a year (trading days).
+
+    Returns:
+    Tuple of (return, volatility, sharpe ratio) for the portfolio.
+    """
+    # Calculate portfolio volatility
+    vol = portfolio_volatility(weights, covmat)
+    vol = annualize_vol(vol, periods_per_year)
+
+    # Calculate portfolio return
+    ret = portfolio_return(weights, rets)
+
+    # Calculate portfolio Sharpe ratio
+    shp = sharpe_ratio(ret, risk_free_rate, periods_per_year, v=vol)
+
+    # Display the calculated metrics
+    print("Portfolio return:       {:.2f}%" .format(ret*100))
+    print("Portfolio volatility:   {:.2f}%" .format(vol*100))
+    print("Portfolio Sharpe ratio: {:.2f}" .format(shp))
+    
+    return ret, vol, shp
 
 def optimal_weights(n_points, rets, covmatrix, periods_per_year):
     """

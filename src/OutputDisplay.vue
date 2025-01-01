@@ -96,13 +96,14 @@ watch(() => props.output, (newVal) => {
  *    - If dataObj.visualMap exists (dimension=2), we attach it, letting "Portfolios" be scatter with color dimension.
  *    - color is optional for older charts (no break).
  */
-const chartObjects = computed(() => {
+ const chartObjects = computed(() => {
   if (!rawChartData.value) return []
 
   // Fallback xData or crisis if older charts need it
   const xData = rawChartData.value.dates || rawChartData.value.x || []
   const crisis = rawChartData.value.crisis || []
 
+  // Omit known special keys
   const { x, dates, crisis: _, ...chartSets } = rawChartData.value
   const result = []
 
@@ -111,40 +112,59 @@ const chartObjects = computed(() => {
     if (!dataObj || typeof dataObj !== 'object' || !dataObj.series) continue
 
     // Read any metadata from dataObj
-    const chartType = dataObj.type || 'line'      // fallback
-    const yAxisName = dataObj.yAxisName || ''
-    const subKeys   = Object.keys(dataObj.series)
-    const chartTitle = dataObj.title || key       // fallback
+    const chartType  = dataObj.type || 'line'  // fallback for older charts
+    const yAxisName  = dataObj.yAxisName || ''
+    const subKeys    = Object.keys(dataObj.series)
+    const chartTitle = dataObj.title || key
 
     // Build sub-series
     const series = subKeys.map(subKey => {
-      // data is array of [x,y,(optional colorDim)]
-      let rawData = dataObj.series[subKey] || []
+      // The raw data for this sub-series
+      const rawData = dataObj.series[subKey] || []
 
-      // Decide type by subKey or fallback
-      // e.g. "Portfolios" => scatter, "Frontier" => line
+      // Decide chart type based on subKey (Portfolios => scatter, Frontier => line, etc.)
       let finalType = chartType
-      if (subKey === "Portfolios") {
-        finalType = "scatter"
-      } else if (subKey === "Frontier") {
-        finalType = "line"
+      if (subKey === 'Portfolios') {
+        finalType = 'scatter'
+      } else if (subKey === 'Frontier') {
+        finalType = 'line'
+      } else if (subKey === 'GMV' || subKey === 'MSR') {
+        finalType = 'scatter'
       }
 
-      // For numeric x-axis, set encode
+      // Default encode (helpful if xAxis is numeric)
       let encodeObj = {}
       if (dataObj.xAxis?.type === 'value') {
         encodeObj = { x: 0, y: 1 }
+      }
+
+      // Style for GMV (green) and MSR (red) with special markers
+      let itemStyle = {}
+      let symbol = 'circle'
+      let symbolSize = 8
+
+      if (subKey === 'GMV') {
+        itemStyle = { color: 'black' }
+        symbol = 'diamond'
+        symbolSize = 12
+      } else if (subKey === 'MSR') {
+        itemStyle = { color: 'red' }
+        symbol = 'pin'
+        symbolSize = 12
       }
 
       return {
         name: subKey,
         type: finalType,
         data: rawData,
-        encode: encodeObj
+        encode: encodeObj,
+        itemStyle,
+        symbol,
+        symbolSize
       }
     })
 
-    // Merge or default xAxis config
+    // Determine xAxis config
     let xAxisOption
     if (dataObj.xAxis?.type === 'value') {
       xAxisOption = {
@@ -177,7 +197,7 @@ const chartObjects = computed(() => {
       series
     }
 
-    // If visualMap is specified, attach it (for scatter color dimension=2)
+    // If visualMap is specified, attach it (e.g., for Sharpe ratio coloring)
     if (dataObj.visualMap) {
       chartOption.visualMap = dataObj.visualMap
     }
