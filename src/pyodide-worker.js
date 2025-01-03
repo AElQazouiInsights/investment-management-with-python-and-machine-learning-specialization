@@ -10,12 +10,12 @@ let interruptBuffer = null;
 
 const filesToMount = [
   {
-    url: '/PortfolioOptimizationKit.py',
+    url: '/assets/PortfolioOptimizationKit.py',
     path: '/assets/PortfolioOptimizationKit.py',
     type: 'text'
   },
   {
-    url: '/Portfolios_Formed_on_ME_monthly_EW.csv',
+    url: '/assets/data/Portfolios_Formed_on_ME_monthly_EW.csv',
     path: '/assets/data/Portfolios_Formed_on_ME_monthly_EW.csv',
     type: 'text'
   },
@@ -25,7 +25,7 @@ const filesToMount = [
     type: 'text'
   },
   {
-    url: '/stocks_dynamic.csv',
+    url: '/assets/data/stocks_dynamic.csv',
     path: '/assets/data/stocks_dynamic.csv',
     type: 'text'
   }
