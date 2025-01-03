@@ -10,22 +10,22 @@ let interruptBuffer = null;
 
 const filesToMount = [
   {
-    url: '/assets/PortfolioOptimizationKit.py',
+    url: '/PortfolioOptimizationKit.py',
     path: '/assets/PortfolioOptimizationKit.py',
     type: 'text'
   },
   {
-    url: '/assets/data/Portfolios_Formed_on_ME_monthly_EW.csv',
+    url: '/Portfolios_Formed_on_ME_monthly_EW.csv',
     path: '/assets/data/Portfolios_Formed_on_ME_monthly_EW.csv',
     type: 'text'
   },
   {
-    url: '/assets/data/edhec-hedgefundindices.csv',
+    url: '/edhec-hedgefundindices.csv',
     path: '/assets/data/edhec-hedgefundindices.csv',
     type: 'text'
   },
   {
-    url: '/assets/data/stocks_dynamic.csv',
+    url: '/stocks_dynamic.csv',
     path: '/assets/data/stocks_dynamic.csv',
     type: 'text'
   }
