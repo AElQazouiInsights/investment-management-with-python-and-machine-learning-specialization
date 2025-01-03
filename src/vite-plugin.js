@@ -92,6 +92,16 @@ export function vitepressPythonEditor(
          join('data', 'Portfolios_Formed_on_ME_monthly_EW.csv'),
          join(assetsDir, 'data', 'Portfolios_Formed_on_ME_monthly_EW.csv')
        )
+              // Copy data files
+        await copyFile(
+          join('data', 'edhec-hedgefundindices.csv'),
+          join(assetsDir, 'data', 'edhec-hedgefundindices.csv')
+        )
+               // Copy data files
+       await copyFile(
+        join('data', 'stocks_dynamic.csv'),
+        join(assetsDir, 'data', 'stocks_dynamic.csv')
+      )
      } catch (error) {
        console.error('Error in generateBundle:', error)
      }
