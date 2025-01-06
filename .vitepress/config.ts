@@ -51,10 +51,11 @@ export default defineConfig({
     }
   },
   themeConfig: {
-    logo: '/pi.svg',
+    logo: '/pi-red.jpg',
+    outline: 'deep', // This will ensure that the TOC includes deeper levels of headings, creating a nested structure
     siteTitle: 'Investment Management with Python',
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Crypto-Aggressor/Investment-Management-with-Python-and-Machine-Learning-Specialization' }
+      { icon: 'github', link: 'https://github.com/Crypto-Aggressor/Investment-Management-with-Python-and-Machine-Learning-Specializationhttps://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization' }
     ],
     sidebar: {
       '/': [
@@ -95,6 +96,6 @@ function nav() {
   return [
     { text: 'Home', link: '/' },
     { text: 'Intro to Portfolio Construction', link: '/1.0-overview' },
-    { text: 'Advanced Portfolio Analysis', link: '/2-advanced/2.0-overview' }
+    { text: 'Advanced Portfolio Analysis', link: '/2.0-overview' }
   ]
 }
