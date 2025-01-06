@@ -18,6 +18,7 @@ import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import { defineAsyncComponent } from 'vue'
 import ClientOnly from '../../src/ClientOnly.vue'
+import './custom.css'
 
 export default {
   extends: DefaultTheme,

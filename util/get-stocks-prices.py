@@ -13,7 +13,7 @@ def download_dynamic_stocks(tickers, output_csv="stocks_dynamic.csv"):
     # 1) Calculate dynamic dates
     today = datetime.now()
     end_date = today - timedelta(days=1)        # Yesterday
-    start_date = end_date - timedelta(days=365) # 1 year prior to yesterday
+    start_date = end_date - timedelta(days=5110) # 14 year prior to yesterday
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str   = end_date.strftime("%Y-%m-%d")
