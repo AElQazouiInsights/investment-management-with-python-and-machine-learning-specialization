@@ -141,18 +141,28 @@ const chartObjects = computed(() => {
       let zIndex = 1 // Default z-index
 
       if (subKey === 'GMV') {
+        finalType = 'scatter'     // crucial
         itemStyle = { color: 'black' }
         symbol = 'diamond'
         symbolSize = 12
         zIndex = 10 // Bring to front
+      } else if (subKey === 'Frontier') {
+        finalType = 'line'
       } else if (subKey === 'MSR') {
+        finalType = 'scatter'     // crucial
         itemStyle = { color: 'red' }
         symbol = 'rectangle'
         symbolSize = 12
         zIndex = 10 // Bring to front
       } else if (subKey === 'MinVolForTarget') {
-        // Diamond marker for minimum volatility portfolio at a given target
+        finalType = 'scatter'     // crucial
         itemStyle = { color: 'black' }
+        symbol = 'diamond'
+        symbolSize = 12
+        zIndex = 10
+      } else if (subKey === 'MaxSharpePort') {
+        finalType = 'scatter'
+        itemStyle = { color: 'red' }
         symbol = 'diamond'
         symbolSize = 12
         zIndex = 10
@@ -205,7 +215,7 @@ const chartObjects = computed(() => {
     // Attach visualMap if specified
     if (dataObj.visualMap) {
       chartOption.visualMap = dataObj.visualMap
-      chartOption.colorBy = 'data' // Ensure color mapping is based on individual data points
+      chartOption.colorBy = 'series' // Ensure color mapping is based on individual data points
     }
 
     // Add dashed lines for crisis periods if available
