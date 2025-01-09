@@ -166,7 +166,16 @@ const chartObjects = computed(() => {
         symbol = 'diamond'
         symbolSize = 12
         zIndex = 10
-      }
+      } else if (subKey === 'CML') {
+        finalType = 'line'
+        lineStyle: { type: 'dotted' }
+      } else if (subKey === 'EWP') {
+        finalType = 'scatter'
+        itemStyle = { color: 'goldenrod' }
+        symbol = 'rect'
+        symbolSize = 12
+        zIndex = 10
+      } 
 
       return {
         name: subKey,
