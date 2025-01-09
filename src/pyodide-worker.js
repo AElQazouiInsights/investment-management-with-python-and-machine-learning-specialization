@@ -20,7 +20,7 @@ const filesToMount = [
     type: 'text'
   },
   {
-    url: '/edhec-hedgefundindices.csv',
+    url: '/assets/data/edhec-hedgefundindices.csv',
     path: '/assets/data/edhec-hedgefundindices.csv',
     type: 'text'
   },
