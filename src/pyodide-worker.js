@@ -28,6 +28,31 @@ const filesToMount = [
     url: '/assets/data/stocks_dynamic.csv',
     path: '/assets/data/stocks_dynamic.csv',
     type: 'text'
+  },
+  {
+    url: '/assets/data/ind30_m_ew_rets.csv',
+    path: '/assets/data/ind30_m_ew_rets.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind30_m_nfirms.csv',
+    path: '/assets/data/ind30_m_nfirms.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind30_m_size.csv',
+    path: '/assets/data/ind30_m_size.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind30_m_vw_rets.csv',
+    path: '/assets/data/ind30_m_vw_rets.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind49_m_ew_rets.csv',
+    path: '/assets/data/ind49_m_ew_rets.csv',
+    type: 'text'
   }
 ];
 

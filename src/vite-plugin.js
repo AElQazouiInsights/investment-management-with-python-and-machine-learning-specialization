@@ -102,6 +102,26 @@ export function vitepressPythonEditor(
         join('data', 'stocks_dynamic.csv'),
         join(assetsDir, 'data', 'stocks_dynamic.csv')
       )
+      await copyFile(
+        join('data', 'ind30_m_ew_rets.csv'),
+        join(assetsDir, 'data', 'ind30_m_ew_rets.csv')
+      )
+      await copyFile(
+        join('data', 'ind30_m_nfirms.csv'),
+        join(assetsDir, 'data', 'ind30_m_nfirms.csv')
+      )
+      await copyFile(
+        join('data', 'ind30_m_size.csv'),
+        join(assetsDir, 'data', 'ind30_m_size.csv')
+      )
+      await copyFile(
+        join('data', 'ind30_m_vw_rets.csv'),
+        join(assetsDir, 'data', 'ind30_m_vw_rets.csv')
+      )
+      await copyFile(
+        join('data', 'ind49_m_ew_rets.csv'),
+        join(assetsDir, 'data', 'ind49_m_ew_rets.csv')
+      )
      } catch (error) {
        console.error('Error in generateBundle:', error)
      }
