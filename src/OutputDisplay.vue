@@ -2,18 +2,16 @@
   <div class="output-display">
     <!-- 1) Plain Text Output -->
     <div v-if="textOutput" class="text-output">
-      <pre class="whitespace-pre-wrap p-4 bg-gray-100 rounded-lg">{{ textOutput }}</pre>
+      <pre class="whitespace-pre-wrap p-4 bg-gray-100 rounded-lg">
+        {{ textOutput }}
+      </pre>
     </div>
 
     <!-- 2) Chart Output (if there's parsed JSON) -->
     <div v-if="rawChartData" class="chart-output mt-4">
       <div class="chart-container space-y-4">
         <!-- Loop over each "chart object" built in `chartObjects` -->
-        <div
-          v-for="(chartOption, index) in chartObjects"
-          :key="index"
-          class="mb-8"
-        >
+        <div v-for="(chartOption, index) in chartObjects" :key="index" class="mb-8">
           <!-- Use ClientOnly to avoid SSR issues with ECharts -->
           <ClientOnly>
             <VChart class="chart" :option="chartOption" autoresize />
@@ -54,7 +52,7 @@ use([
   LegendComponent,
   GridComponent,
   MarkLineComponent,
-  VisualMapComponent // Register VisualMapComponent
+  VisualMapComponent
 ])
 
 // 2) Define the "output" prop containing both text and <ECHARTS_DATA> JSON
@@ -65,7 +63,6 @@ const props = defineProps({
   }
 })
 
-// 3) Separate text output from chart JSON
 const textOutput = ref('')
 const rawChartData = ref(null)
 
@@ -74,11 +71,8 @@ watch(() => props.output, (newVal) => {
 
   // Split at <ECHARTS_DATA>
   const parts = newVal.split('<ECHARTS_DATA>')
-
-  // Assign plain text before <ECHARTS_DATA>
   textOutput.value = parts[0].trim()
 
-  // Parse JSON after <ECHARTS_DATA>
   if (parts[1]) {
     try {
       rawChartData.value = JSON.parse(parts[1])
@@ -86,7 +80,6 @@ watch(() => props.output, (newVal) => {
       console.error('Failed to parse chart data:', err)
     }
   } else {
-    // Reset chart data if no JSON part exists
     rawChartData.value = null
   }
 }, { immediate: true })
@@ -108,17 +101,14 @@ const chartObjects = computed(() => {
     if (!dataObj || typeof dataObj !== 'object' || !dataObj.series) continue
 
     // Extract metadata from dataObj
-    const chartType  = dataObj.type || 'line'  // Default chart type
+    const chartType  = dataObj.type || 'line'
     const yAxisName  = dataObj.yAxisName || ''
     const subKeys    = Object.keys(dataObj.series)
     const chartTitle = dataObj.title || key
 
     // Build sub-series for the chart
     const series = subKeys.map(subKey => {
-      // Retrieve raw data for the sub-series
       const rawData = dataObj.series[subKey] || []
-
-      // Determine chart type based on subKey
       let finalType = chartType
       if (subKey === 'Portfolios') {
         finalType = 'scatter'
@@ -127,35 +117,31 @@ const chartObjects = computed(() => {
       } else if (subKey === 'GMV' || subKey === 'MSR') {
         finalType = 'scatter'
       }
-
-      // Configure encoding based on xAxis type
       let encodeObj = {}
       if (dataObj.xAxis?.type === 'value') {
         encodeObj = { x: 0, y: 1 }
       }
-
-      // Define styling for specific sub-series
       let itemStyle = {}
       let symbol = 'circle'
       let symbolSize = 8
-      let zIndex = 1 // Default z-index
+      let zIndex = 1
 
       if (subKey === 'GMV') {
-        finalType = 'scatter'     // crucial
+        finalType = 'scatter'
         itemStyle = { color: 'black' }
         symbol = 'diamond'
         symbolSize = 12
-        zIndex = 10 // Bring to front
+        zIndex = 10
       } else if (subKey === 'Frontier') {
         finalType = 'line'
       } else if (subKey === 'MSR') {
-        finalType = 'scatter'     // crucial
+        finalType = 'scatter'
         itemStyle = { color: 'red' }
         symbol = 'rectangle'
         symbolSize = 12
-        zIndex = 10 // Bring to front
+        zIndex = 10
       } else if (subKey === 'MinVolForTarget') {
-        finalType = 'scatter'     // crucial
+        finalType = 'scatter'
         itemStyle = { color: 'black' }
         symbol = 'diamond'
         symbolSize = 12
@@ -168,15 +154,13 @@ const chartObjects = computed(() => {
         zIndex = 10
       } else if (subKey === 'CML') {
         finalType = 'line'
-        lineStyle: { type: 'dotted' }
       } else if (subKey === 'EWP') {
         finalType = 'scatter'
         itemStyle = { color: 'goldenrod' }
         symbol = 'rect'
         symbolSize = 12
         zIndex = 10
-      } 
-
+      }
       return {
         name: subKey,
         type: finalType,
@@ -192,42 +176,35 @@ const chartObjects = computed(() => {
     // Configure xAxis based on dataObj specifications
     let xAxisOption
     if (dataObj.xAxis?.type === 'value') {
-      xAxisOption = {
-        type: 'value',
-        ...dataObj.xAxis
-      }
+      xAxisOption = { type: 'value', ...dataObj.xAxis }
       delete xAxisOption.data
     } else {
-      xAxisOption = {
-        type: 'category',
-        data: xData,
-        ...dataObj.xAxis
-      }
+      xAxisOption = { type: 'category', data: xData, ...dataObj.xAxis }
     }
 
-    // Build the final chart option
+    // NEW: Support dual yAxis. If dataObj.yAxis exists and is not an array, wrap it in an array.
+    let yAxisOption = []
+    if (dataObj.yAxis) {
+      yAxisOption = Array.isArray(dataObj.yAxis) ? dataObj.yAxis : [dataObj.yAxis]
+    } else {
+      yAxisOption = [{ type: 'value', name: yAxisName }]
+    }
+
+    // Build the final chart option.
     const chartOption = {
-      title: {
-        text: chartTitle
-      },
+      title: { text: chartTitle },
       tooltip: { trigger: 'item' },
-      legend: { data: subKeys },
+      legend: { data: subKeys, ...(dataObj.legend || {}) },
       xAxis: xAxisOption,
-      yAxis: {
-        type: dataObj.yAxis?.type || 'value',
-        name: yAxisName,
-        ...dataObj.yAxis
-      },
-      series
+      yAxis: yAxisOption,
+      series: series
     }
 
-    // Attach visualMap if specified
     if (dataObj.visualMap) {
       chartOption.visualMap = dataObj.visualMap
-      chartOption.colorBy = 'series' // Ensure color mapping is based on individual data points
+      chartOption.colorBy = 'series'
     }
 
-    // Add dashed lines for crisis periods if available
     if (crisis.length > 0) {
       chartOption.series.forEach(s => {
         s.markLine = {
@@ -259,18 +236,15 @@ const chartObjects = computed(() => {
 .chart {
   height: 400px;
 }
-
 .chart-output {
   background-color: var(--vp-code-block-bg);
   border-radius: 8px;
   padding: 16px;
 }
-
 .text-output pre {
-  font-family: inherit;  /* Remove default monospaced font */
-  white-space: pre-wrap; /* Ensure text wraps properly */
+  font-family: inherit;
+  white-space: pre-wrap;
 }
-
 h3 {
   font-size: 1.2em;
   margin-bottom: 1em;
