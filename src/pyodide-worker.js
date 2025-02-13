@@ -72,6 +72,7 @@ try {
 }
 
 onmessage = async (e) => {
+  // If buffers are provided for input, assign them and return.
   if (e.data.inputBuffer && e.data.waitBuffer && e.data.interruptBuffer) {
     inputData = new Uint8Array(e.data.inputBuffer);
     waitFlag = new Int32Array(e.data.waitBuffer);
@@ -81,6 +82,7 @@ onmessage = async (e) => {
 
   const { id, code } = e.data;
 
+  // Set up stdout and stderr to post messages back.
   pyodide.setStdout({
     write: (buf) => {
       postMessage({ id, output: decoder.decode(buf) });
@@ -102,6 +104,7 @@ onmessage = async (e) => {
     },
   });
 
+  // Load required packages.
   try {
     await pyodide.loadPackage([
       "pandas",
@@ -112,21 +115,46 @@ onmessage = async (e) => {
       "micropip",
     ]);
 
-    // Install tabulate using micropip
+    // Install additional packages
     await pyodide.runPythonAsync(`
       import micropip
       await micropip.install([
-      'tabulate', 
+      'tabulate',
+      'ipywidgets',
       'yfinance'
       ])
     `);
     
+    // Add /assets to sys.path so custom modules can be imported.
     pyodide.runPython(`
       import sys
       sys.path.append('/assets')
     `);
 
+        // --- Initialize the Widget Manager ---
+    // Import the widget manager from Jupyter Widgets HTML manager.
+    // This step creates a global widget manager that will automatically render any created widgets.
+    // await pyodide.runPythonAsync(`
+    //   import ipywidgets as widgets
+    //   from jupyterlite import widget_manager
+    //   wm = widget_manager.WidgetManager()
+    //   `);
+
+    // Execute the provided code.
     await pyodide.runPythonAsync(code);
+    
+    // OPTIONAL: Try to capture widget HTML if a widget was created.
+    // ipywidgets in Pyodide don't automatically render, so you might want to call _repr_html_().
+    let widgetHTML = "";
+    try {
+      // Assumes that your code stored the widget in a global variable "widget_instance"
+      widgetHTML = pyodide.runPython(`widget_instance._repr_html_()`);
+    } catch (err) {
+      widgetHTML = "";
+    }
+    if (widgetHTML) {
+      postMessage({ id, widgetHTML });
+    }
   } catch (err) {
     postMessage({ id, output: err.message });
   } finally {

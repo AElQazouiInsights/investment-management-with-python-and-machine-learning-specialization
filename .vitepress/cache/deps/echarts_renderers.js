@@ -1,9 +1,10 @@
 import {
   install,
   install2
-} from "./chunk-KO4RA7IW.js";
-import "./chunk-NRHPTEP4.js";
-import "./chunk-PZ5AY32C.js";
+} from "./chunk-F22LFHRY.js";
+import "./chunk-MMICBWOU.js";
+import "./chunk-RVUNFNQA.js";
+import "./chunk-V4OQ3NZ2.js";
 export {
   install2 as CanvasRenderer,
   install as SVGRenderer

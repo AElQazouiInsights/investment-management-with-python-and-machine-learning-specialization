@@ -7,21 +7,7 @@ import {
   indentNodeProp,
   indentUnit,
   syntaxTree
-} from "./chunk-SLYJLAHX.js";
-import {
-  styleTags,
-  tags
-} from "./chunk-KDFH5PRU.js";
-import {
-  DefaultBufferLength,
-  IterMode,
-  NodeProp,
-  NodeSet,
-  NodeType,
-  NodeWeakMap,
-  Parser,
-  Tree
-} from "./chunk-PSCUD54F.js";
+} from "./chunk-AS2NTLPU.js";
 import {
   Decoration,
   Direction,
@@ -51,7 +37,21 @@ import {
   combineConfig,
   fromCodePoint
 } from "./chunk-AAODDLYV.js";
-import "./chunk-PZ5AY32C.js";
+import {
+  styleTags,
+  tags
+} from "./chunk-KDFH5PRU.js";
+import {
+  DefaultBufferLength,
+  IterMode,
+  NodeProp,
+  NodeSet,
+  NodeType,
+  NodeWeakMap,
+  Parser,
+  Tree
+} from "./chunk-PSCUD54F.js";
+import "./chunk-V4OQ3NZ2.js";
 
 // node_modules/@lezer/lr/dist/index.js
 var Stack = class _Stack {

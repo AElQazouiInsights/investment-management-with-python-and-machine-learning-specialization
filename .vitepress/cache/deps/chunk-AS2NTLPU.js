@@ -1,19 +1,4 @@
 import {
-  highlightTree,
-  styleTags,
-  tagHighlighter,
-  tags
-} from "./chunk-KDFH5PRU.js";
-import {
-  IterMode,
-  NodeProp,
-  NodeSet,
-  NodeType,
-  Parser,
-  Tree,
-  TreeFragment
-} from "./chunk-PSCUD54F.js";
-import {
   Decoration,
   Direction,
   EditorView,
@@ -35,6 +20,21 @@ import {
   combineConfig,
   countColumn
 } from "./chunk-AAODDLYV.js";
+import {
+  highlightTree,
+  styleTags,
+  tagHighlighter,
+  tags
+} from "./chunk-KDFH5PRU.js";
+import {
+  IterMode,
+  NodeProp,
+  NodeSet,
+  NodeType,
+  Parser,
+  Tree,
+  TreeFragment
+} from "./chunk-PSCUD54F.js";
 
 // node_modules/@codemirror/language/dist/index.js
 var _a;
@@ -2378,4 +2378,4 @@ export {
   StreamLanguage,
   bidiIsolates
 };
-//# sourceMappingURL=chunk-SLYJLAHX.js.map
+//# sourceMappingURL=chunk-AS2NTLPU.js.map
