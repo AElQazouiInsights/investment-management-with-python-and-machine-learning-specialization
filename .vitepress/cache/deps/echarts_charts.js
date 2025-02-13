@@ -21,12 +21,13 @@ import {
   install7,
   install8,
   install9
-} from "./chunk-JV4FIOF5.js";
-import "./chunk-RCYQG3I7.js";
-import "./chunk-XK3PY5WX.js";
-import "./chunk-34HNQTYO.js";
-import "./chunk-NRHPTEP4.js";
-import "./chunk-PZ5AY32C.js";
+} from "./chunk-JPTXTMDM.js";
+import "./chunk-RQVGLKJP.js";
+import "./chunk-IWRWV73S.js";
+import "./chunk-Y7ZLWCDR.js";
+import "./chunk-MMICBWOU.js";
+import "./chunk-RVUNFNQA.js";
+import "./chunk-V4OQ3NZ2.js";
 export {
   install2 as BarChart,
   install14 as BoxplotChart,

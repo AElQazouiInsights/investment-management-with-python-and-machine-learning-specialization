@@ -27,7 +27,7 @@ import {
   sliderMove,
   stopPreviousKeyframeAnimationAndRestore,
   updateLeaveTo
-} from "./chunk-XK3PY5WX.js";
+} from "./chunk-RQVGLKJP.js";
 import {
   AxisModelCommonMixin,
   Axis_default,
@@ -155,7 +155,7 @@ import {
   use,
   warn,
   windowOpen
-} from "./chunk-34HNQTYO.js";
+} from "./chunk-Y7ZLWCDR.js";
 import {
   BoundingRect_default,
   Displayable_default,
@@ -164,7 +164,6 @@ import {
   Point_default,
   Rect_default,
   Text_default,
-  __extends,
   addEventListener,
   assert,
   bind,
@@ -208,7 +207,10 @@ import {
   transformLocalCoord,
   translate,
   trim
-} from "./chunk-NRHPTEP4.js";
+} from "./chunk-MMICBWOU.js";
+import {
+  __extends
+} from "./chunk-RVUNFNQA.js";
 
 // node_modules/echarts/lib/component/axisPointer/BaseAxisPointer.js
 var inner = makeInner();
@@ -15260,4 +15262,4 @@ export {
   install27 as install25,
   install28 as install26
 };
-//# sourceMappingURL=chunk-VABTW3NL.js.map
+//# sourceMappingURL=chunk-SCL7OT2Z.js.map

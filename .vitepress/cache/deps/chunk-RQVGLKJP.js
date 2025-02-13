@@ -83,7 +83,7 @@ import {
   traverseElements,
   updateProps,
   warn
-} from "./chunk-34HNQTYO.js";
+} from "./chunk-Y7ZLWCDR.js";
 import {
   BoundingRect_default,
   CompoundPath_default,
@@ -97,7 +97,6 @@ import {
   TSpan_default,
   Text_default,
   Transformable_default,
-  __extends,
   applyTransform,
   assert,
   bind,
@@ -149,7 +148,10 @@ import {
   sub,
   translate,
   trim
-} from "./chunk-NRHPTEP4.js";
+} from "./chunk-MMICBWOU.js";
+import {
+  __extends
+} from "./chunk-RVUNFNQA.js";
 
 // node_modules/echarts/lib/coord/cartesian/GridModel.js
 var GridModel = (
@@ -8641,4 +8643,4 @@ export {
   stopPreviousKeyframeAnimationAndRestore,
   applyKeyframeAnimation
 };
-//# sourceMappingURL=chunk-XK3PY5WX.js.map
+//# sourceMappingURL=chunk-RQVGLKJP.js.map

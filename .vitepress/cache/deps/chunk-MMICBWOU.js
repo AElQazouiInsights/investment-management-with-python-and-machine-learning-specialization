@@ -1,6 +1,9 @@
 import {
+  __extends
+} from "./chunk-RVUNFNQA.js";
+import {
   __export
-} from "./chunk-PZ5AY32C.js";
+} from "./chunk-V4OQ3NZ2.js";
 
 // node_modules/zrender/lib/core/env.js
 var Browser = /* @__PURE__ */ function() {
@@ -1581,25 +1584,6 @@ __export(zrender_exports, {
   registerSSRDataGetter: () => registerSSRDataGetter,
   version: () => version
 });
-
-// node_modules/tslib/tslib.es6.js
-var extendStatics = function(d, b) {
-  extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
-    d2.__proto__ = b2;
-  } || function(d2, b2) {
-    for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
-  };
-  return extendStatics(d, b);
-};
-function __extends(d, b) {
-  if (typeof b !== "function" && b !== null)
-    throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-  extendStatics(d, b);
-  function __() {
-    this.constructor = d;
-  }
-  d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-}
 
 // node_modules/zrender/lib/mixin/Draggable.js
 var Param = /* @__PURE__ */ function() {
@@ -11019,7 +11003,6 @@ var CompoundPath = function(_super) {
 var CompoundPath_default = CompoundPath;
 
 export {
-  __extends,
   env_default,
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT,
@@ -11192,22 +11175,6 @@ export {
 };
 /*! Bundled license information:
 
-tslib/tslib.es6.js:
-  (*! *****************************************************************************
-  Copyright (c) Microsoft Corporation.
-  
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted.
-  
-  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-  AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-  OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
-  ***************************************************************************** *)
-
 zrender/lib/zrender.js:
   (*!
   * ZRender, a high performance 2d drawing library.
@@ -11219,4 +11186,4 @@ zrender/lib/zrender.js:
   * https://github.com/ecomfe/zrender/blob/master/LICENSE.txt
   *)
 */
-//# sourceMappingURL=chunk-NRHPTEP4.js.map
+//# sourceMappingURL=chunk-MMICBWOU.js.map

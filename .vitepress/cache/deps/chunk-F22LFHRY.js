@@ -11,7 +11,6 @@ import {
   REDRAW_BIT,
   TEXT_ALIGN_TO_ANCHOR,
   TSpan_default,
-  __extends,
   adjustTextY,
   assert,
   brush,
@@ -67,7 +66,10 @@ import {
   requestAnimationFrame_default,
   retrieve2,
   round4
-} from "./chunk-NRHPTEP4.js";
+} from "./chunk-MMICBWOU.js";
+import {
+  __extends
+} from "./chunk-RVUNFNQA.js";
 
 // node_modules/zrender/lib/svg/SVGPathRebuilder.js
 var mathSin = Math.sin;
@@ -2494,4 +2496,4 @@ export {
   install,
   install2
 };
-//# sourceMappingURL=chunk-KO4RA7IW.js.map
+//# sourceMappingURL=chunk-F22LFHRY.js.map

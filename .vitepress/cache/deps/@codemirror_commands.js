@@ -6,11 +6,7 @@ import {
   indentUnit,
   matchBrackets,
   syntaxTree
-} from "./chunk-SLYJLAHX.js";
-import "./chunk-KDFH5PRU.js";
-import {
-  NodeProp
-} from "./chunk-PSCUD54F.js";
+} from "./chunk-AS2NTLPU.js";
 import {
   Direction,
   EditorView
@@ -30,7 +26,11 @@ import {
   countColumn,
   findClusterBreak
 } from "./chunk-AAODDLYV.js";
-import "./chunk-PZ5AY32C.js";
+import "./chunk-KDFH5PRU.js";
+import {
+  NodeProp
+} from "./chunk-PSCUD54F.js";
+import "./chunk-V4OQ3NZ2.js";
 
 // node_modules/@codemirror/commands/dist/index.js
 var toggleComment = (target) => {
