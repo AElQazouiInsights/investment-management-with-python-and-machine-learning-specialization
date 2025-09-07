@@ -1,3 +1,38 @@
-node_modules
+# Package managers
+node_modules/
+# Choose one lockfile strategy — using pnpm by default
+package-lock.json
+# If you switch to npm, ignore the pnpm lockfile instead:
+# pnpm-lock.yaml
+
+# Vite/VitePress build and cache
+.vitepress/dist/
+.vitepress/cache/
+dist/
+
+# JupyterLite artifacts
+.jupyterlite.doit.db
+public/jlite/
+docs/public/jlite/
+
+# Local/editor/system files
+.DS_Store
+.vscode/
+.claude/
+.idea/
+*.log
+.env*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Project-specific extras
 zzz_config.ts
-.vitepress\dist
