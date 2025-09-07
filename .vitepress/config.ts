@@ -45,7 +45,23 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        crypto: path.resolve(process.cwd(), 'src/shims/empty.js')
+        // Map various Node core/polyfill needs to a safe empty shim
+        crypto: path.resolve(process.cwd(), 'src/shims/empty.js'),
+        path: path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'node:path': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        fs: path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'fs/promises': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'node:fs': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'node:fs/promises': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        vm: path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'node:vm': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        url: path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'node:url': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'child_process': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        'node:child_process': path.resolve(process.cwd(), 'src/shims/empty.js'),
+        // Provide lightweight shims for browser compatibility
+        'sanitize-html': path.resolve(process.cwd(), 'src/shims/sanitize-html.js'),
+        json5: path.resolve(process.cwd(), 'src/shims/json5.js')
       }
     },
     define: {
