@@ -44,25 +44,21 @@ export default defineConfig({
       ]
     },
     resolve: {
-      alias: {
-        // Map various Node core/polyfill needs to a safe empty shim
-        crypto: path.resolve(process.cwd(), 'src/shims/empty.js'),
-        path: path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'node:path': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        fs: path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'fs/promises': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'node:fs': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'node:fs/promises': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        vm: path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'node:vm': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        url: path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'node:url': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'child_process': path.resolve(process.cwd(), 'src/shims/empty.js'),
-        'node:child_process': path.resolve(process.cwd(), 'src/shims/empty.js'),
+      alias: [
+        // Strip node: prefix if any
+        { find: /^node:(.*)$/, replacement: '$1' },
+        // Map Node core/polyfill needs to a safe empty shim directory
+        { find: 'fs', replacement: path.resolve(process.cwd(), 'src/shims/empty') },
+        { find: 'fs/promises', replacement: path.resolve(process.cwd(), 'src/shims/empty/promises.js') },
+        { find: 'path', replacement: path.resolve(process.cwd(), 'src/shims/empty') },
+        { find: 'vm', replacement: path.resolve(process.cwd(), 'src/shims/empty') },
+        { find: 'url', replacement: path.resolve(process.cwd(), 'src/shims/empty') },
+        { find: 'child_process', replacement: path.resolve(process.cwd(), 'src/shims/empty') },
+        { find: 'crypto', replacement: path.resolve(process.cwd(), 'src/shims/empty') },
         // Provide lightweight shims for browser compatibility
-        'sanitize-html': path.resolve(process.cwd(), 'src/shims/sanitize-html.js'),
-        json5: path.resolve(process.cwd(), 'src/shims/json5.js')
-      }
+        { find: 'sanitize-html', replacement: path.resolve(process.cwd(), 'src/shims/sanitize-html.js') },
+        { find: 'json5', replacement: path.resolve(process.cwd(), 'src/shims/json5.js') }
+      ]
     },
     define: {
       global: 'globalThis',
