@@ -6,11 +6,15 @@ import {
   indentUnit,
   matchBrackets,
   syntaxTree
-} from "./chunk-AS2NTLPU.js";
+} from "./chunk-7OB3KV3E.js";
+import "./chunk-LHXP7OYC.js";
+import {
+  NodeProp
+} from "./chunk-MTFSH4NX.js";
 import {
   Direction,
   EditorView
-} from "./chunk-RG2HXPUS.js";
+} from "./chunk-USE3GHKM.js";
 import {
   Annotation,
   ChangeDesc,
@@ -25,14 +29,10 @@ import {
   combineConfig,
   countColumn,
   findClusterBreak
-} from "./chunk-AAODDLYV.js";
-import "./chunk-KDFH5PRU.js";
-import {
-  NodeProp
-} from "./chunk-PSCUD54F.js";
+} from "./chunk-Z4V2TF7X.js";
 import "./chunk-V4OQ3NZ2.js";
 
-// node_modules/@codemirror/commands/dist/index.js
+// node_modules/.pnpm/@codemirror+commands@6.8.1/node_modules/@codemirror/commands/dist/index.js
 var toggleComment = (target) => {
   let { state } = target, line = state.doc.lineAt(state.selection.main.from), config = getConfig(target.state, line.from);
   return config.line ? toggleLineComment(target) : config.block ? toggleBlockCommentByLine(target) : false;
@@ -84,7 +84,7 @@ var toggleBlockCommentByLine = command(
   /* CommentOption.Toggle */
 );
 function getConfig(state, pos) {
-  let data = state.languageDataAt("commentTokens", pos);
+  let data = state.languageDataAt("commentTokens", pos, 1);
   return data.length ? data[0] : {};
 }
 var SearchMargin = 50;
@@ -538,6 +538,20 @@ var cursorGroupLeft = (view) => cursorByGroup(view, !ltrAtCursor(view));
 var cursorGroupRight = (view) => cursorByGroup(view, ltrAtCursor(view));
 var cursorGroupForward = (view) => cursorByGroup(view, true);
 var cursorGroupBackward = (view) => cursorByGroup(view, false);
+function toGroupStart(view, pos, start) {
+  let categorize = view.state.charCategorizer(pos);
+  let cat = categorize(start), initial = cat != CharCategory.Space;
+  return (next) => {
+    let nextCat = categorize(next);
+    if (nextCat != CharCategory.Space)
+      return initial && nextCat == cat;
+    initial = false;
+    return true;
+  };
+}
+var cursorGroupForwardWin = (view) => {
+  return moveSel(view, (range) => range.empty ? view.moveByChar(range, true, (start) => toGroupStart(view, range.head, start)) : rangeEnd(range, true));
+};
 var segmenter = typeof Intl != "undefined" && Intl.Segmenter ? new Intl.Segmenter(void 0, { granularity: "word" }) : null;
 function moveBySubword(view, range, forward) {
   let categorize = view.state.charCategorizer(range.from);
@@ -733,6 +747,9 @@ var selectGroupLeft = (view) => selectByGroup(view, !ltrAtCursor(view));
 var selectGroupRight = (view) => selectByGroup(view, ltrAtCursor(view));
 var selectGroupForward = (view) => selectByGroup(view, true);
 var selectGroupBackward = (view) => selectByGroup(view, false);
+var selectGroupForwardWin = (view) => {
+  return extendSel(view, (range) => view.moveByChar(range, true, (start) => toGroupStart(view, range.head, start)));
+};
 function selectBySubword(view, forward) {
   return extendSel(view, (range) => moveBySubword(view, range, forward));
 }
@@ -1267,6 +1284,7 @@ export {
   cursorDocStart,
   cursorGroupBackward,
   cursorGroupForward,
+  cursorGroupForwardWin,
   cursorGroupLeft,
   cursorGroupRight,
   cursorLineBoundaryBackward,
@@ -1329,6 +1347,7 @@ export {
   selectDocStart,
   selectGroupBackward,
   selectGroupForward,
+  selectGroupForwardWin,
   selectGroupLeft,
   selectGroupRight,
   selectLine,

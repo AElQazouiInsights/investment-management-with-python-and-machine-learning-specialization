@@ -1,6 +1,7 @@
 // .vitepress\config.ts
 
 import { defineConfig } from 'vitepress'
+import path from 'path'
 import { vitepressPythonEditor } from '../src/vite-plugin'
 
 // const base = '/investment-management-with-python-and-machine-learning-specialization/'
@@ -30,10 +31,32 @@ export default defineConfig({
   vite: {
     plugins: [vitepressPythonEditor()],
     optimizeDeps: {
-      include: ['echarts', 'vue-echarts']
+      include: [
+        'echarts', 
+        'vue-echarts',
+        '@jupyter-widgets/html-manager',
+        '@jupyter-widgets/base',
+        '@jupyter-widgets/controls'
+      ],
+      exclude: [
+        '@phosphor/coreutils',
+        '@jupyter-widgets/output'
+      ]
+    },
+    resolve: {
+      alias: {
+        crypto: path.resolve(process.cwd(), 'src/shims/empty.js')
+      }
+    },
+    define: {
+      global: 'globalThis',
+      'process.env': {},
+      'process.browser': true,
+      'process.version': '""',
+      'Buffer': 'undefined'
     },
     ssr: {
-      noExternal: ['vue-echarts', 'echarts'] // Ensure these packages are bundled for SSR
+      noExternal: ['vue-echarts', 'echarts', '@jupyter-widgets/html-manager', '@jupyter-widgets/base', '@jupyter-widgets/controls'] // Ensure these packages are bundled for SSR
     },
     server: {
       headers: {

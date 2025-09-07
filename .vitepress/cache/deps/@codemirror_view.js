@@ -16,6 +16,7 @@ import {
   crosshairCursor,
   drawSelection,
   dropCursor,
+  getDialog,
   getDrawSelectionConfig,
   getPanel,
   getTooltip,
@@ -42,11 +43,12 @@ import {
   repositionTooltips,
   runScopeHandlers,
   scrollPastEnd,
+  showDialog,
   showPanel,
   showTooltip,
   tooltips
-} from "./chunk-RG2HXPUS.js";
-import "./chunk-AAODDLYV.js";
+} from "./chunk-USE3GHKM.js";
+import "./chunk-Z4V2TF7X.js";
 import "./chunk-V4OQ3NZ2.js";
 export {
   BidiSpan,
@@ -66,6 +68,7 @@ export {
   crosshairCursor,
   drawSelection,
   dropCursor,
+  getDialog,
   getDrawSelectionConfig,
   getPanel,
   getTooltip,
@@ -92,6 +95,7 @@ export {
   repositionTooltips,
   runScopeHandlers,
   scrollPastEnd,
+  showDialog,
   showPanel,
   showTooltip,
   tooltips

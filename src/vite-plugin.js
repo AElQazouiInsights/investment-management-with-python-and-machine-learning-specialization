@@ -56,72 +56,24 @@ export function vitepressPythonEditor(
        next()
      })
    },
-   generateBundle: async () => {
-     try {
-       // Create directories
-       await mkdir(assetsDir, { recursive: true })
-       await mkdir(join(assetsDir, 'data'), { recursive: true })
-       
-       // Copy Pyodide files
-       const pyodideFiles = [
-         'pyodide-lock.json',
-         'pyodide.asm.js',
-         'pyodide.asm.wasm',
-         'python_stdlib.zip',
-       ]
-       for (const file of pyodideFiles) {
-         await copyFile(
-           join('node_modules/pyodide', file),
-           join(assetsDir, file)
-         )
-       }
+  generateBundle: async () => {
+    try {
+      // Create directories
+      await mkdir(assetsDir, { recursive: true })
+      await mkdir(join(assetsDir, 'data'), { recursive: true })
 
-       // Copy and update PortfolioOptimizationKit
-       const kitContent = await readFile('PortfolioOptimizationKit.py', 'utf-8')
-       const updatedContent = kitContent.replace(
-         'return "data"',
-         'return "/assets/data"'
-       )
-       await writeFile(
-         join(assetsDir, 'PortfolioOptimizationKit.py'), 
-         updatedContent
-       )
+      // Copy and update PortfolioOptimizationKit
+      const kitContent = await readFile('PortfolioOptimizationKit.py', 'utf-8')
+      const updatedContent = kitContent.replace(
+        'return "data"',
+        'return "/assets/data"'
+      )
+      await writeFile(
+        join(assetsDir, 'PortfolioOptimizationKit.py'), 
+        updatedContent
+      )
 
-       // Copy data files
-       await copyFile(
-         join('data', 'Portfolios_Formed_on_ME_monthly_EW.csv'),
-         join(assetsDir, 'data', 'Portfolios_Formed_on_ME_monthly_EW.csv')
-       )
-              // Copy data files
-        await copyFile(
-          join('data', 'edhec-hedgefundindices.csv'),
-          join(assetsDir, 'data', 'edhec-hedgefundindices.csv')
-        )
-               // Copy data files
-       await copyFile(
-        join('data', 'stocks_dynamic.csv'),
-        join(assetsDir, 'data', 'stocks_dynamic.csv')
-      )
-      await copyFile(
-        join('data', 'ind30_m_ew_rets.csv'),
-        join(assetsDir, 'data', 'ind30_m_ew_rets.csv')
-      )
-      await copyFile(
-        join('data', 'ind30_m_nfirms.csv'),
-        join(assetsDir, 'data', 'ind30_m_nfirms.csv')
-      )
-      await copyFile(
-        join('data', 'ind30_m_size.csv'),
-        join(assetsDir, 'data', 'ind30_m_size.csv')
-      )
-      await copyFile(
-        join('data', 'ind30_m_vw_rets.csv'),
-        join(assetsDir, 'data', 'ind30_m_vw_rets.csv')
-      )
-      await copyFile(
-        join('data', 'ind49_m_ew_rets.csv'),
-        join(assetsDir, 'data', 'ind49_m_ew_rets.csv')
-      )
+      // Data files are served from public/assets/data at runtime; no copy needed
      } catch (error) {
        console.error('Error in generateBundle:', error)
      }

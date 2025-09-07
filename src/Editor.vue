@@ -45,6 +45,7 @@ const chartOutput = ref('')
 let anchor = ref<HTMLDivElement>()
 let parent = ref<HTMLDivElement>()
 let input = ref<HTMLInputElement>()
+let widgetContainer = ref<HTMLDivElement>()
 let initialCode: string
 let editor: EditorView
 
@@ -115,6 +116,10 @@ async function handleMessage(e: MessageEvent) {
     input.value?.focus()
   }
   if (e.data.output) updateOutput(e.data.output)
+  if (e.data.widgetState) {
+    console.info('ipywidgets: widgetState received')
+    await renderWidget(e.data.widgetState)
+  }
   if (e.data.done) running.value = false
 }
 
@@ -164,7 +169,24 @@ function run() {
   resetOutput()
   running.value = true
   interruptBuffer[0] = 0
-  worker.postMessage({ id: props.id, code })
+  if (/\bimport\s+ipywidgets\b/.test(code)) {
+    ;(async () => {
+      try {
+        const { IframeKernelClient } = await import('./IframeKernelClient')
+        const client = new IframeKernelClient(widgetContainer.value!)
+        await client.execute(code, {
+          onStdout: (s) => updateOutput(s),
+          onStderr: (s) => updateOutput(s)
+        })
+      } catch (e) {
+        updateOutput(String(e))
+      } finally {
+        running.value = false
+      }
+    })()
+  } else {
+    worker.postMessage({ id: props.id, code })
+  }
 }
 
 // If code is still running, we "interrupt" it; otherwise, reset editor
@@ -233,6 +255,158 @@ function resetOutput() {
   outputRow = 0
   outputCol = 0
   chartOutput.value = ''
+  if (widgetContainer.value) widgetContainer.value.innerHTML = ''
+}
+
+async function renderWidget(stateJSON: string) {
+  try {
+    console.log('[DEBUG] Rendering widget with state JSON length:', stateJSON.length)
+    
+    // Fix for webpack public path issue in Vite environment
+    if (typeof (window as any).__webpack_public_path__ === 'undefined') {
+      (window as any).__webpack_public_path__ = '/'
+    }
+    
+    // Set up global exports and require for CommonJS compatibility
+    if (typeof (window as any).exports === 'undefined') {
+      (window as any).exports = {}
+    }
+    if (typeof (window as any).module === 'undefined') {
+      (window as any).module = { exports: {} }
+    }
+    if (typeof (window as any).require === 'undefined') {
+      // Create a minimal require function for browser environment
+      (window as any).require = (id: string) => {
+        console.warn(`require('${id}') called in browser - returning shimmed object`)
+        if (id === 'fs') {
+          return { existsSync: () => false, readFileSync: () => '' }
+        }
+        if (id === 'path') {
+          return { resolve: () => '', sep: '/' }
+        }
+        if (id === 'postcss') {
+          return { parse: () => ({ nodes: [], toString: () => '' }) }
+        }
+        if (id === 'sanitize-html') {
+          const sanitizeHtml = (dirty) => {
+            if (typeof dirty !== 'string') return ''
+            return dirty.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          }
+          sanitizeHtml.defaults = {
+            allowedTags: ['div', 'span', 'p', 'b', 'i', 'em', 'strong', 'a', 'img'],
+            allowedAttributes: {},
+            allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel']
+          }
+          return sanitizeHtml
+        }
+        return {}
+      }
+    }
+    
+    const parsed = JSON.parse(stateJSON)
+    console.log('[DEBUG] Parsed widget state:', { hasState: !!parsed.state, model_id: parsed.model_id })
+    
+    const { state, model_id } = parsed
+    
+    // Try dynamic imports with fallback
+    let htmlManagerModule, baseModule, controlsModule, outputModule
+    
+    try {
+      // Import one at a time with better error isolation
+      console.log('[DEBUG] Importing html-manager...')
+      htmlManagerModule = await import('@jupyter-widgets/html-manager')
+      
+      console.log('[DEBUG] Importing base...')
+      baseModule = await import('@jupyter-widgets/base')
+      
+      console.log('[DEBUG] Importing controls...')
+      controlsModule = await import('@jupyter-widgets/controls')
+      
+      console.log('[DEBUG] Skipping output module import (causes require issues)')
+      // outputModule = await import('@jupyter-widgets/output')
+      outputModule = { /* empty output module */ }
+      
+      console.log('[DEBUG] All modules imported successfully')
+    } catch (err) {
+      console.error('Failed to import ipywidgets modules:', err)
+      throw new Error(`Module import failed: ${(err as Error).message}`)
+    }
+
+    const { HTMLManager } = htmlManagerModule
+    const base = baseModule
+    const controls = controlsModule
+    const output = outputModule
+
+    const resolveModule = (name: string) => {
+      console.log('[DEBUG] Resolving module:', name)
+      // Handle both exact matches and module paths
+      if (name === '@jupyter-widgets/controls' || name.startsWith('@jupyter-widgets/controls')) {
+        return controls as any
+      }
+      if (name === '@jupyter-widgets/base' || name.startsWith('@jupyter-widgets/base')) {
+        return base as any
+      }
+      if (name === '@jupyter-widgets/output' || name.startsWith('@jupyter-widgets/output')) {
+        // Return a minimal output module implementation
+        return {
+          OutputModel: class { constructor() {} },
+          OutputView: class { constructor() {} }
+        } as any
+      }
+      console.error(`[DEBUG] Unknown widget module requested: ${name}`)
+      throw new Error(`Unknown widget module requested: ${name}`)
+    }
+
+    const manager = new HTMLManager({ 
+      loader: (name: string) => {
+        console.log('[DEBUG] Loader called for:', name)
+        return Promise.resolve(resolveModule(name))
+      }
+    })
+
+    // Pass the full dependency_state wrapper (includes version info)
+    console.log('[DEBUG] Setting manager state...')
+    await manager.set_state(parsed as any)
+    
+    console.log('[DEBUG] Getting model:', model_id)
+    let model: any = await (manager as any).get_model(model_id)
+    if (!model) {
+      console.error('[DEBUG] Model not found for ID:', model_id)
+      // Try to wait a bit and retry
+      await new Promise(resolve => setTimeout(resolve, 100))
+      model = await (manager as any).get_model(model_id)
+      if (!model) {
+        console.error('[DEBUG] Model still not found after retry')
+        return
+      }
+    }
+    
+    console.log('[DEBUG] Creating view for model:', model)
+    const view = await manager.create_view(model)
+    
+    if (widgetContainer.value) {
+      console.log('[DEBUG] Displaying view in container')
+      widgetContainer.value.innerHTML = ''
+      await manager.display_view(view, widgetContainer.value)
+      console.log('[DEBUG] Widget rendered successfully')
+    } else {
+      console.error('[DEBUG] Widget container not available')
+    }
+  } catch (err) {
+    console.error('ipywidgets render error:', err)
+    console.error('Error stack:', (err as Error).stack)
+    
+    // Show error message to user
+    if (widgetContainer.value) {
+      widgetContainer.value.innerHTML = `
+        <div style="padding: 16px; background-color: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c66;">
+          <strong>Widget Rendering Error:</strong><br>
+          ${(err as Error).message}<br>
+          <small>Check the browser console for more details.</small>
+        </div>
+      `
+    }
+  }
 }
 </script>
 
@@ -321,6 +495,9 @@ function resetOutput() {
 
     <!-- Our ECharts-based OutputDisplay component to handle <ECHARTS_DATA> JSON -->
     <OutputDisplay v-if="chartOutput" :output="chartOutput" class="mt-4" />
+
+    <!-- ipywidgets container -->
+    <div ref="widgetContainer" class="mt-4" />
 
     <!-- Reset/Stop button -->
     <button v-if="mounted" class="reset" @click="reset">

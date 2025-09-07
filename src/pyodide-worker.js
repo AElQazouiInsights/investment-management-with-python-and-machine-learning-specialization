@@ -1,8 +1,9 @@
 import { loadPyodide } from 'pyodide';
 
 // Load Pyodide with the specified indexURL
-const pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
+const pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.2/full/" });
 const decoder = new TextDecoder();
+let initialized = false;
 
 let inputData = null;
 let waitFlag = null;
@@ -71,12 +72,38 @@ try {
   console.error("Error mounting files:", error);
 }
 
+async function ensureInitialized() {
+  if (initialized) return;
+  await pyodide.loadPackage([
+    "pandas",
+    "numpy",
+    "scipy",
+    "statsmodels",
+    "matplotlib",
+    "micropip",
+  ]);
+  await pyodide.runPythonAsync(`
+import micropip
+try:
+    await micropip.install(['tabulate','ipywidgets'], keep_going=True)
+except Exception:
+    pass
+  `);
+  pyodide.runPython(`
+import sys
+if '/assets' not in sys.path:
+    sys.path.append('/assets')
+  `);
+  initialized = true;
+}
+
 onmessage = async (e) => {
   // If buffers are provided for input, assign them and return.
   if (e.data.inputBuffer && e.data.waitBuffer && e.data.interruptBuffer) {
     inputData = new Uint8Array(e.data.inputBuffer);
     waitFlag = new Int32Array(e.data.waitBuffer);
     interruptBuffer = new Uint8Array(e.data.interruptBuffer);
+    try { pyodide.setInterruptBuffer?.(interruptBuffer); } catch {}
     return;
   }
 
@@ -104,32 +131,9 @@ onmessage = async (e) => {
     },
   });
 
-  // Load required packages.
+  // Load required packages once, then run code.
   try {
-    await pyodide.loadPackage([
-      "pandas",
-      "numpy",
-      "scipy",
-      "statsmodels",
-      "matplotlib",
-      "micropip",
-    ]);
-
-    // Install additional packages
-    await pyodide.runPythonAsync(`
-      import micropip
-      await micropip.install([
-      'tabulate',
-      'ipywidgets',
-      'yfinance'
-      ])
-    `);
-    
-    // Add /assets to sys.path so custom modules can be imported.
-    pyodide.runPython(`
-      import sys
-      sys.path.append('/assets')
-    `);
+    await ensureInitialized();
 
         // --- Initialize the Widget Manager ---
     // Import the widget manager from Jupyter Widgets HTML manager.
@@ -140,20 +144,110 @@ onmessage = async (e) => {
     //   wm = widget_manager.WidgetManager()
     //   `);
 
-    // Execute the provided code.
-    await pyodide.runPythonAsync(code);
-    
-    // OPTIONAL: Try to capture widget HTML if a widget was created.
-    // ipywidgets in Pyodide don't automatically render, so you might want to call _repr_html_().
-    let widgetHTML = "";
+    // Execute the provided code with a timeout and interrupt fallback
+    const TIMEOUT_MS = 15000;
+    let timer = null;
     try {
-      // Assumes that your code stored the widget in a global variable "widget_instance"
-      widgetHTML = pyodide.runPython(`widget_instance._repr_html_()`);
-    } catch (err) {
-      widgetHTML = "";
+      timer = setTimeout(() => {
+        try { if (interruptBuffer) interruptBuffer[0] = 2; } catch {}
+        postMessage({ id, output: "\n[Execution timed out]\n" });
+      }, TIMEOUT_MS);
+      await pyodide.runPythonAsync(code);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
-    if (widgetHTML) {
-      postMessage({ id, widgetHTML });
+    
+    // Serialize a widget instance (if provided by user code) and post its state
+    try {
+      console.log('[DEBUG JS] Starting widget serialization...');
+      
+      // First, let's get the widget instance directly
+      const widgetInstance = pyodide.runPython(`globals().get('widget_instance', None)`);
+      console.log('[DEBUG JS] widget_instance from Python:', widgetInstance);
+      
+      if (!widgetInstance) {
+        console.log('[DEBUG JS] No widget_instance found');
+        postMessage({ id, output: "[DEBUG] No widget_instance found in Python globals\n" });
+        return;
+      }
+      
+      // Get the widget and serialize it in one step
+      pyodide.runPython(`
+import json
+import ipywidgets as widgets
+from ipywidgets.embed import dependency_state
+
+# Initialize result variable
+_widget_json_result = ""
+
+# Get the widget_instance and extract the actual widget
+obj = globals().get('widget_instance', None)
+if obj is not None:
+    print(f"[DEBUG] Found widget_instance, type: {type(obj)}")
+    
+    # Handle different types of widget objects
+    w = None
+    if isinstance(obj, widgets.Widget):
+        # Direct widget instance
+        w = obj
+        print(f"[DEBUG] Direct widget instance")
+    elif hasattr(obj, 'widget') and isinstance(obj.widget, widgets.Widget):
+        # Interactive widget with .widget attribute
+        w = obj.widget
+        print(f"[DEBUG] Interactive widget with .widget attribute")
+    elif hasattr(obj, 'children'):
+        # Look for widgets in children (for interactive objects)
+        for child in getattr(obj, 'children', []):
+            if isinstance(child, widgets.Widget):
+                w = child
+                print(f"[DEBUG] Found widget in children: {type(child)}")
+                break
+    
+    if w is not None and isinstance(w, widgets.Widget):
+        print(f"[DEBUG] Found widget with ID: {w._model_id}")
+        try:
+            # Get all widgets (including children) for dependency state
+            all_widgets = []
+            def collect_widgets(widget):
+                all_widgets.append(widget)
+                if hasattr(widget, 'children'):
+                    for child in widget.children:
+                        if isinstance(child, widgets.Widget):
+                            collect_widgets(child)
+            
+            collect_widgets(w)
+            print(f"[DEBUG] Collected {len(all_widgets)} widgets for serialization")
+            
+            st = dependency_state(all_widgets)
+            result = json.dumps({'state': st, 'model_id': w._model_id})
+            print(f"[DEBUG] Serialized state length: {len(result)}")
+            print(f"[DEBUG] JSON preview: {result[:200]}...")
+            _widget_json_result = result
+            print(f"[DEBUG] Stored result in _widget_json_result")
+        except Exception as e:
+            print(f"[ERROR] Serialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"[DEBUG] No valid widget found. Object type: {type(obj)}")
+        if hasattr(obj, '__dict__'):
+            print(f"[DEBUG] Object attributes: {list(obj.__dict__.keys())}")
+else:
+    print("[DEBUG] No widget_instance found")
+      `);
+      
+      // Get the result from the global variable
+      const stateJSON = pyodide.runPython('_widget_json_result');
+      console.log('[DEBUG JS] stateJSON result:', stateJSON, 'type:', typeof stateJSON, 'length:', stateJSON?.length);
+      if (stateJSON) {
+        // Debug line to help verify widget pipeline
+        postMessage({ id, output: "[ipywidgets] state received\n" });
+        postMessage({ id, widgetState: stateJSON });
+      } else {
+        postMessage({ id, output: "[DEBUG] No widget state JSON returned from Python\n" });
+      }
+    } catch (e) {
+      // ignore widget serialization errors
     }
   } catch (err) {
     postMessage({ id, output: err.message });

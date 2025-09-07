@@ -28,7 +28,7 @@ import {
   findClusterBreak,
   findColumn,
   fromCodePoint
-} from "./chunk-AAODDLYV.js";
+} from "./chunk-Z4V2TF7X.js";
 import "./chunk-V4OQ3NZ2.js";
 export {
   Annotation,
