@@ -28,7 +28,8 @@
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
-    "deploy": "gh-pages -d .vitepress/dist"
+    "deploy": "gh-pages -d .vitepress/dist",
+    "jlite:build": "bash scripts/build-jlite.sh"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
@@ -39,7 +40,7 @@
     "@jupyter-widgets/base": "^6.0.11",
     "@jupyter-widgets/controls": "^5.0.12",
     "@jupyter-widgets/html-manager": "^1.0.14",
-    "@jupyter-widgets/output": "^1.0.5",
+    "@jupyter-widgets/output": "^6.0.11",
     "@lezer/common": "^1.2.3",
     "@lezer/highlight": "^1.2.1",
     "connect-history-api-fallback": "^2.0.0",

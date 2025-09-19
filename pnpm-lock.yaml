@@ -33,8 +33,8 @@ importers:
         specifier: ^1.0.14
         version: 1.0.14(react@18.3.1)
       '@jupyter-widgets/output':
-        specifier: ^1.0.5
-        version: 1.1.5
+        specifier: ^6.0.11
+        version: 6.0.11(react@18.3.1)
       '@lezer/common':
         specifier: ^1.2.3
         version: 1.2.3
@@ -369,9 +369,6 @@ packages:
   '@jupyter-widgets/base-manager@1.0.12':
     resolution: {integrity: sha512-MAAzFu2vW6QJARey547QgwCJ23sK6LmJTLVxa53ACnW8q05yXpYusRQUOHW6RFBIjXXANUsvjKtvZgv1r+0Zuw==}
 
-  '@jupyter-widgets/base@1.2.5':
-    resolution: {integrity: sha512-D/cYIo0o0wnTeR2uFTZqwxyxglE4UkJ2mGPEhN1G1a1pnIip+3GcONPjYY+w6OLzShKz10R9V7hUQTqcvRaW8Q==}
-
   '@jupyter-widgets/base@4.1.7':
     resolution: {integrity: sha512-cWg0Bb+QKmyHPnCpvF+/3u+ZU0jkTQ62qGr56ReujzCCIIRoXo3GP81TdzzrDTGM9tTZP/i91sUyC+7Od8b4Ow==}
 
@@ -386,9 +383,6 @@ packages:
 
   '@jupyter-widgets/html-manager@1.0.14':
     resolution: {integrity: sha512-wglgQQ+VMj+MBKkTttdeoMtOah/H2A1w5GU1OAVXmDQqZYTK6C+oHZjQMxcNezIpiqUjC1YHKOo5XdP3ENvBng==}
-
-  '@jupyter-widgets/output@1.1.5':
-    resolution: {integrity: sha512-M+vm9t1t4hrn80a/OsL30kOC85gUt1Z5dWTjxeWSlsa8s8i6nqQYkB7DeGYf/HozmvRI1jy3qnMHdn05GuBy5Q==}
 
   '@jupyter-widgets/output@6.0.11':
     resolution: {integrity: sha512-Rm1wKStjBbIbY48t0f5RIAvrqP2me2171dDML/c2XElvRrK8vEo+ESAeFxPgaFaHSlqW/oqbujMiFAsmF3epyQ==}
@@ -408,17 +402,11 @@ packages:
   '@jupyterlab/apputils@4.5.7':
     resolution: {integrity: sha512-qbHrkqlh4sSniuFPZidFwe9XSUymOwes+/0SJIqC032CBY8ZxTV40aE7dzaLKqdTewICNk1bOyifBHWVPYEGKA==}
 
-  '@jupyterlab/coreutils@3.2.0':
-    resolution: {integrity: sha512-LATiUsHuwze/h3JC2EZOBV+kGBoUKO3npqw/Pcgge4bz09xF/oTDrx4G8jl5eew3w1dCUNp9eLduNh8Orrw7xQ==}
-
   '@jupyterlab/coreutils@6.4.7':
     resolution: {integrity: sha512-bgigdcyLc4iaKbPDeiWH5XOd+3bnczz7hKvVuwEH85JLlogg4GfRdeJVZELp3tB6ECKmjtO1/1pT/MffdMQ7nQ==}
 
   '@jupyterlab/nbformat@4.4.7':
     resolution: {integrity: sha512-nXB6Cz7evcKLWd3lc4aw1IBs8Qu8BCan4uC9y1jalL7DdOIR08aRgKKm+aVrmmJZXfIFesDO9MpztwU25TXugw==}
-
-  '@jupyterlab/observables@2.4.0':
-    resolution: {integrity: sha512-M/fhAnPqd6F4Zwt4IIsvHCkJmwbSw1Tko/hUXgdUQG86lPsJiTOh98sB3qwV1gtzb9oFF+kH21XsHnQZ6Yl6Pw==}
 
   '@jupyterlab/observables@5.4.7':
     resolution: {integrity: sha512-FFRH4Oyt0k/jMH3QqYWL2T0MkmQ7gXmcn8gunMF3zjcW/NZCojgBrCLRmayROXGR9q/Vr1vAdUcAmT5yi6BFjA==}
@@ -431,9 +419,6 @@ packages:
 
   '@jupyterlab/rendermime@4.4.7':
     resolution: {integrity: sha512-qex7f9VNu1D7jgLa9a7Ho9b0UuwDZqOWpVwX01fwytm3ppqY93ZQhOuo2eb9bPd7hJ4ZSDTG2SUJQshoaZKGRg==}
-
-  '@jupyterlab/services@4.0.0-alpha.8':
-    resolution: {integrity: sha512-rt3xABRMxIMsffkgqeHto2202P5xY52FndHqqQnfSMILPOZ1gMq80vvNsePf3R2RS5KnK2hk6N5YSlKZPeXx/g==}
 
   '@jupyterlab/services@7.4.7':
     resolution: {integrity: sha512-6ESgujH5fgQf5wefa5eNMBf+YENZUhuAe5FIoUwMnfvyj67a1PxsCx77EicrDBQuBkaN39PSUFnL5ngol3Stcg==}
@@ -525,45 +510,6 @@ packages:
 
   '@microsoft/fast-web-utilities@5.4.1':
     resolution: {integrity: sha512-ReWYncndjV3c8D8iq9tp7NcFNc1vbVHvcBFPME2nNFKNbS1XCesYZGlIlf3ot5EmuOXPlrzUHOWzQ2vFpIkqDg==}
-
-  '@phosphor/algorithm@1.2.0':
-    resolution: {integrity: sha512-C9+dnjXyU2QAkWCW6QVDGExk4hhwxzAKf5/FIuYlHAI9X5vFv99PYm0EREDxX1PbMuvfFBZhPNu0PvuSDQ7sFA==}
-
-  '@phosphor/collections@1.2.0':
-    resolution: {integrity: sha512-T9/0EjSuY6+ga2LIFRZ0xupciOR3Qnyy8Q95lhGTC0FXZUFwC8fl9e8On6IcwasCszS+1n8dtZUWSIynfgdpzw==}
-
-  '@phosphor/commands@1.7.2':
-    resolution: {integrity: sha512-iSyBIWMHsus323BVEARBhuVZNnVel8USo+FIPaAxGcq+icTSSe6+NtSxVQSmZblGN6Qm4iw6I6VtiSx0e6YDgQ==}
-
-  '@phosphor/coreutils@1.3.1':
-    resolution: {integrity: sha512-9OHCn8LYRcPU/sbHm5v7viCA16Uev3gbdkwqoQqlV+EiauDHl70jmeL7XVDXdigl66Dz0LI11C99XOxp+s3zOA==}
-
-  '@phosphor/disposable@1.3.1':
-    resolution: {integrity: sha512-0NGzoTXTOizWizK/brKKd5EjJhuuEH4903tLika7q6wl/u0tgneJlTh7R+MBVeih0iNxtuJAfBa3IEY6Qmj+Sw==}
-
-  '@phosphor/domutils@1.1.4':
-    resolution: {integrity: sha512-ivwq5TWjQpKcHKXO8PrMl+/cKqbgxPClPiCKc1gwbMd+6hnW5VLwNG0WBzJTxCzXK43HxX18oH+tOZ3E04wc3w==}
-
-  '@phosphor/dragdrop@1.4.1':
-    resolution: {integrity: sha512-77paMoubIWk7pdwA2GVFkqba1WP48hTZZvS17N30+KVOeWfSqBL3flPSnW2yC4y6FnOP2PFOCtuPIbQv+pYhCA==}
-
-  '@phosphor/keyboard@1.1.3':
-    resolution: {integrity: sha512-dzxC/PyHiD6mXaESRy6PZTd9JeK+diwG1pyngkyUf127IXOEzubTIbu52VSdpGBklszu33ws05BAGDa4oBE4mQ==}
-
-  '@phosphor/messaging@1.3.0':
-    resolution: {integrity: sha512-k0JE+BTMKlkM335S2AmmJxoYYNRwOdW5jKBqLgjJdGRvUQkM0+2i60ahM45+J23atGJDv9esKUUBINiKHFhLew==}
-
-  '@phosphor/properties@1.1.3':
-    resolution: {integrity: sha512-GiglqzU77s6+tFVt6zPq9uuyu/PLQPFcqZt914ZhJ4cN/7yNI/SLyMzpYZ56IRMXvzK9TUgbRna6URE3XAwFUg==}
-
-  '@phosphor/signaling@1.3.1':
-    resolution: {integrity: sha512-Eq3wVCPQAhUd9+gUGaYygMr+ov7dhSGblSBXiDzpZlSIfa8OVD4P3cCvYXr/acDTNmZ/gHTcSFO8/n3rDkeXzg==}
-
-  '@phosphor/virtualdom@1.2.0':
-    resolution: {integrity: sha512-L9mKNhK2XtVjzjuHLG2uYuepSz8uPyu6vhF4EgCP0rt0TiLYaZeHwuNu3XeFbul9DMOn49eBpye/tfQVd4Ks+w==}
-
-  '@phosphor/widgets@1.9.3':
-    resolution: {integrity: sha512-61jsxloDrW/+WWQs8wOgsS5waQ/MSsXBuhONt0o6mtdeL93HVz7CYO5krOoot5owammfF6oX1z0sDaUYIYgcPA==}
 
   '@reduxjs/toolkit@2.9.0':
     resolution: {integrity: sha512-fSfQlSRu9Z5yBkvsNhYF2rPS8cGXn/TZVrlwN1948QyZ8xMZ0JvP50S2acZNaf+o63u6aEeMjipFyksjIcWrog==}
@@ -908,9 +854,6 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
-  ajv@6.12.6:
-    resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
-
   ajv@8.17.1:
     resolution: {integrity: sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==}
 
@@ -1232,9 +1175,6 @@ packages:
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
-  fast-json-stable-stringify@2.1.0:
-    resolution: {integrity: sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==}
-
   fast-uri@3.1.0:
     resolution: {integrity: sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA==}
 
@@ -1364,9 +1304,6 @@ packages:
     resolution: {integrity: sha512-CTUKmIlPJbsWfzRRnOXz+0MjIqvnleIXwFTzz+t9T86HnYX/Rozria6ZVGLktAU9e+NygNljveP+yxqtQp/Q4w==}
     engines: {node: '>=12.0.0'}
 
-  json-schema-traverse@0.4.1:
-    resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
-
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
@@ -1481,9 +1418,6 @@ packages:
   mj-context-menu@0.6.1:
     resolution: {integrity: sha512-7NO5s6n10TIV96d4g2uDpG7ZDpIhMh0QNfGdJw/W47JswFcosz457wqz/b5sAKvl12sxINGFCn80NZHKwxQEXA==}
 
-  moment@2.30.1:
-    resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
-
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -1552,9 +1486,6 @@ packages:
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
-  path-posix@1.0.0:
-    resolution: {integrity: sha512-1gJ0WpNIiYcQydgg3Ed8KzvIqTsDpNwq+cjBCssvBtuTWjEqY1AW+i+OepiEMqDCzyro9B2sLAe4RBPajMYFiA==}
-
   path-to-regexp@8.3.0:
     resolution: {integrity: sha512-7jdwVIRtsP8MYpdXSwOS0YdD0Du+qOoF/AEPIt88PcCFrZCzx41oxku1jD88hZBwbNUIEfpqvuhjFaMAqMTWnA==}
 
@@ -1583,10 +1514,6 @@ packages:
   proxy-addr@2.0.7:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
-
-  punycode@2.3.1:
-    resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
-    engines: {node: '>=6'}
 
   pyodide@0.28.2:
     resolution: {integrity: sha512-2BrZHrALvhYZfIuTGDHOvyiirHNLziHfBiBb1tpBFzLgAvDBb2ACxNPFFROCOzLnqapORmgArDYY8mJmMWH1Eg==}
@@ -1847,12 +1774,6 @@ packages:
     peerDependencies:
       browserslist: '>= 4.21.0'
 
-  uri-js@4.4.1:
-    resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
-
-  url-parse@1.4.7:
-    resolution: {integrity: sha512-d3uaVyzDB9tQoSXFvuSUNFibTd9zxd2bkVrDRvF5TmvWWQwqE4lgYJ5m+x1DbecWkw+LK4RNl2CU1hHuOKPVlg==}
-
   url-parse@1.5.10:
     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
 
@@ -1983,18 +1904,6 @@ packages:
 
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
-
-  ws@7.5.10:
-    resolution: {integrity: sha512-+dbF1tHwZpXcbOJdVOkzLDxZP1ailvSxM6ZweXTegylPny803bFhA+vqBYw4s31NSAk4S2Qz+AKXK9a4wkdjcQ==}
-    engines: {node: '>=8.3.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: ^5.0.2
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
 
   ws@8.18.3:
     resolution: {integrity: sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==}
@@ -2311,23 +2220,6 @@ snapshots:
       - react
       - utf-8-validate
 
-  '@jupyter-widgets/base@1.2.5':
-    dependencies:
-      '@jupyterlab/services': 4.0.0-alpha.8
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/messaging': 1.3.0
-      '@phosphor/widgets': 1.9.3
-      '@types/backbone': 1.4.23
-      '@types/lodash': 4.17.20
-      backbone: 1.2.3
-      base64-js: 1.5.1
-      jquery: 3.7.1
-      lodash: 4.17.21
-    transitivePeerDependencies:
-      - bufferutil
-      - encoding
-      - utf-8-validate
-
   '@jupyter-widgets/base@4.1.7(react@18.3.1)':
     dependencies:
       '@jupyterlab/services': 7.4.7(react@18.3.1)
@@ -2418,14 +2310,6 @@ snapshots:
       - react
       - utf-8-validate
 
-  '@jupyter-widgets/output@1.1.5':
-    dependencies:
-      '@jupyter-widgets/base': 1.2.5
-    transitivePeerDependencies:
-      - bufferutil
-      - encoding
-      - utf-8-validate
-
   '@jupyter-widgets/output@6.0.11(react@18.3.1)':
     dependencies:
       '@jupyter-widgets/base': 6.0.11(react@18.3.1)
@@ -2484,20 +2368,6 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@jupyterlab/coreutils@3.2.0':
-    dependencies:
-      '@phosphor/commands': 1.7.2
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/disposable': 1.3.1
-      '@phosphor/properties': 1.1.3
-      '@phosphor/signaling': 1.3.1
-      ajv: 6.12.6
-      json5: 2.2.3
-      minimist: 1.2.8
-      moment: 2.30.1
-      path-posix: 1.0.0
-      url-parse: 1.4.7
-
   '@jupyterlab/coreutils@6.4.7':
     dependencies:
       '@lumino/coreutils': 2.2.1
@@ -2510,14 +2380,6 @@ snapshots:
   '@jupyterlab/nbformat@4.4.7':
     dependencies:
       '@lumino/coreutils': 2.2.1
-
-  '@jupyterlab/observables@2.4.0':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/disposable': 1.3.1
-      '@phosphor/messaging': 1.3.0
-      '@phosphor/signaling': 1.3.1
 
   '@jupyterlab/observables@5.4.7':
     dependencies:
@@ -2570,21 +2432,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - react
-      - utf-8-validate
-
-  '@jupyterlab/services@4.0.0-alpha.8':
-    dependencies:
-      '@jupyterlab/coreutils': 3.2.0
-      '@jupyterlab/observables': 2.4.0
-      '@phosphor/algorithm': 1.2.0
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/disposable': 1.3.1
-      '@phosphor/signaling': 1.3.1
-      node-fetch: 2.7.0
-      ws: 7.5.10
-    transitivePeerDependencies:
-      - bufferutil
-      - encoding
       - utf-8-validate
 
   '@jupyterlab/services@7.4.7(react@18.3.1)':
@@ -2780,66 +2627,6 @@ snapshots:
   '@microsoft/fast-web-utilities@5.4.1':
     dependencies:
       exenv-es6: 1.1.1
-
-  '@phosphor/algorithm@1.2.0': {}
-
-  '@phosphor/collections@1.2.0':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-
-  '@phosphor/commands@1.7.2':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/disposable': 1.3.1
-      '@phosphor/domutils': 1.1.4
-      '@phosphor/keyboard': 1.1.3
-      '@phosphor/signaling': 1.3.1
-
-  '@phosphor/coreutils@1.3.1': {}
-
-  '@phosphor/disposable@1.3.1':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-      '@phosphor/signaling': 1.3.1
-
-  '@phosphor/domutils@1.1.4': {}
-
-  '@phosphor/dragdrop@1.4.1':
-    dependencies:
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/disposable': 1.3.1
-
-  '@phosphor/keyboard@1.1.3': {}
-
-  '@phosphor/messaging@1.3.0':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-      '@phosphor/collections': 1.2.0
-
-  '@phosphor/properties@1.1.3': {}
-
-  '@phosphor/signaling@1.3.1':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-
-  '@phosphor/virtualdom@1.2.0':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-
-  '@phosphor/widgets@1.9.3':
-    dependencies:
-      '@phosphor/algorithm': 1.2.0
-      '@phosphor/commands': 1.7.2
-      '@phosphor/coreutils': 1.3.1
-      '@phosphor/disposable': 1.3.1
-      '@phosphor/domutils': 1.1.4
-      '@phosphor/dragdrop': 1.4.1
-      '@phosphor/keyboard': 1.1.3
-      '@phosphor/messaging': 1.3.0
-      '@phosphor/properties': 1.1.3
-      '@phosphor/signaling': 1.3.1
-      '@phosphor/virtualdom': 1.2.0
 
   '@reduxjs/toolkit@2.9.0(react-redux@9.2.0(@types/react@18.3.24)(react@18.3.1)(redux@5.0.1))(react@18.3.1)':
     dependencies:
@@ -3166,13 +2953,6 @@ snapshots:
     dependencies:
       mime-types: 3.0.1
       negotiator: 1.0.0
-
-  ajv@6.12.6:
-    dependencies:
-      fast-deep-equal: 3.1.3
-      fast-json-stable-stringify: 2.1.0
-      json-schema-traverse: 0.4.1
-      uri-js: 4.4.1
 
   ajv@8.17.1:
     dependencies:
@@ -3541,8 +3321,6 @@ snapshots:
 
   fast-deep-equal@3.1.3: {}
 
-  fast-json-stable-stringify@2.1.0: {}
-
   fast-uri@3.1.0: {}
 
   finalhandler@2.1.0:
@@ -3692,8 +3470,6 @@ snapshots:
       json-schema-compare: 0.2.2
       lodash: 4.17.21
 
-  json-schema-traverse@0.4.1: {}
-
   json-schema-traverse@1.0.0: {}
 
   json5@2.2.3: {}
@@ -3803,8 +3579,6 @@ snapshots:
 
   mj-context-menu@0.6.1: {}
 
-  moment@2.30.1: {}
-
   ms@2.1.3: {}
 
   nanoid@3.3.11: {}
@@ -3855,8 +3629,6 @@ snapshots:
 
   path-browserify@1.0.1: {}
 
-  path-posix@1.0.0: {}
-
   path-to-regexp@8.3.0: {}
 
   perfect-debounce@1.0.0: {}
@@ -3885,8 +3657,6 @@ snapshots:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
-
-  punycode@2.3.1: {}
 
   pyodide@0.28.2:
     dependencies:
@@ -4212,15 +3982,6 @@ snapshots:
       escalade: 3.2.0
       picocolors: 1.1.1
 
-  uri-js@4.4.1:
-    dependencies:
-      punycode: 2.3.1
-
-  url-parse@1.4.7:
-    dependencies:
-      querystringify: 2.2.0
-      requires-port: 1.0.0
-
   url-parse@1.5.10:
     dependencies:
       querystringify: 2.2.0
@@ -4379,8 +4140,6 @@ snapshots:
   wicked-good-xpath@1.3.0: {}
 
   wrappy@1.0.2: {}
-
-  ws@7.5.10: {}
 
   ws@8.18.3: {}
 

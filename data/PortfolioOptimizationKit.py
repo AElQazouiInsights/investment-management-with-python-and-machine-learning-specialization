@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import numpy as np
 import scipy.stats
@@ -441,76 +443,58 @@ def efficient_frontier(
     ewp=False,
 ):
     """
-    Returns a dataframe 'df' containing volatilities, returns, sharpe ratios, and weights
-    for 'n_portfolios' along the efficient frontier.
-    If cml=True, also returns 'cml_df' with two points describing the Capital Market Line:
-       (0, risk_free_rate) -> (vol_sharpe, ret_sharpe).
-    If iplot=True, the function also plots with Matplotlib:
-       - The Frontier (in coral),
-       - The optional CML (in green dotted),
-       - The highest Sharpe ratio portfolio (HSR) if hsr=True,
-       - The global minimum volatility portfolio if mvp=True,
-       - The equally weighted portfolio if ewp=True.
-
-    Inputs:
-      n_portfolios: int
-      rets: DataFrame of historical returns (e.g., daily, weekly, monthly) for each asset
-      covmat: Covariance matrix of those returns
-      periods_per_year: e.g., 12 (monthly), 52 (weekly), 252 (daily)
-      risk_free_rate: e.g., 0.06 => 6%
-      iplot: bool => whether to do a Matplotlib plot
-      hsr, cml, mvp, ewp => booleans controlling whether to mark certain special portfolios
+    Returns (and plots) the efficient frontiers for a portfolio of rets.shape[1] assets.
+    The method returns a dataframe containing the volatilities, returns, sharpe ratios and weights
+    of the portfolios as well as a plot of the efficient frontier in case iplot=True.
+    Other inputs are:
+        hsr: if true the method plots the highest return portfolio,
+        cml: if True the method plots the capital market line;
+        mvp: if True the method plots the minimum volatility portfolio;
+        ewp: if True the method plots the equally weigthed portfolio.
+    The variable periods_per_year can be, e.g., 12, 52, 252, in case of monthly, weekly, and daily data.
     """
 
     def append_row_df(df, vol, ret, spr, weights):
-        """
-        Utility function that appends a single row [vol, ret, spr, w0, w1, ...]
-        to the DataFrame 'df' with the same columns.
-        """
         temp_df = list(df.values)
-        temp_df.append([vol, ret, spr] + [w for w in weights])
-        return pd.DataFrame(temp_df, columns=df.columns)
+        temp_df.append(
+            [
+                vol,
+                ret,
+                spr,
+            ]
+            + [w for w in weights]
+        )
+        return pd.DataFrame(temp_df)
 
     ann_rets = annualize_rets(rets, periods_per_year)
 
-    # 1) Generate frontier portfolio weights
+    # generates optimal weights of porfolios lying of the efficient frontiers
     weights = optimal_weights(n_portfolios, ann_rets, covmat, periods_per_year)
-    # If your portfolio is just 2 assets, you could do a simple np.linspace(0,1,n_portfolios).
+    # in alternative, if only the portfolio consists of only two assets, the weights can be:
+    # weights = [np.array([w,1-w]) for w in np.linspace(0,1,n_portfolios)]
 
-    # 2) Compute vol/ret/spr for each set of weights
+    # portfolio returns
     portfolio_ret = [portfolio_return(w, ann_rets) for w in weights]
+
+    # portfolio volatility
     vols = [portfolio_volatility(w, covmat) for w in weights]
     portfolio_vol = [annualize_vol(v, periods_per_year) for v in vols]
+
+    # portfolio sharpe ratio
     portfolio_spr = [
         sharpe_ratio(r, risk_free_rate, periods_per_year, v=v)
-        for (r, v) in zip(portfolio_ret, portfolio_vol)
+        for r, v in zip(portfolio_ret, portfolio_vol)
     ]
 
-    # 3) Build the Frontier DataFrame
-    #    columns => ["volatility","return","sharpe ratio", weight0, weight1, ...]
-    df = pd.DataFrame({
-        "volatility": portfolio_vol,
-        "return": portfolio_ret,
-        "sharpe ratio": portfolio_spr
-    })
+    df = pd.DataFrame(
+        {
+            "volatility": portfolio_vol,
+            "return": portfolio_ret,
+            "sharpe ratio": portfolio_spr,
+        }
+    )
     df = pd.concat([df, pd.DataFrame(weights)], axis=1)
 
-    # 4) If cml=True, also compute the tangency (max Sharpe) portfolio => 2 points for the CML
-    cml_df = None
-    if cml:
-        w_sharpe = maximize_sharpe_ratio(ann_rets, covmat, risk_free_rate, periods_per_year)
-        ret_sharpe = portfolio_return(w_sharpe, ann_rets)
-        vol_sharpe = annualize_vol(portfolio_volatility(w_sharpe, covmat), periods_per_year)
-        spr_sharpe = sharpe_ratio(ret_sharpe, risk_free_rate, periods_per_year, v=vol_sharpe)
-
-        # cml_df => columns: ["volatility","return","sharpe ratio"]
-        cml_points = [
-            [0.0, risk_free_rate, 0.0],          # (vol=0, ret=Rf)
-            [vol_sharpe, ret_sharpe, spr_sharpe] # tangency portfolio
-        ]
-        cml_df = pd.DataFrame(cml_points, columns=["volatility","return","sharpe ratio"])
-
-    # 5) If iplot=True => do the old Matplotlib plotting
     if iplot:
         ax = df.plot.line(
             x="volatility",
@@ -521,66 +505,54 @@ def efficient_frontier(
             label="Efficient frontier",
             figsize=(8, 4),
         )
-
-        # If hsr or cml => find tangency portfolio
         if hsr or cml:
-            w = maximize_sharpe_ratio(ann_rets, covmat, risk_free_rate, periods_per_year)
-            ret_ = portfolio_return(w, ann_rets)
-            vol_ = annualize_vol(portfolio_volatility(w, covmat), periods_per_year)
-            spr_ = sharpe_ratio(ret_, risk_free_rate, periods_per_year, v=vol_)
-
-            # Optionally append that row to df
-            df = append_row_df(df, vol_, ret_, spr_, w)
-
-            # If cml => draw the line from (0,Rf) to (vol,ret)
+            w = maximize_sharpe_ratio(
+                ann_rets, covmat, risk_free_rate, periods_per_year
+            )
+            ret = portfolio_return(w, ann_rets)
+            vol = annualize_vol(portfolio_volatility(w, covmat), periods_per_year)
+            spr = sharpe_ratio(ret, risk_free_rate, periods_per_year, v=vol)
+            df = append_row_df(df, vol, ret, spr, w)
             if cml:
+                # Draw the CML: the endpoints of the CML are [0,risk_free_rate] and [port_vol,port_ret]
                 ax.plot(
-                    [0, vol_],
-                    [risk_free_rate, ret_],
+                    [0, vol],
+                    [risk_free_rate, ret],
                     color="g",
                     linestyle="-.",
                     label="CML",
                 )
                 ax.set_xlim(left=0)
                 ax.legend()
-
-            # If hsr => scatter that point
             if hsr:
-                ax.scatter([vol_], [ret_], marker="o", color="g", label="MSR portfolio")
+                # Plot the highest sharpe ratio portfolio
+                ax.scatter([vol], [ret], marker="o", color="g", label="MSR portfolio")
                 ax.legend()
-
-        # 6) If global min vol => mvp=True => plot that
         if mvp:
+            # Plot the global minimum portfolio:
             w = minimize_volatility(ann_rets, covmat)
-            ret_ = portfolio_return(w, ann_rets)
-            vol_ = annualize_vol(portfolio_volatility(w, covmat), periods_per_year)
-            spr_ = sharpe_ratio(ret_, risk_free_rate, periods_per_year, v=vol_)
-            df = append_row_df(df, vol_, ret_, spr_, w)
+            ret = portfolio_return(w, ann_rets)
+            vol = annualize_vol(portfolio_volatility(w, covmat), periods_per_year)
+            spr = sharpe_ratio(ret, risk_free_rate, periods_per_year, v=vol)
+            df = append_row_df(df, vol, ret, spr, w)
             ax.scatter(
-                [vol_], [ret_], color="midnightblue", marker="o", label="GMV portfolio"
+                [vol], [ret], color="midnightblue", marker="o", label="GMV portfolio"
             )
             ax.legend()
-
-        # 7) If equally weighted => ewp=True
         if ewp:
-            w = np.repeat(1.0 / ann_rets.shape[0], ann_rets.shape[0])
-            ret_ = portfolio_return(w, ann_rets)
-            vol_ = annualize_vol(portfolio_volatility(w, covmat), periods_per_year)
-            spr_ = sharpe_ratio(ret_, risk_free_rate, periods_per_year, v=vol_)
-            df = append_row_df(df, vol_, ret_, spr_, w)
+            # Plot the equally weighted portfolio:
+            w = np.repeat(1 / ann_rets.shape[0], ann_rets.shape[0])
+            ret = portfolio_return(w, ann_rets)
+            vol = annualize_vol(portfolio_volatility(w, covmat), periods_per_year)
+            spr = sharpe_ratio(ret, risk_free_rate, periods_per_year, v=vol)
+            df = append_row_df(df, vol, ret, spr, w)
             ax.scatter(
-                [vol_], [ret_], color="goldenrod", marker="o", label="EW portfolio"
+                [vol], [ret], color="goldenrod", marker="o", label="EW portfolio"
             )
             ax.legend()
-
         return df, ax
     else:
-        # If not plotting => just return the Frontier DataFrame
-        # plus the cml_df if cml=True
-        if cml_df is not None:
-            return df, cml_df
-        else:
-            return df
+        return df
 
 
 def summary_stats(s, risk_free_rate=0.03, periods_per_year=12, var_level=0.05):
@@ -1060,6 +1032,79 @@ def show_gbm(
     ax.set_xlabel(xlab)
     ax.set_ylabel("price")
     ax.set_title("Prices generated by GBM")
+
+
+def show_gbm_echart(
+    n_years=10, n_scenarios=10, mu=0.05, sigma=0.15, periods_per_year=12, start=100
+):
+    """Generate GBM paths and emit an ECharts configuration for interactive plotting.
+
+    This helper mirrors :func:`show_gbm` but, instead of rendering a Matplotlib figure,
+    it serialises the simulated price paths into the JSON structure expected by the
+    documentation site (see ``<ECHARTS_DATA>`` convention in ``OutputDisplay.vue``).
+
+    The function prints a JSON payload that contains a single chart definition named
+    ``gbmPrices``. Downstream consumers can parse and display it without needing to
+    re-run the GBM simulation in the browser.
+    """
+
+    prices, _ = simulate_gbm_from_returns(
+        n_years=n_years,
+        n_scenarios=n_scenarios,
+        mu=mu,
+        sigma=sigma,
+        periods_per_year=periods_per_year,
+        start=start,
+    )
+
+    periods_map = {12: "Months", 52: "Weeks", 252: "Days"}
+    x_label = periods_map.get(periods_per_year, "Periods")
+
+    x_data = [str(int(idx)) if isinstance(idx, (int, np.integer)) else str(idx) for idx in prices.index]
+
+    series_data = {}
+    for col_idx in range(prices.shape[1]):
+        series_name = f"Scenario {col_idx + 1}"
+        series_values = [float(val) for val in prices.iloc[:, col_idx].tolist()]
+        series_data[series_name] = series_values
+
+    legend_conf = {"type": "scroll"} if len(series_data) > 6 else {}
+
+    chart_config = {
+        "title": "Prices generated by GBM",
+        "tooltip": {"trigger": "axis"},
+        "legend": legend_conf,
+        "xAxis": {"type": "category", "data": x_data, "name": x_label},
+        "yAxis": {"type": "value", "name": "Price"},
+        "series": series_data,
+        "type": "line",
+    }
+
+    plot_data = {
+        "dates": x_data,
+        "gbmPrices": chart_config,
+    }
+
+    try:
+        from IPython.display import clear_output
+        out = globals().get('_gbm_output_widget')
+        if hasattr(out, 'clear_output'):
+            out.clear_output(wait=True)
+    except Exception:
+        pass
+
+    payload = "\n<ECHARTS_DATA>" + json.dumps(plot_data)
+    try:
+        _emit_echarts(payload)
+    except Exception:
+        try:
+            import sys
+            sys.__stdout__.write(payload + "\n")
+            sys.__stdout__.flush()
+        except Exception:
+            print(payload)
+
+    return None
 
 
 def show_cppi(

@@ -41,6 +41,10 @@ const running = ref(false)
 const waitingForInput = ref(false)
 const chartOutput = ref('')
 
+const widgetContexts = new Map<string, { controls: Record<string, any>; lastCode: string }>()
+const pendingEchartUpdates = new Map<string, number>()
+const latestControlValues = new Map<string, Record<string, any>>()
+
 // The CodeMirror anchor and input references
 let anchor = ref<HTMLDivElement>()
 let parent = ref<HTMLDivElement>()
@@ -116,6 +120,7 @@ async function handleMessage(e: MessageEvent) {
     input.value?.focus()
   }
   if (e.data.output) updateOutput(e.data.output)
+  if (typeof e.data.echart === 'string') updateOutput(e.data.echart)
   if (e.data.widgetState) {
     console.info('ipywidgets: widgetState received')
     await renderWidget(e.data.widgetState)
@@ -169,24 +174,10 @@ function run() {
   resetOutput()
   running.value = true
   interruptBuffer[0] = 0
-  if (/\bimport\s+ipywidgets\b/.test(code)) {
-    ;(async () => {
-      try {
-        const { IframeKernelClient } = await import('./IframeKernelClient')
-        const client = new IframeKernelClient(widgetContainer.value!)
-        await client.execute(code, {
-          onStdout: (s) => updateOutput(s),
-          onStderr: (s) => updateOutput(s)
-        })
-      } catch (e) {
-        updateOutput(String(e))
-      } finally {
-        running.value = false
-      }
-    })()
-  } else {
-    worker.postMessage({ id: props.id, code })
-  }
+  widgetContexts.set(props.id, { controls: {}, lastCode: code })
+  // Run via in-page Pyodide worker for both normal and ipywidgets code.
+  // The worker serializes widget state which we render in-page.
+  worker.postMessage({ id: props.id, code, skipWidgetState: false })
 }
 
 // If code is still running, we "interrupt" it; otherwise, reset editor
@@ -249,6 +240,123 @@ function updateOutput(raw: string) {
   }
 }
 
+function attachOutputListeners(model: any, manager: any, context: { controls: Record<string, any>; lastCode: string }) {
+  if (!model || typeof model.get !== 'function') return
+  if ((model as any)._echartsAttached) return
+  (model as any)._echartsAttached = true
+
+  const handleOutputs = () => {
+    const outputs = model.get('outputs')
+    if (!Array.isArray(outputs)) return
+    for (const item of outputs) {
+      if (!item) continue
+      if (item.output_type === 'stream' && typeof item.text === 'string' && item.text.includes('<ECHARTS_DATA>')) {
+        updateOutput(item.text)
+      } else if ((item.output_type === 'display_data' || item.output_type === 'execute_result') && item.data) {
+        const text = item.data['text/plain'] || item.data['text']
+        if (typeof text === 'string' && text.includes('<ECHARTS_DATA>')) {
+          updateOutput(text)
+        }
+      }
+    }
+  }
+
+  if (model.get('_model_name') === 'OutputModel') {
+    model.on('change:outputs', handleOutputs)
+    handleOutputs()
+  }
+
+  attachValueObservers(model, manager, context)
+
+  const children = model.get('children')
+  if (Array.isArray(children)) {
+    children.forEach((child: any) => {
+      if (!child) return
+      if (typeof child.then === 'function') {
+        child.then((resolved: any) => attachOutputListeners(resolved, manager, context)).catch(() => {})
+      } else if (typeof child.get === 'function') {
+        attachOutputListeners(child, manager, context)
+      } else if (typeof child === 'string' && child.startsWith('IPY_MODEL_') && manager?.get_model) {
+        manager.get_model(child.slice(10)).then((resolved: any) => attachOutputListeners(resolved, manager, context)).catch(() => {})
+      }
+    })
+  }
+
+  model.on?.('change:children', () => {
+    (model as any)._echartsAttached = false
+    attachOutputListeners(model, manager, context)
+  })
+}
+
+const controlModelNames = new Set(['IntSliderModel', 'FloatSliderModel', 'DropdownModel'])
+
+function attachValueObservers(model: any, manager: any, context: { controls: Record<string, any>; lastCode: string }) {
+  if (!model || typeof model.get !== 'function') return
+  if ((model as any)._echartsValueAttached) return
+  (model as any)._echartsValueAttached = true
+
+  const modelName = model.get('_model_name')
+  if (controlModelNames.has(modelName)) {
+    const label = model.get('description') || modelName
+    context.controls[label] = model
+    model.on('change:value', () => queueEchartUpdate(context))
+  }
+
+  const children = model.get('children')
+  if (Array.isArray(children)) {
+    children.forEach((child: any) => {
+      if (!child) return
+      if (typeof child.then === 'function') {
+        child.then((resolved: any) => attachValueObservers(resolved, manager, context)).catch(() => {})
+      } else if (typeof child.get === 'function') {
+        attachValueObservers(child, manager, context)
+      } else if (typeof child === 'string' && child.startsWith('IPY_MODEL_') && manager?.get_model) {
+        manager.get_model(child.slice(10)).then((resolved: any) => attachValueObservers(resolved, manager, context)).catch(() => {})
+      }
+    })
+  }
+}
+
+const allowedParams = new Set(['n_years', 'n_scenarios', 'mu', 'sigma', 'periods_per_year', 'start'])
+
+function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: string }) {
+  const values: Record<string, any> = {}
+  for (const [label, model] of Object.entries(context.controls)) {
+    if (!allowedParams.has(label)) continue
+    try {
+      const value = model.get?.('value')
+      if (value === undefined || value === null) continue
+      values[label] = value
+    } catch (err) {
+      console.warn('Failed to read control value', label, err)
+    }
+  }
+
+  latestControlValues.set(props.id, values)
+  if (pendingEchartUpdates.has(props.id)) return
+
+  const handle = window.setTimeout(() => {
+    pendingEchartUpdates.delete(props.id)
+    const latestValues = latestControlValues.get(props.id) || {}
+    const code = buildEchartCode(latestValues)
+    if (!code) return
+    worker.postMessage({ id: props.id, code, skipWidgetState: true })
+  }, 120)
+
+  pendingEchartUpdates.set(props.id, handle)
+}
+
+function buildEchartCode(values: Record<string, any>) {
+  const entries = Object.entries(values)
+    .filter(([key, value]) => allowedParams.has(key) && value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+
+  if (entries.length === 0) return ''
+
+  const args = entries.join(', ')
+  return `import PortfolioOptimizationKit as pok\npok.show_gbm_echart(${args})`
+}
+
 // Clear out console lines & chart JSON
 function resetOutput() {
   output.value = [Array.from({ length: outputWidth })]
@@ -260,7 +368,6 @@ function resetOutput() {
 
 async function renderWidget(stateJSON: string) {
   try {
-    console.log('[DEBUG] Rendering widget with state JSON length:', stateJSON.length)
     
     // Fix for webpack public path issue in Vite environment
     if (typeof (window as any).__webpack_public_path__ === 'undefined') {
@@ -287,24 +394,11 @@ async function renderWidget(stateJSON: string) {
         if (id === 'postcss') {
           return { parse: () => ({ nodes: [], toString: () => '' }) }
         }
-        if (id === 'sanitize-html') {
-          const sanitizeHtml = (dirty) => {
-            if (typeof dirty !== 'string') return ''
-            return dirty.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          }
-          sanitizeHtml.defaults = {
-            allowedTags: ['div', 'span', 'p', 'b', 'i', 'em', 'strong', 'a', 'img'],
-            allowedAttributes: {},
-            allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel']
-          }
-          return sanitizeHtml
-        }
         return {}
       }
     }
     
     const parsed = JSON.parse(stateJSON)
-    console.log('[DEBUG] Parsed widget state:', { hasState: !!parsed.state, model_id: parsed.model_id })
     
     const { state, model_id } = parsed
     
@@ -312,21 +406,31 @@ async function renderWidget(stateJSON: string) {
     let htmlManagerModule, baseModule, controlsModule, outputModule
     
     try {
+      // Ensure sanitize-html shim exposes the helper expected by html-manager
+      try {
+        const sanitizeMod = await import('sanitize-html')
+        const sanitizeDefault = (sanitizeMod as any).default ?? sanitizeMod
+        if (typeof sanitizeDefault.simpleTransform !== 'function') {
+          sanitizeDefault.simpleTransform = (newTagName: string, newAttribs: Record<string, string> = {}) => {
+            return (tagName: string, attribs: Record<string, string> = {}) => ({
+              tagName: newTagName || tagName,
+              attribs: { ...attribs, ...newAttribs }
+            })
+          }
+        }
+      } catch (err) {
+        console.warn('[DEBUG] Unable to prime sanitize-html shim:', err)
+      }
+
       // Import one at a time with better error isolation
-      console.log('[DEBUG] Importing html-manager...')
       htmlManagerModule = await import('@jupyter-widgets/html-manager')
-      
-      console.log('[DEBUG] Importing base...')
+
       baseModule = await import('@jupyter-widgets/base')
-      
-      console.log('[DEBUG] Importing controls...')
+
       controlsModule = await import('@jupyter-widgets/controls')
-      
-      console.log('[DEBUG] Skipping output module import (causes require issues)')
-      // outputModule = await import('@jupyter-widgets/output')
-      outputModule = { /* empty output module */ }
-      
-      console.log('[DEBUG] All modules imported successfully')
+
+      outputModule = await import('@jupyter-widgets/output')
+
     } catch (err) {
       console.error('Failed to import ipywidgets modules:', err)
       throw new Error(`Module import failed: ${(err as Error).message}`)
@@ -338,7 +442,6 @@ async function renderWidget(stateJSON: string) {
     const output = outputModule
 
     const resolveModule = (name: string) => {
-      console.log('[DEBUG] Resolving module:', name)
       // Handle both exact matches and module paths
       if (name === '@jupyter-widgets/controls' || name.startsWith('@jupyter-widgets/controls')) {
         return controls as any
@@ -347,11 +450,7 @@ async function renderWidget(stateJSON: string) {
         return base as any
       }
       if (name === '@jupyter-widgets/output' || name.startsWith('@jupyter-widgets/output')) {
-        // Return a minimal output module implementation
-        return {
-          OutputModel: class { constructor() {} },
-          OutputView: class { constructor() {} }
-        } as any
+        return output as any
       }
       console.error(`[DEBUG] Unknown widget module requested: ${name}`)
       throw new Error(`Unknown widget module requested: ${name}`)
@@ -359,16 +458,13 @@ async function renderWidget(stateJSON: string) {
 
     const manager = new HTMLManager({ 
       loader: (name: string) => {
-        console.log('[DEBUG] Loader called for:', name)
         return Promise.resolve(resolveModule(name))
       }
     })
 
     // Pass the full dependency_state wrapper (includes version info)
-    console.log('[DEBUG] Setting manager state...')
     await manager.set_state(parsed as any)
     
-    console.log('[DEBUG] Getting model:', model_id)
     let model: any = await (manager as any).get_model(model_id)
     if (!model) {
       console.error('[DEBUG] Model not found for ID:', model_id)
@@ -381,14 +477,15 @@ async function renderWidget(stateJSON: string) {
       }
     }
     
-    console.log('[DEBUG] Creating view for model:', model)
     const view = await manager.create_view(model)
-    
+    const existing = widgetContexts.get(props.id)
+    const context = existing ? { controls: existing.controls, lastCode: editor.state.doc.toString() } : { controls: {}, lastCode: editor.state.doc.toString() }
+    widgetContexts.set(props.id, context)
+    attachOutputListeners(model, manager, context)
+
     if (widgetContainer.value) {
-      console.log('[DEBUG] Displaying view in container')
       widgetContainer.value.innerHTML = ''
       await manager.display_view(view, widgetContainer.value)
-      console.log('[DEBUG] Widget rendered successfully')
     } else {
       console.error('[DEBUG] Widget container not available')
     }
