@@ -394,6 +394,30 @@ async function renderWidget(stateJSON: string) {
         if (id === 'postcss') {
           return { parse: () => ({ nodes: [], toString: () => '' }) }
         }
+        if (id === 'sanitize-html') {
+          const sanitizeHtml = (dirty?: string) => (typeof dirty === 'string' ? dirty : '')
+          sanitizeHtml.defaults = {
+            allowedTags: ['div', 'span', 'p', 'b', 'i', 'em', 'strong', 'a', 'img'],
+            allowedAttributes: {},
+            allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel']
+          }
+          sanitizeHtml.simpleTransform = (newTagName?: string, newAttribs: Record<string, string> = {}) => {
+            return (tagName?: string, attribs: Record<string, string> = {}) => ({
+              tagName: newTagName || tagName || 'div',
+              attribs: { ...attribs, ...newAttribs }
+            })
+          }
+          return sanitizeHtml
+        }
+        if (id === '@jupyter-widgets/schema') {
+          return {
+            state: {
+              title: 'Widget State Schema',
+              type: 'object',
+              properties: {},
+            },
+          }
+        }
         return {}
       }
     }

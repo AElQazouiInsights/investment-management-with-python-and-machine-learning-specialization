@@ -1,0 +1,8 @@
+:root {
+  --gbm-accent: #1e88e5;
+  --gbm-action: #fdd835;
+}
+
+body {
+  font-family: var(--vp-font-family-base, 'Inter', system-ui, sans-serif);
+}

@@ -13,8 +13,8 @@ export default defineConfig({
   description: "Portfolio management techniques with Python and Machine Learning",
   base,
   head: [
-    ['link', { rel: 'icon', type: 'image/x-icon', href: `${base}favicon.ico` }],
     ['link', { rel: 'stylesheet', href: `${base}theme.css` }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}pi.svg` }],
     // Cross Origin Isolation headers
     ['meta', { 'http-equiv': 'Cross-Origin-Embedder-Policy', content: 'require-corp' }],
     ['meta', { 'http-equiv': 'Cross-Origin-Opener-Policy', content: 'same-origin' }],
