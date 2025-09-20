@@ -1247,6 +1247,123 @@ def show_cppi(
     )
 
 
+def show_cppi_echart(
+    n_years=10,
+    n_scenarios=50,
+    m=3,
+    floor=0.0,
+    mu=0.04,
+    sigma=0.15,
+    risk_free_rate=0.03,
+    periods_per_year=12,
+    start=100.0,
+    ymax=100,
+):
+    """Simulate CPPI wealth paths and emit an ECharts payload for interactive charts."""
+
+    _, risky_rets = simulate_gbm_from_returns(
+        n_years=n_years,
+        n_scenarios=n_scenarios,
+        mu=mu,
+        sigma=sigma,
+        periods_per_year=periods_per_year,
+        start=start,
+    )
+
+    results = cppi(
+        risky_rets,
+        start_value=start,
+        floor=floor,
+        m=m,
+        drawdown=None,
+        risk_free_rate=risk_free_rate,
+        periods_per_year=periods_per_year,
+    )
+
+    cppi_wealth = results["CPPI wealth"].copy()
+    risky_wealth = results["Risky wealth"].copy()
+    risky_allocation = results["Risky allocation"].copy()
+
+    start_row = {col: start for col in cppi_wealth.columns}
+    cppi_wealth = insert_first_row_df(cppi_wealth, start_row)
+    risky_wealth = insert_first_row_df(risky_wealth, start_row)
+    if not risky_allocation.empty:
+        alloc_start = risky_allocation.iloc[0].to_dict()
+        risky_allocation = insert_first_row_df(risky_allocation, alloc_start)
+
+    dates = [str(idx) for idx in cppi_wealth.index]
+
+    cppi_array = cppi_wealth.to_numpy(dtype=float)
+    risky_array = risky_wealth.to_numpy(dtype=float)
+    alloc_array = risky_allocation.to_numpy(dtype=float)
+
+    cppi_p05, cppi_p50, cppi_p95 = np.percentile(cppi_array, [5, 50, 95], axis=1)
+    risky_p50 = np.percentile(risky_array, 50, axis=1)
+    alloc_mean = np.nanmean(alloc_array, axis=1)
+    alloc_p05, alloc_p95 = np.percentile(alloc_array, [5, 95], axis=1)
+
+    floor_line = [start * floor] * len(dates)
+
+    terminal = cppi_wealth.iloc[-1]
+    floor_value = start * floor
+    breaches = int((terminal < floor_value).sum()) if floor > 0 else 0
+    breach_prob = breaches / n_scenarios if n_scenarios else 0
+    expected_shortfall = 0.0
+    if breaches > 0:
+        diff = (terminal - floor_value).to_numpy(dtype=float)
+        mask = (terminal < floor_value).to_numpy(dtype=float)
+        expected_shortfall = float(np.dot(diff, mask) / breaches)
+
+    summary = {
+        "mean_terminal": float(terminal.mean()),
+        "median_terminal": float(terminal.median()),
+        "floor_value": float(floor_value),
+        "breach_probability": float(breach_prob),
+        "expected_shortfall": float(expected_shortfall),
+        "parameters": {
+            "n_years": n_years,
+            "n_scenarios": n_scenarios,
+            "m": m,
+            "floor": floor,
+            "mu": mu,
+            "sigma": sigma,
+            "risk_free_rate": risk_free_rate,
+            "periods_per_year": periods_per_year,
+            "start": start,
+            "ymax": ymax,
+        },
+    }
+
+    plot_data = {
+        "dates": dates,
+        "cppiWealth": {
+            "title": "CPPI vs Risky Wealth",
+            "type": "line",
+            "yAxisName": "Wealth",
+            "series": {
+                "CPPI P05": cppi_p05.tolist(),
+                "CPPI Median": cppi_p50.tolist(),
+                "CPPI P95": cppi_p95.tolist(),
+                "Risky Median": risky_p50.tolist(),
+                "Floor": floor_line,
+            },
+        },
+        "riskyAllocation": {
+            "title": "Risky Allocation",
+            "type": "line",
+            "yAxisName": "Weight",
+            "series": {
+                "Risky Weight Mean": alloc_mean.tolist(),
+                "Risky Weight P05": alloc_p05.tolist(),
+                "Risky Weight P95": alloc_p95.tolist(),
+            },
+        },
+        "summary": summary,
+    }
+
+    payload = "\n<ECHARTS_DATA>" + json.dumps(plot_data, default=float)
+    print(payload)
+
 # ---------------------------------------------------------------------------------
 # Securities
 # ---------------------------------------------------------------------------------
