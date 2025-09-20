@@ -7,6 +7,21 @@ let interruptBuffer: Uint8Array
 
 const ready = ref(false)
 const encoder = new TextEncoder()
+
+let widgetSchemaModule: any | null = null
+let schemaModulePromise: Promise<any> | null = null
+
+if (typeof window !== 'undefined') {
+  schemaModulePromise = import('@jupyter-widgets/schema')
+    .then((mod: any) => {
+      widgetSchemaModule = mod?.default ?? mod ?? null
+      return widgetSchemaModule
+    })
+    .catch((err: unknown) => {
+      console.warn('Failed to preload @jupyter-widgets/schema:', err)
+      return null
+    })
+}
 </script>
 
 <script setup lang="ts">
@@ -374,6 +389,14 @@ async function renderWidget(stateJSON: string) {
       (window as any).__webpack_public_path__ = '/'
     }
     
+    if (!widgetSchemaModule && schemaModulePromise) {
+      try {
+        await schemaModulePromise
+      } catch (_) {
+        /* already logged */
+      }
+    }
+
     // Set up global exports and require for CommonJS compatibility
     if (typeof (window as any).exports === 'undefined') {
       (window as any).exports = {}
@@ -381,45 +404,42 @@ async function renderWidget(stateJSON: string) {
     if (typeof (window as any).module === 'undefined') {
       (window as any).module = { exports: {} }
     }
-    if (typeof (window as any).require === 'undefined') {
-      // Create a minimal require function for browser environment
-      (window as any).require = (id: string) => {
-        console.warn(`require('${id}') called in browser - returning shimmed object`)
-        if (id === 'fs') {
-          return { existsSync: () => false, readFileSync: () => '' }
-        }
-        if (id === 'path') {
-          return { resolve: () => '', sep: '/' }
-        }
-        if (id === 'postcss') {
-          return { parse: () => ({ nodes: [], toString: () => '' }) }
-        }
-        if (id === 'sanitize-html') {
-          const sanitizeHtml = (dirty?: string) => (typeof dirty === 'string' ? dirty : '')
-          sanitizeHtml.defaults = {
-            allowedTags: ['div', 'span', 'p', 'b', 'i', 'em', 'strong', 'a', 'img'],
-            allowedAttributes: {},
-            allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel']
-          }
-          sanitizeHtml.simpleTransform = (newTagName?: string, newAttribs: Record<string, string> = {}) => {
-            return (tagName?: string, attribs: Record<string, string> = {}) => ({
-              tagName: newTagName || tagName || 'div',
-              attribs: { ...attribs, ...newAttribs }
-            })
-          }
-          return sanitizeHtml
-        }
-        if (id === '@jupyter-widgets/schema') {
-          return {
-            state: {
-              title: 'Widget State Schema',
-              type: 'object',
-              properties: {},
-            },
-          }
-        }
-        return {}
+    // Create/replace a minimal require function for browser environment
+    ;(window as any).require = (id: string) => {
+      console.warn(`require('${id}') called in browser - returning shimmed object`)
+      if (id === 'fs') {
+        return { existsSync: () => false, readFileSync: () => '' }
       }
+      if (id === 'path') {
+        return { resolve: () => '', sep: '/' }
+      }
+      if (id === 'postcss') {
+        return { parse: () => ({ nodes: [], toString: () => '' }) }
+      }
+      if (id === 'sanitize-html') {
+        const sanitizeHtml = (dirty?: string) => (typeof dirty === 'string' ? dirty : '')
+        sanitizeHtml.defaults = {
+          allowedTags: ['div', 'span', 'p', 'b', 'i', 'em', 'strong', 'a', 'img'],
+          allowedAttributes: {},
+          allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel']
+        }
+        sanitizeHtml.simpleTransform = (newTagName?: string, newAttribs: Record<string, string> = {}) => {
+          return (tagName?: string, attribs: Record<string, string> = {}) => ({
+            tagName: newTagName || tagName || 'div',
+            attribs: { ...attribs, ...newAttribs }
+          })
+        }
+        return sanitizeHtml
+      }
+      if (id === '@jupyter-widgets/schema') {
+        if (widgetSchemaModule) return widgetSchemaModule
+        console.warn('Falling back to minimal @jupyter-widgets/schema stub')
+        return {
+          v1: { state: {}, view: {} },
+          v2: { state: {}, view: {} }
+        }
+      }
+      return {}
     }
     
     const parsed = JSON.parse(stateJSON)
