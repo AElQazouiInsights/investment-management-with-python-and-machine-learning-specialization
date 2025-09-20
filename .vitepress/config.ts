@@ -103,7 +103,6 @@ export default defineConfig({
             { text: 'Understanding Risks', link: '/1.1-risks' },
             { text: 'Portfolio Optimization', link: '/1.2-optimization' },
             { text: 'Diversification Strategies', link: '/1.3-diversification' },
-            { text: 'Diversification Strategies (v1)', link: '/1.3-diversification-v1' },
             { text: 'Asset Liability Management', link: '/1.4-alm' }
           ]
         },
