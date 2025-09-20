@@ -110,9 +110,9 @@ export default defineConfig({
           text: 'Advanced Portfolio Construction and Analysis',
           collapsed: false,
           items: [
-            { text: 'Overview', link: '/2-advanced/2.0-overview' },
-            { text: 'Advanced Insights into Style & Factor Exposures for Portfolio Optimization', link: '/2-advanced/2.1-style-factors' },
-            { text: 'Strategies for Robust Covariance Matrix Estimation in Portfolio Management', link: '/2-advanced/2.2-covariance' }
+            { text: 'Overview', link: '/2.0-overview' },
+            { text: 'Advanced Insights into Style & Factor Exposures for Portfolio Optimization', link: '/2.1-style-factors' },
+            { text: 'Strategies for Robust Covariance Matrix Estimation in Portfolio Management', link: '/2.2-covariance' }
           ]
         }
       ]
