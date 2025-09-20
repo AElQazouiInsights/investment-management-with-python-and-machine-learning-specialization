@@ -18,6 +18,9 @@ if (typeof window !== 'undefined') {
   schemaModulePromise = import('@jupyter-widgets/schema')
     .then((mod: any) => {
       widgetSchemaModule = mod?.default ?? mod ?? null
+      if (widgetSchemaModule) {
+        widgetRequireCache['@jupyter-widgets/schema'] = widgetSchemaModule
+      }
       return widgetSchemaModule
     })
     .catch((err: unknown) => {
@@ -398,6 +401,9 @@ async function renderWidget(stateJSON: string) {
       } catch (_) {
         /* already logged */
       }
+    }
+    if (widgetSchemaModule) {
+      widgetRequireCache['@jupyter-widgets/schema'] = widgetSchemaModule
     }
 
     // Set up global exports and require for CommonJS compatibility
