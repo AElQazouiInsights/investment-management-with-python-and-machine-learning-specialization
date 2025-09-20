@@ -36,7 +36,8 @@ export default defineConfig({
         'vue-echarts',
         '@jupyter-widgets/html-manager',
         '@jupyter-widgets/base',
-        '@jupyter-widgets/controls'
+        '@jupyter-widgets/controls',
+        '@jupyter-widgets/schema'
       ],
       exclude: [
         '@phosphor/coreutils',
@@ -68,7 +69,7 @@ export default defineConfig({
       'Buffer': 'undefined'
     },
     ssr: {
-      noExternal: ['vue-echarts', 'echarts', '@jupyter-widgets/html-manager', '@jupyter-widgets/base', '@jupyter-widgets/controls'] // Ensure these packages are bundled for SSR
+      noExternal: ['vue-echarts', 'echarts', '@jupyter-widgets/html-manager', '@jupyter-widgets/base', '@jupyter-widgets/controls', '@jupyter-widgets/schema'] // Ensure these packages are bundled for SSR
     },
     server: {
       headers: {

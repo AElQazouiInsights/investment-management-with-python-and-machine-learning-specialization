@@ -35,6 +35,9 @@ importers:
       '@jupyter-widgets/output':
         specifier: ^6.0.11
         version: 6.0.11(react@18.3.1)
+      '@jupyter-widgets/schema':
+        specifier: ^0.5.6
+        version: 0.5.6
       '@lezer/common':
         specifier: ^1.2.3
         version: 1.2.3
