@@ -459,6 +459,9 @@ async function renderWidget(stateJSON: string) {
         }
         return sanitizeHtml
       }
+      if (id.endsWith('/package.json')) {
+        return { name: 'widget-package', version: '0.0.0' }
+      }
       if (canonical === '@jupyter-widgets/base' || canonical === '@jupyter-widgets/controls' || canonical === '@jupyter-widgets/output') {
         return widgetRequireCache[canonical] ?? {}
       }
@@ -526,9 +529,9 @@ async function renderWidget(stateJSON: string) {
     }
 
     const { HTMLManager } = htmlManagerModule
-    const base = baseModule
-    const controls = controlsModule
-    const output = outputModule
+    const base = (baseModule as any)?.default ?? baseModule
+    const controls = (controlsModule as any)?.default ?? controlsModule
+    const output = (outputModule as any)?.default ?? outputModule
 
     widgetRequireCache['@jupyter-widgets/base'] = base
     widgetRequireCache['@jupyter-widgets/controls'] = controls
