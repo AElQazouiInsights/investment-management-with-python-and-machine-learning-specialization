@@ -416,6 +416,8 @@ async function renderWidget(stateJSON: string) {
     // Create/replace a minimal require function for browser environment
     const canonicalId = (rawId: string) => {
       if (!rawId) return rawId
+      if (/\.css$/.test(rawId)) return rawId
+      if (rawId.endsWith('/package.json')) return rawId
       if (rawId.startsWith('@jupyter-widgets/base@')) return '@jupyter-widgets/base'
       if (rawId.startsWith('@jupyter-widgets/controls@')) return '@jupyter-widgets/controls'
       if (rawId.startsWith('@jupyter-widgets/output@')) return '@jupyter-widgets/output'
