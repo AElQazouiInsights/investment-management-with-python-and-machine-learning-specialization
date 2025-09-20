@@ -408,6 +408,19 @@ async function renderWidget(stateJSON: string) {
       (window as any).module = { exports: {} }
     }
     // Create/replace a minimal require function for browser environment
+    const canonicalId = (rawId: string) => {
+      if (!rawId) return rawId
+      if (rawId.startsWith('@jupyter-widgets/base@')) return '@jupyter-widgets/base'
+      if (rawId.startsWith('@jupyter-widgets/controls@')) return '@jupyter-widgets/controls'
+      if (rawId.startsWith('@jupyter-widgets/output@')) return '@jupyter-widgets/output'
+      if (rawId.startsWith('@jupyter-widgets/schema@')) return '@jupyter-widgets/schema'
+      if (rawId === '@jupyter-widgets/base' || rawId.startsWith('@jupyter-widgets/base/')) return '@jupyter-widgets/base'
+      if (rawId === '@jupyter-widgets/controls' || rawId.startsWith('@jupyter-widgets/controls/')) return '@jupyter-widgets/controls'
+      if (rawId === '@jupyter-widgets/output' || rawId.startsWith('@jupyter-widgets/output/')) return '@jupyter-widgets/output'
+      if (rawId === '@jupyter-widgets/schema' || rawId.startsWith('@jupyter-widgets/schema/')) return '@jupyter-widgets/schema'
+      return rawId
+    }
+
     const ensureStylesheet = (href: string) => {
       if (typeof document === 'undefined') return
       if (document.querySelector(`link[data-widget-css="${href}"]`)) return
@@ -419,9 +432,9 @@ async function renderWidget(stateJSON: string) {
     }
 
     ;(window as any).require = (id: string) => {
-      if (widgetRequireCache[id]) return widgetRequireCache[id]
+      const canonical = canonicalId(id)
+      if (widgetRequireCache[canonical]) return widgetRequireCache[canonical]
 
-      console.warn(`require('${id}') called in browser - returning shimmed object`)
       if (id === 'fs') {
         return { existsSync: () => false, readFileSync: () => '' }
       }
@@ -446,14 +459,8 @@ async function renderWidget(stateJSON: string) {
         }
         return sanitizeHtml
       }
-      if (id === '@jupyter-widgets/base' || id.startsWith('@jupyter-widgets/base/')) {
-        return widgetRequireCache['@jupyter-widgets/base'] ?? {}
-      }
-      if (id === '@jupyter-widgets/controls' || id.startsWith('@jupyter-widgets/controls/')) {
-        return widgetRequireCache['@jupyter-widgets/controls'] ?? {}
-      }
-      if (id === '@jupyter-widgets/output' || id.startsWith('@jupyter-widgets/output/')) {
-        return widgetRequireCache['@jupyter-widgets/output'] ?? {}
+      if (canonical === '@jupyter-widgets/base' || canonical === '@jupyter-widgets/controls' || canonical === '@jupyter-widgets/output') {
+        return widgetRequireCache[canonical] ?? {}
       }
       if (id.endsWith('widgets-base.css')) {
         ensureStylesheet('https://cdn.jsdelivr.net/npm/@jupyter-widgets/controls/css/widgets-base.css')
@@ -463,14 +470,20 @@ async function renderWidget(stateJSON: string) {
         ensureStylesheet('https://cdn.jsdelivr.net/npm/@jupyter-widgets/controls/css/labvariables.css')
         return {}
       }
-      if (id === '@jupyter-widgets/schema') {
+      if (canonical === '@jupyter-widgets/schema') {
         if (widgetSchemaModule) return widgetSchemaModule
-        console.warn('Falling back to minimal @jupyter-widgets/schema stub')
+        if (schemaModulePromise) {
+          schemaModulePromise.then(resolved => {
+            if (resolved) widgetRequireCache['@jupyter-widgets/schema'] = resolved
+          }).catch(() => {})
+        }
+        console.warn(`require('${id}') fell back to minimal @jupyter-widgets/schema stub`)
         return {
           v1: { state: {}, view: {} },
           v2: { state: {}, view: {} }
         }
       }
+      console.warn(`require('${id}') called in browser - returning empty object`)
       return {}
     }
     
