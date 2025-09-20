@@ -10,6 +10,9 @@ const encoder = new TextEncoder()
 
 let widgetSchemaModule: any | null = null
 let schemaModulePromise: Promise<any> | null = null
+const widgetRequireCache: Record<string, any> = typeof window !== 'undefined'
+  ? ((window as any).__widgetRequireCache ?? ((window as any).__widgetRequireCache = {}))
+  : {}
 
 if (typeof window !== 'undefined') {
   schemaModulePromise = import('@jupyter-widgets/schema')
@@ -405,7 +408,19 @@ async function renderWidget(stateJSON: string) {
       (window as any).module = { exports: {} }
     }
     // Create/replace a minimal require function for browser environment
+    const ensureStylesheet = (href: string) => {
+      if (typeof document === 'undefined') return
+      if (document.querySelector(`link[data-widget-css="${href}"]`)) return
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = href
+      link.setAttribute('data-widget-css', href)
+      document.head.appendChild(link)
+    }
+
     ;(window as any).require = (id: string) => {
+      if (widgetRequireCache[id]) return widgetRequireCache[id]
+
       console.warn(`require('${id}') called in browser - returning shimmed object`)
       if (id === 'fs') {
         return { existsSync: () => false, readFileSync: () => '' }
@@ -430,6 +445,23 @@ async function renderWidget(stateJSON: string) {
           })
         }
         return sanitizeHtml
+      }
+      if (id === '@jupyter-widgets/base' || id.startsWith('@jupyter-widgets/base/')) {
+        return widgetRequireCache['@jupyter-widgets/base'] ?? {}
+      }
+      if (id === '@jupyter-widgets/controls' || id.startsWith('@jupyter-widgets/controls/')) {
+        return widgetRequireCache['@jupyter-widgets/controls'] ?? {}
+      }
+      if (id === '@jupyter-widgets/output' || id.startsWith('@jupyter-widgets/output/')) {
+        return widgetRequireCache['@jupyter-widgets/output'] ?? {}
+      }
+      if (id.endsWith('widgets-base.css')) {
+        ensureStylesheet('https://cdn.jsdelivr.net/npm/@jupyter-widgets/controls/css/widgets-base.css')
+        return {}
+      }
+      if (id.endsWith('labvariables.css')) {
+        ensureStylesheet('https://cdn.jsdelivr.net/npm/@jupyter-widgets/controls/css/labvariables.css')
+        return {}
       }
       if (id === '@jupyter-widgets/schema') {
         if (widgetSchemaModule) return widgetSchemaModule
@@ -484,6 +516,10 @@ async function renderWidget(stateJSON: string) {
     const base = baseModule
     const controls = controlsModule
     const output = outputModule
+
+    widgetRequireCache['@jupyter-widgets/base'] = base
+    widgetRequireCache['@jupyter-widgets/controls'] = controls
+    widgetRequireCache['@jupyter-widgets/output'] = output
 
     const resolveModule = (name: string) => {
       // Handle both exact matches and module paths
