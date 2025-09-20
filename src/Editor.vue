@@ -66,6 +66,26 @@ const widgetContexts = new Map<string, { controls: Record<string, any>; lastCode
 const pendingEchartUpdates = new Map<string, number>()
 const latestControlValues = new Map<string, Record<string, any>>()
 
+const labelToParam = new Map<string, string>([
+  ['Zoom Y axis', 'ymax'],
+])
+
+const allowedParamsByFunction: Record<string, Set<string>> = {
+  show_gbm_echart: new Set(['n_years', 'n_scenarios', 'mu', 'sigma', 'periods_per_year', 'start']),
+  show_cppi_echart: new Set([
+    'n_years',
+    'n_scenarios',
+    'mu',
+    'sigma',
+    'periods_per_year',
+    'start',
+    'm',
+    'floor',
+    'risk_free_rate',
+    'ymax',
+  ]),
+}
+
 // The CodeMirror anchor and input references
 let anchor = ref<HTMLDivElement>()
 let parent = ref<HTMLDivElement>()
@@ -338,16 +358,19 @@ function attachValueObservers(model: any, manager: any, context: { controls: Rec
   }
 }
 
-const allowedParams = new Set(['n_years', 'n_scenarios', 'mu', 'sigma', 'periods_per_year', 'start'])
-
 function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: string }) {
   const values: Record<string, any> = {}
+  const lastCode = context.lastCode || ''
+  const targetFn = lastCode.includes('show_cppi_echart') ? 'show_cppi_echart' : 'show_gbm_echart'
+  const allowedParams = allowedParamsByFunction[targetFn] || allowedParamsByFunction.show_gbm_echart
+
   for (const [label, model] of Object.entries(context.controls)) {
-    if (!allowedParams.has(label)) continue
+    const param = labelToParam.get(label) ?? label
+    if (!allowedParams.has(param)) continue
     try {
       const value = model.get?.('value')
       if (value === undefined || value === null) continue
-      values[label] = value
+      values[param] = value
     } catch (err) {
       console.warn('Failed to read control value', label, err)
     }
@@ -362,12 +385,19 @@ function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: s
     const code = buildEchartCode(latestValues)
     if (!code) return
     worker.postMessage({ id: props.id, code, skipWidgetState: true })
+    const ctx = widgetContexts.get(props.id)
+    if (ctx) ctx.lastCode = code
   }, 120)
 
   pendingEchartUpdates.set(props.id, handle)
 }
 
 function buildEchartCode(values: Record<string, any>) {
+  const context = widgetContexts.get(props.id)
+  const lastCode = context?.lastCode || ''
+  const targetFn = lastCode.includes('show_cppi_echart') ? 'show_cppi_echart' : 'show_gbm_echart'
+  const allowedParams = allowedParamsByFunction[targetFn] || allowedParamsByFunction.show_gbm_echart
+
   const entries = Object.entries(values)
     .filter(([key, value]) => allowedParams.has(key) && value !== undefined && value !== null)
     .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
@@ -375,7 +405,7 @@ function buildEchartCode(values: Record<string, any>) {
   if (entries.length === 0) return ''
 
   const args = entries.join(', ')
-  return `import PortfolioOptimizationKit as pok\npok.show_gbm_echart(${args})`
+  return `import PortfolioOptimizationKit as pok\npok.${targetFn}(${args})`
 }
 
 // Clear out console lines & chart JSON
