@@ -106,16 +106,12 @@ def get_ind_file(filetype="rets", nind=30, ew=False):
     else:
         raise ValueError("filetype must be one of: rets, nfirms, size")
 
-    filepath = path_to_data_folder() + f"ind{nind}_m_{name}.csv"
-
-    # Read the CSV file, specifying the date format
-    ind = (
-        pd.read_csv(filepath, index_col=0, parse_dates=True, date_format="%Y%m")
-        / divisor
-    )
-    # Convert the index to a PeriodIndex with monthly frequency
-    ind.index = ind.index.to_period("M")
+    filepath = path_to_data_folder() + f"/ind{nind}_m_{name}.csv"
+    ind = pd.read_csv(filepath, index_col=0, na_values=[-99.99, -999]) / divisor
+    ind.index = pd.to_datetime(ind.index.astype(str), format="%Y%m").to_period("M")
     ind.columns = ind.columns.str.strip()
+    if ind.empty or not ind.index.is_unique or not ind.index.is_monotonic_increasing:
+        raise ValueError("Expected a nonempty industry history with unique, ordered monthly dates")
 
     return ind
 
@@ -1045,35 +1041,63 @@ def cppi(
     periods_per_year=12,
 ):
     """
-    Run a backtest of the CPPI investment strategy given a set of returns for a risky asset
-    Returns, account value history, risk budget history, and risky weight history
+    Backtest one independent, unlevered CPPI account per risky-return column.
+    Weights, cushions, and floors are beginning-of-period; wealth is period-end.
+    Include the first period's return; returns after total depletion are NaN.
+    floor is a fraction of initial wealth. If drawdown is supplied, retain the
+    legacy rule m=1/drawdown and use a beginning-of-period high-water-mark floor.
+    Default cash uses an effective annual risk_free_rate converted per period.
+    Supplied safe returns must be aligned; a Series is shared across accounts.
+    Floor breaches are recorded, not repaired or treated as impossible.
     """
 
-    # compute the risky wealth (100% investment in the risky asset)
-    risky_wealth = start_value * (1 + risky_rets).cumprod()
-
-    # CPPI parameters
-    account_value = start_value
-    floor_value = floor * account_value
-
-    # Make the returns a DataFrame
     if isinstance(risky_rets, pd.Series):
-        risky_rets = pd.DataFrame(risky_rets, columns="Risky return")
-
-    # If returns of safe assets are not available just make artificial ones
+        risky_rets = risky_rets.to_frame(name=risky_rets.name if risky_rets.name is not None else "Risky return")
+    if not isinstance(risky_rets, pd.DataFrame):
+        raise TypeError("Expected risky returns as a Series or DataFrame")
+    risky_rets = risky_rets.astype(float)
+    if risky_rets.empty or not risky_rets.index.is_unique or not risky_rets.columns.is_unique or not risky_rets.index.is_monotonic_increasing:
+        raise ValueError("Expected nonempty risky returns with unique columns and ordered, unique dates")
+    if not np.isfinite(start_value) or start_value <= 0:
+        raise ValueError("start_value must be positive and finite")
+    if not np.isfinite(floor) or not 0 <= floor <= 1:
+        raise ValueError("floor must be between 0 and 1")
+    if not np.isfinite(m) or m < 0:
+        raise ValueError("m must be nonnegative and finite")
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
+    if drawdown is not None and (not np.isfinite(drawdown) or not 0 < drawdown <= 1):
+        raise ValueError("drawdown must be greater than 0 and at most 1")
     if safe_rets is None:
-        safe_rets = pd.DataFrame().reindex_like(risky_rets)
-        safe_rets[:] = risk_free_rate / periods_per_year
+        if not np.isfinite(risk_free_rate) or risk_free_rate <= -1:
+            raise ValueError("risk_free_rate must be finite and greater than -1")
+        safe_rate = np.expm1(np.log1p(risk_free_rate) / periods_per_year)
+        safe_rets = pd.DataFrame(safe_rate, index=risky_rets.index, columns=risky_rets.columns)
+    elif isinstance(safe_rets, pd.Series):
+        safe_rets = pd.DataFrame({col: safe_rets for col in risky_rets.columns})
+    if not isinstance(safe_rets, pd.DataFrame):
+        raise TypeError("Expected safe returns as a Series or DataFrame")
+    if not safe_rets.index.equals(risky_rets.index) or not safe_rets.columns.equals(risky_rets.columns):
+        raise ValueError("Safe and risky returns must have identical dates and column order")
+    safe_rets = safe_rets.astype(float)
+    for returns in (risky_rets, safe_rets):
+        if not np.isfinite(returns.to_numpy()).all() or (returns < -1).any().any():
+            raise ValueError("Returns must be complete, finite, and at least -1")
+
+    risky_wealth = start_value * (1 + risky_rets).cumprod()
+    account_value = pd.Series(start_value, index=risky_rets.columns, dtype=float)
+    floor_value = floor * start_value
 
     # History dataframes
     account_history = pd.DataFrame().reindex_like(risky_rets)
     cushion_history = pd.DataFrame().reindex_like(risky_rets)
     risky_w_history = pd.DataFrame().reindex_like(risky_rets)
+    return_history = pd.DataFrame().reindex_like(risky_rets)
+    floor_history = pd.DataFrame().reindex_like(risky_rets)
 
     # Extra history dataframes in presence of drawdown
     if drawdown is not None:
         peak_history = pd.DataFrame().reindex_like(risky_rets)
-        floor_history = pd.DataFrame().reindex_like(risky_rets)
         peak = start_value
         # define the multiplier
         m = 1 / drawdown
@@ -1083,21 +1107,24 @@ def cppi(
         if drawdown is not None:
             # current peak
             peak = np.maximum(peak, account_value)
+            peak_history.iloc[step] = peak
             # current floor value
             floor_value = peak * (1 - drawdown)
-            floor_history.iloc[step] = floor_value
+        floor_history.iloc[step] = floor_value
 
         # computing the cushion (as a percentage of the current account value)
-        cushion = (account_value - floor_value) / account_value
+        cushion = (account_value - floor_value) / account_value.where(account_value > 0)
 
         # compute the weight for the allocation on the risky asset
         risky_w = m * cushion
         risky_w = np.minimum(risky_w, 1)
-        risky_w = np.maximum(risky_w, 0)
+        risky_w = np.maximum(risky_w, 0).fillna(0.0)
         # the last two conditions ensure that the risky weight is in [0,1]
 
         # compute the weight for the allocation on the safe asset
         safe_w = 1 - risky_w
+        period_return = risky_w * risky_rets.iloc[step] + safe_w * safe_rets.iloc[step]
+        return_history.iloc[step] = period_return.where(account_value > 0)
 
         # compute the value allocation
         risky_allocation = risky_w * account_value
@@ -1113,17 +1140,17 @@ def cppi(
         cushion_history.iloc[step] = cushion
         risky_w_history.iloc[step] = risky_w
 
-    # Given the CPPI wealth saved in the account_history, we can get back the CPPI returns
-    cppi_rets = (account_history / account_history.shift(1) - 1).dropna()
-
     # Returning results
     backtest_result = {
         "Risky wealth": risky_wealth,
         "CPPI wealth": account_history,
-        "CPPI returns": cppi_rets,
+        "CPPI returns": return_history,
         "Cushions": cushion_history,
         "Risky allocation": risky_w_history,
         "Safe returns": safe_rets,
+        "Floor value": floor_history,
+        "Floor breaches": account_history < floor_history - 1e-10 * start_value,
+        "m": m,
     }
     if drawdown is not None:
         backtest_result.update(
@@ -1136,67 +1163,69 @@ def cppi(
 # ---------------------------------------------------------------------------------
 # Random walks
 # ---------------------------------------------------------------------------------
+def _gbm_shocks(n_years, n_scenarios, mu, sigma, periods_per_year, start, seed):
+    """Validate a complete time grid and draw standard-normal interval shocks."""
+    if not np.isfinite(n_years) or n_years <= 0 or not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("n_years and periods_per_year must be positive and finite")
+    if not isinstance(n_scenarios, (int, np.integer)) or isinstance(n_scenarios, (bool, np.bool_)) or n_scenarios < 1:
+        raise ValueError("n_scenarios must be a positive integer")
+    if not np.isfinite(mu) or not np.isfinite(sigma) or sigma < 0 or not np.isfinite(start) or start <= 0:
+        raise ValueError("Expected finite drift, nonnegative volatility, and positive starting price")
+    steps = n_years * periods_per_year
+    if not np.isfinite(steps) or steps < 1 or not np.isclose(steps, round(steps), atol=1e-10, rtol=0):
+        raise ValueError("The horizon must contain a positive integer number of periods")
+    # Preserve legacy global seeding when seed is omitted; explicit seeds are local.
+    rng = np.random if seed is None else np.random.default_rng(seed)
+    return 1 / periods_per_year, rng.standard_normal((int(round(steps)), n_scenarios))
+
+
 def simulate_gbm_from_returns(
-    n_years=10, n_scenarios=20, mu=0.07, sigma=0.15, periods_per_year=12, start=100.0
+    n_years=10, n_scenarios=20, mu=0.07, sigma=0.15, periods_per_year=12, start=100.0,
+    seed=None,
 ):
     """
-    Evolution of an initial stock price using Geometric Brownian Model:
-        (S_{t+dt} - S_t)/S_t = mu*dt + sigma*sqrt(dt)*xi,
-    where xi are normal random variable N(0,1).
-    The equation for percentage returns above is used to generate returns and they are compounded
-    in order to get the prices.
-    Note that default periods_per_year=12 means that the method generates monthly prices (and returns):
-    change to 52 or 252 for weekly or daily prices and returns, respectively.
-    The method returns a dataframe of prices and the dataframe of returns.
+    Simulate the Euler approximation to GBM using simple returns.
+    Return prices including time zero and simple returns for each interval.
+    mu and sigma are annual continuous-time drift and diffusion parameters.
+    Keep legacy return-row labels 0..n-1; price rows are 0..n.
+    An explicit seed uses a local generator and permits paired exact/Euler paths.
+    Reject nonpositive Euler prices rather than silently clip or resample them.
     """
-    dt = 1 / periods_per_year
-    n_steps = int(n_years * periods_per_year)
-
-    # from GBM equation for percentage returns, returns have mean = mu*dt and std = sigma*sqrt(dt)
-    rets = pd.DataFrame(
-        np.random.normal(
-            loc=mu * dt, scale=sigma * (dt) ** (0.5), size=(n_steps, n_scenarios)
-        )
-    )
-
-    # compute prices by compound the generated returns
-    prices = compound_returns(rets, start=start)
+    dt, shocks = _gbm_shocks(n_years, n_scenarios, mu, sigma, periods_per_year, start, seed)
+    rets = pd.DataFrame(mu * dt + sigma * np.sqrt(dt) * shocks)
+    if not np.isfinite(rets.to_numpy()).all() or (rets <= -1).any().any():
+        raise ValueError("Euler approximation produced an invalid return; use a finer grid or exact GBM")
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        prices = compound_returns(rets, start=start)
+    if not np.isfinite(prices.to_numpy()).all() or (prices <= 0).any().any():
+        raise ValueError("Simulation produced nonfinite or nonpositive prices")
     prices = insert_first_row_df(prices, start)
 
     return prices, rets
 
 
 def simulate_gbm_from_prices(
-    n_years=10, n_scenarios=20, mu=0.07, sigma=0.15, periods_per_year=12, start=100.0
+    n_years=10, n_scenarios=20, mu=0.07, sigma=0.15, periods_per_year=12, start=100.0,
+    seed=None,
 ):
     """
-    Evolution of an initial stock price using Geometric Brownian Model:
-        S_t = S_0 exp( (mu-sigma^2/2)*dt + sigma*sqrt(dt)*xi ),
-    where xi are normal random variable N(0,1).
-    The equation for (log-)returns above is used to generate the prices and then log-returns are
-    computed by definition of log(S_{t+dt}/S_t).
-    Note that default periods_per_year=12 means that the method generates monthly prices (and returns):
-    change to 52 or 252 for weekly or daily prices and returns, respectively.
-    The method returns a dataframe of prices and the dataframe of returns.
+    Simulate exact GBM transitions on the chosen observation grid.
+    Return prices including time zero and LOG returns, retaining row labels
+    1..n for the log returns. Convert with np.expm1 before simple-return analytics.
+    mu and sigma are annual continuous-time drift and diffusion parameters.
+    An explicit seed shares interval shocks with simulate_gbm_from_returns
+    at the same grid and scenario count without changing NumPy's global RNG.
     """
-    dt = 1 / periods_per_year
-    n_steps = int(n_years * periods_per_year)
-
-    # from GBM equation for log-prices:
-    prices_dt = np.exp(
-        np.random.normal(
-            loc=(mu - 0.5 * sigma**2) * dt,
-            scale=sigma * (dt ** (0.5)),
-            size=(n_steps, n_scenarios),
-        )
-    )
-    # equivalent (but faster) to:
-    # prices_dt = np.exp( (mu - 0.5*sigma**2)*dt + sigma*np.random.normal(loc=0, scale=(dt)**(0.5), size=(n_steps, n_scenarios)) )
-    prices = start * pd.DataFrame(prices_dt).cumprod()
+    dt, shocks = _gbm_shocks(n_years, n_scenarios, mu, sigma, periods_per_year, start, seed)
+    log_returns = (mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shocks
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        price_values = start * np.exp(np.cumsum(log_returns, axis=0))
+    if not np.isfinite(price_values).all() or (price_values <= 0).any():
+        raise ValueError("Simulation produced nonfinite or nonpositive prices")
+    prices = pd.DataFrame(price_values)
     prices = insert_first_row_df(prices, start)
 
-    # compute log-returns from generated prices
-    rets = compute_logreturns(prices).dropna()
+    rets = pd.DataFrame(log_returns, index=prices.index[1:], columns=prices.columns)
 
     return prices, rets
 
@@ -1237,13 +1266,35 @@ def show_gbm(
     ax.set_title("Prices generated by GBM")
 
 
+def _publish_echarts(plot_data, text=""):
+    """Send one text/chart payload through the worker bridge or ordinary stdout."""
+    import __main__
+    payload = text + "\n<ECHARTS_DATA>" + json.dumps(plot_data, allow_nan=False)
+    emit = getattr(__main__, "_emit_echarts", None)
+    if callable(emit):
+        emit(payload)
+    else:
+        print(payload)
+
+
+def _binomial_interval(count, total):
+    """Approximate 95% Wilson interval for independent simulated-path events."""
+    z = 1.959963984540054
+    probability = count / total
+    denominator = 1 + z * z / total
+    center = (probability + z * z / (2 * total)) / denominator
+    margin = z * np.sqrt(probability * (1 - probability) / total + z * z / (4 * total * total)) / denominator
+    return [float(max(0, center - margin)), float(min(1, center + margin))]
+
+
 def show_gbm_echart(
-    n_years=10, n_scenarios=10, mu=0.05, sigma=0.15, periods_per_year=12, start=100
+    n_years=10, n_scenarios=10, mu=0.05, sigma=0.15, periods_per_year=12, start=100,
+    seed=42,
 ):
     """Generate GBM paths and emit an ECharts configuration for interactive plotting.
 
-    This helper mirrors :func:`show_gbm` but, instead of rendering a Matplotlib figure,
-    it serialises the simulated price paths into the JSON structure expected by the
+    This helper uses exact GBM transitions and a reproducible local seed.
+    It serialises the simulated price paths into the JSON structure expected by the
     documentation site (see ``<ECHARTS_DATA>`` convention in ``OutputDisplay.vue``).
 
     The function prints a JSON payload that contains a single chart definition named
@@ -1251,13 +1302,14 @@ def show_gbm_echart(
     re-run the GBM simulation in the browser.
     """
 
-    prices, _ = simulate_gbm_from_returns(
+    prices, _ = simulate_gbm_from_prices(
         n_years=n_years,
         n_scenarios=n_scenarios,
         mu=mu,
         sigma=sigma,
         periods_per_year=periods_per_year,
         start=start,
+        seed=seed,
     )
 
     periods_map = {12: "Months", 52: "Weeks", 252: "Days"}
@@ -1274,7 +1326,7 @@ def show_gbm_echart(
     legend_conf = {"type": "scroll"} if len(series_data) > 6 else {}
 
     chart_config = {
-        "title": "Prices generated by GBM",
+        "title": "Exact GBM Paths",
         "tooltip": {"trigger": "axis"},
         "legend": legend_conf,
         "xAxis": {"type": "category", "data": x_data, "name": x_label},
@@ -1288,26 +1340,7 @@ def show_gbm_echart(
         "gbmPrices": chart_config,
     }
 
-    try:
-        from IPython.display import clear_output
-        out = globals().get('_gbm_output_widget')
-        if hasattr(out, 'clear_output'):
-            out.clear_output(wait=True)
-    except Exception:
-        pass
-
-    payload = "\n<ECHARTS_DATA>" + json.dumps(plot_data)
-    try:
-        _emit_echarts(payload)
-    except Exception:
-        try:
-            import sys
-            sys.__stdout__.write(payload + "\n")
-            sys.__stdout__.flush()
-        except Exception:
-            print(payload)
-
-    return None
+    _publish_echarts(plot_data, f"Exact GBM: {n_scenarios} paths; seed={seed}; drift={mu:.1%}; volatility={sigma:.1%}")
 
 
 def show_cppi(
@@ -1461,111 +1494,85 @@ def show_cppi_echart(
     periods_per_year=12,
     start=100.0,
     ymax=100,
+    seed=42,
 ):
-    """Simulate CPPI wealth paths and emit an ECharts payload for interactive charts."""
+    """Exact-GBM fixed-floor CPPI, with sampled-path and terminal diagnostics.
 
-    _, risky_rets = simulate_gbm_from_returns(
-        n_years=n_years,
-        n_scenarios=n_scenarios,
-        mu=mu,
-        sigma=sigma,
-        periods_per_year=periods_per_year,
-        start=start,
+    Quantile curves are pointwise across paths. Allocation at point k was used
+    during interval k; time zero has no completed interval. ymax scales only
+    the plotted wealth-axis limit (100 includes all displayed quantile curves).
+    """
+    if not np.isfinite(ymax) or ymax <= 0:
+        raise ValueError("ymax must be positive and finite")
+    prices, log_returns = simulate_gbm_from_prices(
+        n_years=n_years, n_scenarios=n_scenarios, mu=mu, sigma=sigma,
+        periods_per_year=periods_per_year, start=start, seed=seed,
     )
-
     results = cppi(
-        risky_rets,
-        start_value=start,
-        floor=floor,
-        m=m,
-        drawdown=None,
-        risk_free_rate=risk_free_rate,
-        periods_per_year=periods_per_year,
+        np.expm1(log_returns), start_value=start, floor=floor, m=m,
+        risk_free_rate=risk_free_rate, periods_per_year=periods_per_year,
     )
-
-    cppi_wealth = results["CPPI wealth"].copy()
-    risky_wealth = results["Risky wealth"].copy()
-    risky_allocation = results["Risky allocation"].copy()
-
-    start_row = {col: start for col in cppi_wealth.columns}
-    cppi_wealth = insert_first_row_df(cppi_wealth, start_row)
-    risky_wealth = insert_first_row_df(risky_wealth, start_row)
-    if not risky_allocation.empty:
-        alloc_start = risky_allocation.iloc[0].to_dict()
-        risky_allocation = insert_first_row_df(risky_allocation, alloc_start)
-
-    dates = [str(idx) for idx in cppi_wealth.index]
-
-    cppi_array = cppi_wealth.to_numpy(dtype=float)
-    risky_array = risky_wealth.to_numpy(dtype=float)
-    alloc_array = risky_allocation.to_numpy(dtype=float)
-
+    cppi_array = np.vstack([np.full(n_scenarios, start), results["CPPI wealth"].to_numpy()])
     cppi_p05, cppi_p50, cppi_p95 = np.percentile(cppi_array, [5, 50, 95], axis=1)
-    risky_p50 = np.percentile(risky_array, 50, axis=1)
-    alloc_mean = np.nanmean(alloc_array, axis=1)
-    alloc_p05, alloc_p95 = np.percentile(alloc_array, [5, 95], axis=1)
+    risky_p50 = np.percentile(prices.to_numpy(), 50, axis=1)
+    allocation = results["Risky allocation"].to_numpy() * 100
+    alloc_p05, alloc_p95 = np.percentile(allocation, [5, 95], axis=1)
+    dates = [str(step) for step in range(len(cppi_array))]
+    x_axis = {"type": "category", "data": dates,
+              "name": {12: "Months", 52: "Weeks", 252: "Days"}.get(periods_per_year, "Periods")}
 
-    floor_line = [start * floor] * len(dates)
-
-    terminal = cppi_wealth.iloc[-1]
+    terminal = cppi_array[-1]
     floor_value = start * floor
-    breaches = int((terminal < floor_value).sum()) if floor > 0 else 0
-    breach_prob = breaches / n_scenarios if n_scenarios else 0
-    expected_shortfall = 0.0
-    if breaches > 0:
-        diff = (terminal - floor_value).to_numpy(dtype=float)
-        mask = (terminal < floor_value).to_numpy(dtype=float)
-        expected_shortfall = float(np.dot(diff, mask) / breaches)
-
+    breach_matrix = results["Floor breaches"].to_numpy()
+    path_count = int(breach_matrix.any(axis=0).sum())
+    terminal_mask = breach_matrix[-1]
+    terminal_count = int(terminal_mask.sum())
+    shortfalls = np.maximum(floor_value - terminal, 0)
+    conditional_shortfall = float(shortfalls[terminal_mask].mean()) if terminal_count else None
+    path_interval = _binomial_interval(path_count, n_scenarios)
+    terminal_interval = _binomial_interval(terminal_count, n_scenarios)
     summary = {
-        "mean_terminal": float(terminal.mean()),
-        "median_terminal": float(terminal.median()),
-        "floor_value": float(floor_value),
-        "breach_probability": float(breach_prob),
-        "expected_shortfall": float(expected_shortfall),
-        "parameters": {
-            "n_years": n_years,
-            "n_scenarios": n_scenarios,
-            "m": m,
-            "floor": floor,
-            "mu": mu,
-            "sigma": sigma,
-            "risk_free_rate": risk_free_rate,
-            "periods_per_year": periods_per_year,
-            "start": start,
-            "ymax": ymax,
-        },
+        "mean_terminal": float(terminal.mean()), "median_terminal": float(np.median(terminal)),
+        "floor_value": float(floor_value), "n_scenarios": int(n_scenarios),
+        "path_breach_count": path_count, "terminal_breach_count": terminal_count,
+        "observed_path_breach_probability": path_count / n_scenarios,
+        "terminal_breach_probability": terminal_count / n_scenarios,
+        "path_breach_wilson_95": path_interval, "terminal_breach_wilson_95": terminal_interval,
+        "conditional_terminal_shortfall": conditional_shortfall,
+        "mean_terminal_shortfall": float(shortfalls.mean()),
+        "seed": int(seed) if seed is not None else None,
     }
-
+    shortfall_text = "n/a (no terminal breaches)" if conditional_shortfall is None else f"{conditional_shortfall:.4f}"
+    text = (
+        f"Exact-GBM CPPI: {n_scenarios} paths; seed={seed}; floor={floor_value:.2f}\n"
+        f"Mean terminal wealth: {summary['mean_terminal']:.2f}; median: {summary['median_terminal']:.2f}\n"
+        f"Observed-path breaches: {path_count}/{n_scenarios} ({path_count / n_scenarios:.2%}); "
+        f"95% Wilson interval [{path_interval[0]:.2%}, {path_interval[1]:.2%}]\n"
+        f"Terminal breaches: {terminal_count}/{n_scenarios} ({terminal_count / n_scenarios:.2%}); "
+        f"95% Wilson interval [{terminal_interval[0]:.2%}, {terminal_interval[1]:.2%}]\n"
+        f"Mean terminal floor shortfall, conditional on breach: {shortfall_text}\n"
+        f"Mean terminal floor shortfall across all paths: {summary['mean_terminal_shortfall']:.4f}"
+    )
+    wealth_top = float(max(cppi_p95.max(), risky_p50.max(), start, floor_value) * 1.05 * ymax / 100)
     plot_data = {
         "dates": dates,
         "cppiWealth": {
-            "title": "CPPI vs Risky Wealth",
-            "type": "line",
-            "yAxisName": "Wealth",
-            "series": {
-                "CPPI P05": cppi_p05.tolist(),
-                "CPPI Median": cppi_p50.tolist(),
-                "CPPI P95": cppi_p95.tolist(),
-                "Risky Median": risky_p50.tolist(),
-                "Floor": floor_line,
-            },
+            "title": "CPPI vs Risky Wealth: Pointwise Quantiles", "type": "line", "xAxis": x_axis,
+            "yAxis": {"type": "value", "name": "Wealth", "min": 0, "max": wealth_top},
+            "series": {"CPPI P05": cppi_p05.tolist(), "CPPI Median": cppi_p50.tolist(),
+                       "CPPI P95": cppi_p95.tolist(), "Risky Median": risky_p50.tolist(),
+                       "Floor": [floor_value] * len(dates)},
         },
         "riskyAllocation": {
-            "title": "Risky Allocation",
-            "type": "line",
-            "yAxisName": "Weight",
-            "series": {
-                "Risky Weight Mean": alloc_mean.tolist(),
-                "Risky Weight P05": alloc_p05.tolist(),
-                "Risky Weight P95": alloc_p95.tolist(),
-            },
+            "title": "Risky Weight Used in Each Interval", "type": "line", "xAxis": x_axis,
+            "yAxis": {"type": "value", "name": "Risky allocation (%)", "min": 0, "max": 100},
+            "series": {"Risky Weight Mean": [None] + allocation.mean(axis=1).tolist(),
+                       "Risky Weight P05": [None] + alloc_p05.tolist(),
+                       "Risky Weight P95": [None] + alloc_p95.tolist()},
         },
         "summary": summary,
     }
-
-    payload = "\n<ECHARTS_DATA>" + json.dumps(plot_data, default=float)
-    print(payload)
+    _publish_echarts(plot_data, text)
 
 # ---------------------------------------------------------------------------------
 # Securities

@@ -71,7 +71,7 @@ const labelToParam = new Map<string, string>([
 ])
 
 const allowedParamsByFunction: Record<string, Set<string>> = {
-  show_gbm_echart: new Set(['n_years', 'n_scenarios', 'mu', 'sigma', 'periods_per_year', 'start']),
+  show_gbm_echart: new Set(['n_years', 'n_scenarios', 'mu', 'sigma', 'periods_per_year', 'start', 'seed']),
   show_cppi_echart: new Set([
     'n_years',
     'n_scenarios',
@@ -83,6 +83,7 @@ const allowedParamsByFunction: Record<string, Set<string>> = {
     'floor',
     'risk_free_rate',
     'ymax',
+    'seed',
   ]),
 }
 

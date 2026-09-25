@@ -140,6 +140,10 @@ onmessage = async (e) => {
   try {
     await ensureInitialized();
 
+    // Only widgets exported by this editor run should be serialized below.
+    // Slider-only updates retain the existing control object.
+    if (!skipWidgetState) pyodide.runPython('widget_instance = None');
+
     pyodide.globals.set('_current_run_id', id);
     pyodide.runPython(`
 import js
