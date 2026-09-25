@@ -1,5 +1,100 @@
-.VPDoc {
-  max-width: 100% !important;
+@media (min-width: 1440px) {
+  :root {
+    /* Keep the sidebar and outline aligned as the viewport grows. */
+    --vp-layout-max-width: 100%;
+  }
+}
+
+/* Override the theme's nested width caps, including its 688px article column. */
+.VPDoc > .container,
+.VPDoc > .container > .content,
+.VPDoc > .container > .content > .content-container {
+  max-width: none !important;
+}
+
+.VPDoc > .container > .content {
+  /* Allow wide equations, tables and editors to scroll inside their column. */
+  min-width: 0;
+}
+
+.vp-doc mjx-container {
+  /* Long inline formulas must scroll within the page on phones. */
+  max-width: 100%;
+}
+
+.vp-doc mjx-container:not([display="true"]) {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@media (min-width: 960px) {
+  .VPDoc > .container > .content {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+/* Home sections have separate fixed-width containers in the default theme. */
+.VPHome .VPHero > .container,
+.VPHome .VPFeatures > .container,
+.VPHome > .vp-doc.container {
+  max-width: none;
+}
+
+/* The long site title must yield space to navigation on narrow screens. */
+.VPNavBar .container > .title {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.VPNavBarTitle .title > span {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.VPNavBarTitle .logo {
+  flex-shrink: 0;
+}
+
+/* Show complete heading labels in the desktop outline and mobile dropdown. */
+.VPDocOutlineItem .outline-link {
+  padding: 6px 0;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.VPDocOutlineItem.nested {
+  padding-right: 0;
+}
+
+@media (max-width: 959px) {
+  .VPNavBar .container > .content {
+    flex-shrink: 0;
+  }
+
+  /* Use the existing mobile menu until the desktop sidebar fits too. */
+  .VPNavBar .VPNavBarMenu,
+  .VPNavBar .VPNavBarAppearance,
+  .VPNavBar .VPNavBarSocialLinks,
+  .VPNavBar .VPNavBarTranslations,
+  .VPNavBar .VPNavBarExtra {
+    display: none;
+  }
+
+  .VPNavBar .VPNavBarHamburger {
+    display: flex;
+  }
+
+  .VPNav .VPNavScreen {
+    display: block;
+  }
 }
 
 .editor-wrapper {
