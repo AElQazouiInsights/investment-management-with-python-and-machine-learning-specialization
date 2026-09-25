@@ -23,3 +23,4 @@ This educational toolkit is not just a passive learning resource but an active f
     `widget_instance = widgets.IntSlider(description='x', value=42)`
 - Data: Public datasets are served from `public/assets/data/` and mounted into the Pyodide FS at `/assets/data/`.
 - Versions: Keep `echarts@^5.5.x` with `vue-echarts@7.x`. Avoid broad auto-upgrades; pin critical deps.
+- Numerical checks: Run `python -m unittest discover -s tests -v` from the repository root in a Python environment with NumPy, pandas, SciPy, statsmodels, and Matplotlib installed. The tests cover portfolio metrics, constrained optimization, distribution moments, normality decisions, tail-risk estimators, and bundled datasets across the existing copies. They execute the full `docs/1.1-risks.md` and `docs/1.2-optimization.md` chapters in document order, including cash allocation, borrowing, and signed-versus-long-only tangency examples.

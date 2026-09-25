@@ -18,34 +18,39 @@ def path_to_data_folder():
 
 def get_ffme_returns():
     """
-    Returns the French-Fama dataset for the returns of the bottom and top
-    deciles (Low 10 (Small Caps) and Hi 10 (Large Caps)) of US stocks
+    Load the bundled Kenneth French equally weighted size-portfolio returns.
+    Select Lo 10 (small caps) and Hi 10 (large caps), convert percentages to
+    decimal returns, and index observations by monthly periods.
     """
     filepath = path_to_data_folder() + "/Portfolios_Formed_on_ME_monthly_EW.csv"
-    rets = pd.read_csv(filepath, index_col=0, parse_dates=True, na_values=-99.99)
+    rets = pd.read_csv(filepath, index_col=0, na_values=[-99.99, -999])
     rets = rets[["Lo 10", "Hi 10"]] / 100
-    rets.index = pd.to_datetime(rets.index, format="%Y%m").to_period(
-        "M"
-    )  # .to_period("M") forces the index to be monthly period...
+    rets.index = pd.to_datetime(rets.index.astype(str), format="%Y%m").to_period("M")
     return rets
 
 
 def get_hfi_returns():
     """
-    Returns the EDHEC Hedge Funds Index returns
+    Load bundled monthly hedge-fund index returns as decimals.
+    The CSV uses day/month/year dates and percentage returns.
     """
-    filepath = path_to_data_folder() + "edhec-hedgefundindices.csv"
-    hfi = pd.read_csv(filepath, index_col=0, parse_dates=True, na_values=-99.99) / 100.0
-    # the index is already of type datetime
+    filepath = path_to_data_folder() + "/edhec-hedgefundindices.csv"
+    hfi = pd.read_csv(filepath, index_col=0, na_values=[-99.99, -999]) / 100.0
+    hfi.index = pd.to_datetime(hfi.index, format="%d/%m/%Y")
     return hfi
 
 def get_stock_dynamic():
     """
-    Get stock Close price data from Yahoo Finance
+    Load the bundled daily Close-price snapshot in its original price units.
+    Keep each timestamp's local trading date; this is not a live download.
     """
-    filepath = path_to_data_folder() + "stocks_dynamic.csv"
-    stocks = pd.read_csv(filepath, index_col=0, parse_dates=True, na_values=-99.99) / 100.0
-    # the index is already of type datetime
+    filepath = path_to_data_folder() + "/stocks_dynamic.csv"
+    stocks = pd.read_csv(filepath, index_col=0, na_values=[-99.99, -999])
+    stocks.index = pd.to_datetime(stocks.index.astype(str).str[:10], format="%Y-%m-%d")
+    if stocks.empty or not stocks.index.is_unique or not stocks.index.is_monotonic_increasing:
+        raise ValueError("Expected a nonempty, chronologically ordered price history with unique dates")
+    if not np.isfinite(stocks.to_numpy()).all() or (stocks <= 0).any().any():
+        raise ValueError("Stock prices must be positive, finite, and complete before computing returns")
     return stocks
 
 def get_brka_rets(monthly=False):
@@ -227,14 +232,17 @@ def compute_logreturns(s):
 
 def drawdown(rets: pd.Series, start=1000):
     """
-    Compute the drawdowns of an input pd.Series of returns.
-    The method returns a dataframe containing:
-    1. the associated wealth index (for an hypothetical starting investment of $1000)
-    2. all previous peaks
-    3. the drawdowns
+    Compute wealth, running peaks, and signed drawdowns for ordered returns.
+    The high-water mark includes positive initial capital, so a first-period
+    loss is a drawdown. Keep the input index and end-of-period observations;
+    maximum drawdown as a positive magnitude is -result["Drawdown"].min().
     """
+    if not isinstance(rets, pd.Series):
+        raise TypeError("Expected pd.Series of returns")
+    if not np.isfinite(start) or start <= 0:
+        raise ValueError("start must be positive and finite")
     wealth_index = compound_returns(rets, start=start)
-    previous_peaks = wealth_index.cummax()
+    previous_peaks = wealth_index.cummax().clip(lower=start)
     drawdowns = (wealth_index - previous_peaks) / previous_peaks
     df = pd.DataFrame(
         {"Wealth": wealth_index, "Peaks": previous_peaks, "Drawdown": drawdowns}
@@ -244,19 +252,37 @@ def drawdown(rets: pd.Series, start=1000):
 
 def skewness(s):
     """
-    Computes the Skewness of the input Series or Dataframe.
-    There is also the function scipy.stats.skew().
+    Estimate skewness as m3 / m2**1.5 using moments with denominator n.
+    Process DataFrame columns separately and omit missing observations.
+    Constant, insufficient, or non-finite data have undefined moments (np.nan).
     """
-    return (((s - s.mean()) / s.std(ddof=0)) ** 3).mean()
+    if isinstance(s, pd.DataFrame):
+        return s.aggregate(skewness)
+    observed = pd.Series(s, dtype=float).dropna()
+    if len(observed) < 2 or observed.nunique() == 1 or not np.isfinite(observed).all():
+        return np.nan
+    scale = observed.std(ddof=0)
+    if not np.isfinite(scale) or scale <= 0:
+        return np.nan
+    return (((observed - observed.mean()) / scale) ** 3).mean()
 
 
 def kurtosis(s):
     """
-    Computes the Kurtosis of the input Series or Dataframe.
-    There is also the function scipy.stats.kurtosis() which, however,
-    computes the "Excess Kurtosis", i.e., Kurtosis minus 3
+    Estimate Pearson kurtosis as m4 / m2**2 (Gaussian population value 3).
+    Use moments with denominator n, omitting missing observations per column.
+    Match scipy.stats.kurtosis with fisher=False and bias=True on observed data.
+    Constant, insufficient, or non-finite data return np.nan.
     """
-    return (((s - s.mean()) / s.std(ddof=0)) ** 4).mean()
+    if isinstance(s, pd.DataFrame):
+        return s.aggregate(kurtosis)
+    observed = pd.Series(s, dtype=float).dropna()
+    if len(observed) < 2 or observed.nunique() == 1 or not np.isfinite(observed).all():
+        return np.nan
+    scale = observed.std(ddof=0)
+    if not np.isfinite(scale) or scale <= 0:
+        return np.nan
+    return (((observed - observed.mean()) / scale) ** 4).mean()
 
 
 def exkurtosis(s):
@@ -268,92 +294,146 @@ def exkurtosis(s):
 
 def is_normal(s, level=0.01):
     """
-    Jarque-Bera test to see if a series (of returns) is normally distributed.
-    Returns True or False according to whether the p-value is larger
-    than the default level=0.01.
+    Return whether Jarque-Bera does not reject normality (p-value >= level).
+    True is not proof of a Gaussian distribution. The test uses asymptotic
+    calibration under iid normal sampling. Test DataFrame columns separately,
+    omitting missing observations. Return np.nan for fewer than two observed
+    values, constant/non-finite data, or an unavailable test result.
     """
-    statistic, pvalue = scipy.stats.jarque_bera(s)
-    return pvalue > level
+    if not np.isfinite(level) or not 0 < level < 1:
+        raise ValueError("level must be between 0 and 1")
+    if isinstance(s, pd.DataFrame):
+        return s.aggregate(is_normal, level=level)
+    observed = pd.Series(s, dtype=float).dropna()
+    if len(observed) < 2 or observed.nunique() == 1 or not np.isfinite(observed).all():
+        return np.nan
+    _, pvalue = scipy.stats.jarque_bera(observed)
+    if not np.isfinite(pvalue):
+        return np.nan
+    return bool(pvalue >= level)
 
 
 def semivolatility(s):
     """
-    Returns the semivolatility of a series, i.e., the volatility of
-    negative returns
+    Return std(ddof=0) within the negative-return subset, not target deviation.
+    Omit missing observations per column. No negative observations give np.nan;
+    identical negative observations have zero conditional dispersion.
     """
-    return s[s < 0].std(ddof=0)
+    if isinstance(s, pd.DataFrame):
+        return s.aggregate(semivolatility)
+    observed = pd.Series(s, dtype=float).dropna()
+    if not np.isfinite(observed).all():
+        return np.nan
+    negative = observed[observed < 0]
+    if negative.empty:
+        return np.nan
+    if negative.nunique() == 1:
+        return 0.0
+    return negative.std(ddof=0)
 
 
 def var_historic(s, level=0.05):
     """
-    Returns the (1-level)% VaR using historical method.
-    By default it computes the 95% VaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
-    The method takes in input either a DataFrame or a Series and, in the former
-    case, it computes the VaR for every column (Series) by using pd.aggregate
+    Estimate VaR as the negative linear-interpolated return quantile.
+    level is the lower-tail probability (0.05 means 95% confidence). Output
+    is a signed loss fraction at the input return horizon. Omit missing values
+    per column; empty or non-finite observed samples return np.nan.
     """
+    if not np.isfinite(level) or not 0 < level < 1:
+        raise ValueError("level must be between 0 and 1")
     if isinstance(s, pd.DataFrame):
         return s.aggregate(var_historic, level=level)
     elif isinstance(s, pd.Series):
-        return -np.percentile(s, level * 100)
+        observed = s.dropna()
+        if observed.empty or not np.isfinite(observed).all():
+            return np.nan
+        return -np.percentile(observed, level * 100, method="linear")
     else:
         raise TypeError("Expected pd.DataFrame or pd.Series")
 
 
 def var_gaussian(s, level=0.05, cf=False):
     """
-    Returns the (1-level)% VaR using the parametric Gaussian method.
-    By default it computes the 95% VaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
-    The variable "cf" stands for Cornish-Fisher. If True, the method computes the
-    modified VaR using the Cornish-Fisher expansion of quantiles.
-    The method takes in input either a DataFrame or a Series and, in the former
-    case, it computes the VaR for every column (Series).
+    Estimate Gaussian or Cornish-Fisher VaR as a signed loss fraction.
+    level is the lower-tail probability (0.05 means 95% confidence). Use the
+    observed mean and std(ddof=0), omitting missing values per column. The
+    optional Cornish-Fisher correction is an approximation, not a guarantee
+    of valid tail quantiles. A constant sample is treated as a point mass.
     """
-    # alpha-quantile of Gaussian distribution
+    if not np.isfinite(level) or not 0 < level < 1:
+        raise ValueError("level must be between 0 and 1")
+    if isinstance(s, pd.DataFrame):
+        return s.aggregate(var_gaussian, level=level, cf=cf)
+    if not isinstance(s, pd.Series):
+        raise TypeError("Expected pd.DataFrame or pd.Series")
+    observed = s.dropna()
+    if observed.empty or not np.isfinite(observed).all():
+        return np.nan
+    mean = observed.mean()
+    volatility = observed.std(ddof=0)
+    if observed.nunique() == 1 or volatility == 0:
+        return -mean
+    if not np.isfinite(volatility):
+        return np.nan
     za = scipy.stats.norm.ppf(level, 0, 1)
     if cf:
-        S = skewness(s)
-        K = kurtosis(s)
+        S = skewness(observed)
+        K = kurtosis(observed)
         za = (
             za
             + (za**2 - 1) * S / 6
             + (za**3 - 3 * za) * (K - 3) / 24
             - (2 * za**3 - 5 * za) * (S**2) / 36
         )
-    return -(s.mean() + za * s.std(ddof=0))
+    return -(mean + za * volatility)
 
 
 def cvar_historic(s, level=0.05):
     """
-    Computes the (1-level)% Conditional VaR (based on historical method).
-    By default it computes the 95% CVaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
-    The method takes in input either a DataFrame or a Series and, in the former
-    case, it computes the VaR for every column (Series).
+    Estimate empirical expected shortfall (CVaR) as a signed loss fraction.
+    Average exactly the worst level*n observations under equal empirical
+    probabilities, fractionally weighting the boundary observation. This
+    integrates the empirical tail rather than conditioning on the separately
+    interpolated historical VaR. Omit missing values per column; empty or
+    non-finite observed samples return np.nan.
     """
+    if not np.isfinite(level) or not 0 < level < 1:
+        raise ValueError("level must be between 0 and 1")
     if isinstance(s, pd.DataFrame):
         return s.aggregate(cvar_historic, level=level)
     elif isinstance(s, pd.Series):
-        # find the returns which are less than (the historic) VaR
-        mask = s < -var_historic(s, level=level)
-        # and of them, take the mean
-        return -s[mask].mean()
+        observed = s.dropna()
+        if observed.empty or not np.isfinite(observed).all():
+            return np.nan
+        ordered = np.sort(observed.to_numpy(dtype=float))
+        tail_mass = level * len(ordered)
+        weights = np.clip(tail_mass - np.arange(len(ordered)), 0, 1)
+        return -np.dot(weights, ordered) / tail_mass
     else:
         raise TypeError("Expected pd.DataFrame or pd.Series")
 
 
 def annualize_rets(s, periods_per_year):
     """
-    Computes the return per year, or, annualized return.
-    The variable periods_per_year can be, e.g., 12, 52, 252, in
-    case of monthly, weekly, and daily data.
-    The method takes in input either a DataFrame or a Series and, in the former
-    case, it computes the annualized return for every column (Series) by using pd.aggregate
+    Compute annualized geometric growth from equally spaced simple returns.
+    periods_per_year is the observation frequency (e.g., 12, 52, or 252),
+    not the sample length. Non-missing returns are counted per Series or
+    DataFrame column; an empty or entirely missing Series returns np.nan.
+    Missing calendar periods must be resolved by the caller: this function
+    measures growth over observed periods and does not infer elapsed time.
     """
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
     if isinstance(s, pd.DataFrame):
         return s.aggregate(annualize_rets, periods_per_year=periods_per_year)
     elif isinstance(s, pd.Series):
+        n_period_growth = s.count()
+        if n_period_growth == 0:
+            return np.nan
         growth = (1 + s).prod()
-        n_period_growth = s.shape[0]
         return growth ** (periods_per_year / n_period_growth) - 1
+    else:
+        raise TypeError("Expected pd.DataFrame or pd.Series")
 
 
 def annualize_vol(s, periods_per_year, ddof=1):
@@ -365,9 +445,14 @@ def annualize_vol(s, periods_per_year, ddof=1):
     In the former case, it computes the annualized volatility of every column
     (Series) by using pd.aggregate. In the latter case, s is a volatility
     computed beforehand, hence only annulization is done
+    ddof controls the standard-deviation denominator for return samples and
+    is applied consistently to each DataFrame column. Square-root-of-time
+    scaling assumes constant period variance and zero serial covariances.
     """
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
     if isinstance(s, pd.DataFrame):
-        return s.aggregate(annualize_vol, periods_per_year=periods_per_year)
+        return s.aggregate(annualize_vol, periods_per_year=periods_per_year, ddof=ddof)
     elif isinstance(s, pd.Series):
         return s.std(ddof=ddof) * (periods_per_year) ** (0.5)
     elif isinstance(s, list):
@@ -378,14 +463,19 @@ def annualize_vol(s, periods_per_year, ddof=1):
 
 def sharpe_ratio(s, risk_free_rate, periods_per_year, v=None):
     """
-    Computes the annualized sharpe ratio.
-    The variable periods_per_year can be, e.g., 12, 52, 252, in case of yearly, weekly, and daily data.
-    The variable risk_free_rate is the annual one.
-    The method takes in input either a DataFrame, a Series or a single number.
-    In the former case, it computes the annualized sharpe ratio of every column (Series) by using pd.aggregate.
-    In the latter case, s is the (allready annualized) return and v is the (already annualized) volatility
-    computed beforehand, for example, in case of a portfolio.
+    Compute a conventional annualized arithmetic-mean Sharpe ratio.
+    For return Series/DataFrames, risk_free_rate is a constant effective
+    annual rate, converted to the observation period before subtraction.
+    Use the sample standard deviation of excess returns and sqrt(p) scaling;
+    missing returns are excluded per column. Fewer than two observations or
+    identical observed returns give np.nan rather than an undefined ratio.
+    For scalar inputs, retain (s - risk_free_rate) / v: both return inputs
+    must already be on the same annual basis and v is annual volatility.
     """
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
+    if not np.isfinite(risk_free_rate) or risk_free_rate <= -1:
+        raise ValueError("risk_free_rate must be finite and greater than -1")
     if isinstance(s, pd.DataFrame):
         return s.aggregate(
             sharpe_ratio,
@@ -394,19 +484,22 @@ def sharpe_ratio(s, risk_free_rate, periods_per_year, v=None):
             v=None,
         )
     elif isinstance(s, pd.Series):
-        # convert the annual risk free rate to the period assuming that:
-        # RFR_year = (1+RFR_period)^{periods_per_year} - 1. Hence:
+        observed_returns = s.dropna()
+        if len(observed_returns) < 2 or observed_returns.nunique() == 1:
+            return np.nan
         rf_to_period = (1 + risk_free_rate) ** (1 / periods_per_year) - 1
-        excess_return = s - rf_to_period
-        # now, annualize the excess return
-        ann_ex_rets = annualize_rets(excess_return, periods_per_year)
-        # compute annualized volatility
-        ann_vol = annualize_vol(s, periods_per_year)
+        excess_return = observed_returns - rf_to_period
+        ann_ex_rets = excess_return.mean() * periods_per_year
+        ann_vol = annualize_vol(excess_return, periods_per_year)
+        if not np.isfinite(ann_vol) or ann_vol <= 0:
+            return np.nan
         return ann_ex_rets / ann_vol
     elif isinstance(s, (int, float)) and v is not None:
-        # Portfolio case: s is supposed to be the single (already annnualized)
-        # return of the portfolio and v to be the single (already annualized) volatility.
+        if not np.isfinite(v) or v <= 0:
+            return np.nan
         return (s - risk_free_rate) / v
+    else:
+        raise TypeError("Expected a return Series/DataFrame or an annual return with v")
 
 
 # ---------------------------------------------------------------------------------
@@ -414,20 +507,32 @@ def sharpe_ratio(s, risk_free_rate, periods_per_year, v=None):
 # ---------------------------------------------------------------------------------
 def portfolio_return(weights, vec_returns):
     """
-    Computes the return of a portfolio.
-    It takes in input a row vector of weights (list of np.array)
-    and a column vector (or pd.Series) of returns
+    Compute a weighted one-period return or expected return.
+    Use beginning-of-period weights and returns on a common horizon, in the
+    same asset order. A weighted average of asset CAGRs is not portfolio CAGR.
     """
     return np.dot(weights, vec_returns)
 
 
 def portfolio_volatility(weights, cov_rets):
     """
-    Computes the volatility of a portfolio.
-    It takes in input a vector of weights (np.array or pd.Series)
-    and the covariance matrix of the portfolio asset returns
+    Compute sqrt(w.T @ covariance @ w) at the covariance matrix's horizon.
+    Supply 1-D weights and a covariance matrix in the same asset order.
+    Clip only roundoff-sized negative variance, as can occur for exact hedges;
+    materially negative variance is an invalid covariance/portfolio input.
     """
-    return (np.dot(weights.T, np.dot(cov_rets, weights))) ** (0.5)
+    weights = np.asarray(weights, dtype=float)
+    covariance = np.asarray(cov_rets, dtype=float)
+    if weights.ndim != 1 or covariance.shape != (weights.size, weights.size):
+        raise ValueError("Expected 1-D weights and a matching square covariance matrix")
+    if not np.isfinite(weights).all() or not np.isfinite(covariance).all():
+        raise ValueError("Weights and covariance must be finite")
+    variance = float(weights @ (covariance @ weights))
+    scale = float(np.abs(weights) @ (np.abs(covariance) @ np.abs(weights)))
+    tolerance = 64 * np.finfo(float).eps * scale
+    if variance < -tolerance:
+        raise ValueError("Covariance implies a negative portfolio variance")
+    return float(np.sqrt(max(variance, 0.0)))
 
 
 def efficient_frontier(
@@ -443,11 +548,16 @@ def efficient_frontier(
     ewp=False,
 ):
     """
-    Returns (and plots) the efficient frontiers for a portfolio of rets.shape[1] assets.
+    Return an estimated long-only efficient frontier from arithmetic mean returns.
+    rets contains common-period observations and covmat their period covariance.
+    Fully missing rows (such as the first price-derived return) are excluded;
+    partially missing observations must be resolved by the caller.
+    Flat variance ties retain the highest-return point, so the boundary can
+    contain fewer than n_portfolios rows.
     The method returns a dataframe containing the volatilities, returns, sharpe ratios and weights
     of the portfolios as well as a plot of the efficient frontier in case iplot=True.
     Other inputs are:
-        hsr: if true the method plots the highest return portfolio,
+        hsr: if True the method plots the maximum-Sharpe portfolio,
         cml: if True the method plots the capital market line;
         mvp: if True the method plots the minimum volatility portfolio;
         ewp: if True the method plots the equally weigthed portfolio.
@@ -455,18 +565,17 @@ def efficient_frontier(
     """
 
     def append_row_df(df, vol, ret, spr, weights):
-        temp_df = list(df.values)
-        temp_df.append(
-            [
-                vol,
-                ret,
-                spr,
-            ]
-            + [w for w in weights]
-        )
-        return pd.DataFrame(temp_df)
+        row = pd.DataFrame([[vol, ret, spr, *weights]], columns=df.columns)
+        return pd.concat([df, row], ignore_index=True)
 
-    ann_rets = annualize_rets(rets, periods_per_year)
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
+    if not isinstance(rets, pd.DataFrame):
+        raise TypeError("Expected a DataFrame of common-period asset returns")
+    observed = rets.dropna(how="all")
+    if observed.empty or not np.isfinite(observed.to_numpy()).all():
+        raise ValueError("Expected complete, finite asset returns on a common sample")
+    ann_rets = observed.mean() * periods_per_year
 
     # generates optimal weights of porfolios lying of the efficient frontiers
     weights = optimal_weights(n_portfolios, ann_rets, covmat, periods_per_year)
@@ -494,6 +603,17 @@ def efficient_frontier(
         }
     )
     df = pd.concat([df, pd.DataFrame(weights)], axis=1)
+
+    # Keep the higher-return representative when a flat variance boundary
+    # makes lower-return points dominated (including nonunique GMV cases).
+    keep = []
+    best_vol = np.inf
+    tolerance = 1e-10 * max(df["volatility"].max(), np.finfo(float).tiny)
+    for i in range(len(df) - 1, -1, -1):
+        if df.loc[i, "volatility"] < best_vol - tolerance:
+            keep.append(i)
+        best_vol = min(best_vol, df.loc[i, "volatility"])
+    df = df.loc[keep[::-1]].reset_index(drop=True)
 
     if iplot:
         ax = df.plot.line(
@@ -663,30 +783,68 @@ def get_portfolio_features(weights, rets, covmat, risk_free_rate, periods_per_ye
     
     return ret, vol, shp
 
+def _optimization_inputs(rets, covmatrix):
+    """Validate ordered expected returns and a symmetric PSD covariance matrix."""
+    if isinstance(rets, pd.Series) and isinstance(covmatrix, pd.DataFrame):
+        if not rets.index.equals(covmatrix.index) or not rets.index.equals(covmatrix.columns):
+            raise ValueError("Expected returns and covariance must use the same asset order")
+    rets = np.asarray(rets, dtype=float)
+    covmatrix = np.asarray(covmatrix, dtype=float)
+    if rets.ndim != 1 or not rets.size or covmatrix.shape != (rets.size, rets.size):
+        raise ValueError("Expected a nonempty return vector and matching covariance matrix")
+    if not np.isfinite(rets).all() or not np.isfinite(covmatrix).all():
+        raise ValueError("Expected returns and covariance must be finite")
+    tolerance = 1e-10 * np.max(np.abs(covmatrix))
+    if not np.allclose(covmatrix, covmatrix.T, rtol=1e-10, atol=tolerance):
+        raise ValueError("Covariance matrix must be symmetric")
+    if np.linalg.eigvalsh((covmatrix + covmatrix.T) / 2).min() < -tolerance:
+        raise ValueError("Covariance matrix must be positive semidefinite")
+    return rets, covmatrix
+
+
+def _checked_long_only_weights(result, n_assets):
+    """Reject failed solves and invalid allocations rather than returning them."""
+    if not result.success:
+        raise RuntimeError(f"Portfolio optimization failed: {result.message}")
+    weights = np.asarray(result.x, dtype=float)
+    if (weights.shape != (n_assets,) or not np.isfinite(weights).all()
+            or not np.isfinite(result.fun)
+            or not np.isclose(weights.sum(), 1.0, atol=1e-7, rtol=0)
+            or (weights < -1e-7).any() or (weights > 1 + 1e-7).any()):
+        raise RuntimeError("Portfolio optimizer returned an invalid long-only allocation")
+    return weights
+
+
 def optimal_weights(n_points, rets, covmatrix, periods_per_year):
     """
-    Returns a set of n_points optimal weights corresponding to portfolios (of the efficient frontier)
-    with minimum volatility constructed by fixing n_points target returns.
-    The weights are obtained by solving the minimization problem for the volatility.
+    Trace target returns from a GMV solution to the highest expected asset return.
+    rets is an expected-return vector, already on its reporting horizon.
+    The periods_per_year argument is retained for API compatibility.
     """
-    target_rets = np.linspace(rets.min(), rets.max(), n_points)
-    weights = [minimize_volatility(rets, covmatrix, target) for target in target_rets]
+    if not isinstance(n_points, (int, np.integer)) or n_points < 1:
+        raise ValueError("n_points must be a positive integer")
+    gmv = minimize_volatility(rets, covmatrix)
+    target_rets = np.linspace(portfolio_return(gmv, rets), np.max(rets), n_points)
+    weights = [gmv] + [minimize_volatility(rets, covmatrix, target) for target in target_rets[1:]]
     return weights
 
 
 def minimize_volatility(rets, covmatrix, target_return=None):
     """
-    Returns the optimal weights of the minimum volatility portfolio on the effient frontier.
-    If target_return is not None, then the weights correspond to the minimum volatility portfolio
-    having a fixed target return.
-    The method uses the scipy minimize optimizer which solves the minimization problem
-    for the volatility of the portfolio
+    Minimize volatility with fully invested, long-only weights.
+    rets contains expected returns on the target_return horizon. Without a
+    target, return GMV; targets below GMV's return can lie on the dominated
+    boundary. Reject infeasible targets and failed or invalid solver results.
     """
+    rets, covmatrix = _optimization_inputs(rets, covmatrix)
     n_assets = rets.shape[0]
     # initial guess weights
     init_guess = np.repeat(1 / n_assets, n_assets)
     weights_constraint = {"type": "eq", "fun": lambda w: 1.0 - np.sum(w)}
     if target_return is not None:
+        if not np.isfinite(target_return) or target_return < rets.min() - 1e-10 or target_return > rets.max() + 1e-10:
+            raise ValueError("Target return is outside the feasible long-only range")
+    if target_return is not None and np.ptp(rets) > 1e-12:
         return_constraint = {
             "type": "eq",
             "args": (rets,),
@@ -701,11 +859,14 @@ def minimize_volatility(rets, covmatrix, target_return=None):
         init_guess,
         args=(covmatrix,),
         method="SLSQP",
-        options={"disp": False},
+        options={"disp": False, "ftol": 1e-12, "maxiter": 1000},
         constraints=constr,
         bounds=((0.0, 1.0),) * n_assets,
     )  # bounds of each individual weight, i.e., w between 0 and 1
-    return result.x
+    weights = _checked_long_only_weights(result, n_assets)
+    if target_return is not None and not np.isclose(portfolio_return(weights, rets), target_return, atol=1e-7, rtol=0):
+        raise RuntimeError("Portfolio optimizer did not meet the target return")
+    return weights
 
 
 def minimize_volatility_2(
@@ -763,16 +924,34 @@ def maximize_sharpe_ratio(
     rets, covmatrix, risk_free_rate, periods_per_year, target_volatility=None
 ):
     """
-    Returns the optimal weights of the highest sharpe ratio portfolio on the effient frontier.
-    If target_volatility is not None, then the weights correspond to the highest sharpe ratio portfolio
-    having a fixed target volatility.
-    The method uses the scipy minimize optimizer which solves the maximization of the sharpe ratio which
-    is equivalent to minimize the negative sharpe ratio.
+    Numerically maximize Sharpe with fully invested, long-only weights.
+    rets and risk_free_rate are annual return inputs on a common basis;
+    covmatrix is period covariance, annualized using periods_per_year.
+    target_volatility, if supplied, is an exact positive annual volatility,
+    between GMV risk and the highest individual asset risk. Solver and constraint failures
+    raise errors instead of returning an unverified allocation.
     """
+    rets, covmatrix = _optimization_inputs(rets, covmatrix)
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
+    if not np.isfinite(risk_free_rate):
+        raise ValueError("risk_free_rate must be finite")
     n_assets = rets.shape[0]
     init_guess = np.repeat(1 / n_assets, n_assets)
+    initial_guesses = [init_guess]
     weights_constraint = {"type": "eq", "fun": lambda w: 1.0 - np.sum(w)}
     if target_volatility is not None:
+        if not np.isfinite(target_volatility) or target_volatility <= 0:
+            raise ValueError("target_volatility must be positive and finite; Sharpe is undefined at zero volatility")
+        annual_covariance = covmatrix * periods_per_year
+        gmv_weights = minimize_volatility(rets, annual_covariance)
+        min_volatility = portfolio_volatility(gmv_weights, annual_covariance)
+        max_volatility = np.sqrt(np.diag(annual_covariance).max())
+        if target_volatility < min_volatility - 1e-10 or target_volatility > max_volatility + 1e-10:
+            raise ValueError(
+                f"Target volatility is outside the feasible long-only range "
+                f"[{min_volatility:.6g}, {max_volatility:.6g}] annually"
+            )
         volatility_constraint = {
             "type": "eq",
             "args": (covmatrix, periods_per_year),
@@ -780,6 +959,11 @@ def maximize_sharpe_ratio(
             - annualize_vol(portfolio_volatility(w, cov), p),
         }
         constr = (volatility_constraint, weights_constraint)
+        # Exact-risk surfaces can have disconnected branches. Start from each
+        # asset as well as equal weights, retaining the best verified solution.
+        initial_guesses.extend(np.eye(n_assets))
+        if np.isclose(min_volatility, max_volatility, atol=1e-12, rtol=0):
+            constr = weights_constraint  # All allocations have the same risk.
     else:
         constr = weights_constraint
 
@@ -793,6 +977,8 @@ def maximize_sharpe_ratio(
         """
         # annualized portfolio returns
         portfolio_ret = portfolio_return(weights, rets)
+        if target_volatility is not None:
+            return -(portfolio_ret - risk_free_rate) / target_volatility
         # annualized portfolio volatility
         portfolio_vol = annualize_vol(
             portfolio_volatility(weights, covmatrix), periods_per_year
@@ -802,16 +988,33 @@ def maximize_sharpe_ratio(
         )
         # i.e., simply returns  -(portfolio_ret - risk_free_rate)/portfolio_vol
 
-    result = minimize(
-        neg_portfolio_sharpe_ratio,
-        init_guess,
-        args=(rets, covmatrix, risk_free_rate, periods_per_year),
-        method="SLSQP",
-        options={"disp": False},
-        constraints=constr,
-        bounds=((0.0, 1.0),) * n_assets,
-    )
-    return result.x
+    candidates = []
+    last_error = None
+    for guess in initial_guesses:
+        result = minimize(
+            neg_portfolio_sharpe_ratio,
+            guess,
+            args=(rets, covmatrix, risk_free_rate, periods_per_year),
+            method="SLSQP",
+            options={"disp": False, "ftol": 1e-12, "maxiter": 1000},
+            constraints=constr,
+            bounds=((0.0, 1.0),) * n_assets,
+        )
+        try:
+            weights = _checked_long_only_weights(result, n_assets)
+            if target_volatility is not None:
+                actual_volatility = annualize_vol(portfolio_volatility(weights, covmatrix), periods_per_year)
+                if not np.isclose(actual_volatility, target_volatility, atol=1e-7, rtol=0):
+                    raise RuntimeError("Portfolio optimizer did not meet the target volatility")
+        except RuntimeError as error:
+            last_error = error
+            continue
+        candidates.append(weights)
+    if not candidates:
+        raise last_error
+    return min(candidates, key=lambda w: neg_portfolio_sharpe_ratio(
+        w, rets, covmatrix, risk_free_rate, periods_per_year
+    ))
 
 
 def weigths_max_sharpe_ratio(covmat, mu_exc, scale=True):
