@@ -5,11 +5,11 @@ import test from 'node:test'
 async function workerHarness() {
   const source = await readFile(new URL('../src/pyodide-worker.js', import.meta.url), 'utf8')
   const messages = []
-  const state = { widget: null, beforeExecution: [] }
+  const state = { widget: null, beforeExecution: [], executions: [], stdout: null, release: null }
   const pyodide = {
     FS: { mkdirTree() {}, writeFile() {} },
     globals: { set() {} },
-    setStdout() {}, setStdin() {},
+    setStdout(handler) { state.stdout = handler }, setStderr() {}, setStdin() {},
     async loadPackage() {},
     runPython(code) {
       if (code.trim() === 'widget_instance = None') state.widget = null
@@ -18,7 +18,10 @@ async function workerHarness() {
     },
     async runPythonAsync(code) {
       if (code.includes('import micropip')) return
+      state.executions.push(code)
       state.beforeExecution.push(state.widget)
+      if (code === 'slow-code') await new Promise(resolve => { state.release = resolve })
+      if (code === 'slow-code' || code === 'plain-code') state.stdout.write(new TextEncoder().encode(`${code}\n`))
       if (code === 'create-widget') state.widget = { model_id: 'current-widget' }
     },
   }
@@ -63,4 +66,29 @@ test('the editor forwards seed zero to the correct Python chart helper', async (
     assert.equal(build({ seed: 0, mu: 0.07, unsupported: 1 }),
       `import PortfolioOptimizationKit as pok\npok.${helper}(seed=0, mu=0.07)`)
   }
+})
+
+test('asynchronous cell runs are serialized and keep their own stdout routing', async () => {
+  const { handler, messages, state } = await workerHarness()
+  const first = handler({ data: { id: 'first', code: 'slow-code' } })
+  const second = handler({ data: { id: 'second', code: 'plain-code' } })
+  while (!state.release) await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(state.executions, ['slow-code'])
+  state.release()
+  await Promise.all([first, second])
+  assert.deepEqual(state.executions, ['slow-code', 'plain-code'])
+  assert.deepEqual(messages.filter(message => message.output).map(({ id, output }) => [id, output]),
+    [['first', 'slow-code\n'], ['second', 'plain-code\n']])
+})
+
+test('cancelling a queued cell does not interrupt the cell that is running', async () => {
+  const { handler, messages, state } = await workerHarness()
+  const first = handler({ data: { id: 'first', code: 'slow-code' } })
+  const second = handler({ data: { id: 'second', code: 'plain-code' } })
+  while (!state.release) await new Promise(resolve => setImmediate(resolve))
+  await handler({ data: { cancel: 'second' } })
+  state.release()
+  await Promise.all([first, second])
+  assert.deepEqual(state.executions, ['slow-code'])
+  assert.ok(messages.some(message => message.id === 'second' && message.done))
 })

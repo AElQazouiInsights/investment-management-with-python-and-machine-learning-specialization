@@ -2218,7 +2218,7 @@ def weight_maxsharpe(
 # Black-Litterman model
 # ---------------------------------------------------------------------------------
 def implied_returns(covmat, weigths, delta=2.5):
-    """
+    r"""
     Computes the implied expected returns \Pi by reverse engineering the weights according to
     the Black-Litterman model:
        \Pi = \delta \Sigma weigths
@@ -2236,7 +2236,7 @@ def implied_returns(covmat, weigths, delta=2.5):
 
 
 def omega_uncertain_prior(covmat, tau, P):
-    """
+    r"""
     Returns the He-Litterman simplified Omega matrix in case the investor does not explicitly
     quantify the uncertainty on the views. This matrix is going to be:
        \Omega := diag( P(\tau\Sigma)P^T )

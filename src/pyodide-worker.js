@@ -4,6 +4,8 @@ import { loadPyodide } from 'pyodide';
 const pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.2/full/" });
 const decoder = new TextDecoder();
 let initialized = false;
+let executionQueue = Promise.resolve();
+const pendingRequests = new Set();
 
 let inputData = null;
 let waitFlag = null;
@@ -84,11 +86,8 @@ async function ensureInitialized() {
   ]);
   await pyodide.runPythonAsync(`
 import micropip
-try:
-    await micropip.install(['tabulate','ipywidgets'], keep_going=True)
-    await micropip.install(['traitlets'])
-except Exception:
-    pass
+await micropip.install(['tabulate','ipywidgets'], keep_going=True)
+await micropip.install(['traitlets'])
   `);
   pyodide.runPython(`
 import sys
@@ -98,7 +97,7 @@ if '/assets' not in sys.path:
   initialized = true;
 }
 
-onmessage = async (e) => {
+onmessage = (e) => {
   // If buffers are provided for input, assign them and return.
   if (e.data.inputBuffer && e.data.waitBuffer && e.data.interruptBuffer) {
     inputData = new Uint8Array(e.data.inputBuffer);
@@ -108,17 +107,50 @@ onmessage = async (e) => {
     return;
   }
 
-  const { id, code, skipWidgetState } = e.data;
+  if (e.data.cancel) {
+    for (const request of pendingRequests) {
+      if (request.id === e.data.cancel) request.cancelled = true;
+    }
+    return;
+  }
+  if (typeof e.data.id !== 'string' || typeof e.data.code !== 'string') return;
+  const request = { ...e.data };
+  pendingRequests.add(request);
+  const execution = executionQueue.then(async () => {
+    pendingRequests.delete(request);
+    if (request.cancelled) {
+      postMessage({ id: request.id, done: true });
+      return;
+    }
+    await execute(request);
+  });
+  executionQueue = execution.catch(error => {
+    postMessage({ id: request.id, error: true, output: error.message, done: true });
+  });
+  return execution;
+};
 
-  // Set up stdout and stderr to post messages back.
+async function execute({ id, code, skipWidgetState }) {
+  if (interruptBuffer) interruptBuffer[0] = 0;
+  postMessage({ id, started: true });
+  const outputDecoder = new TextDecoder();
+  const errorDecoder = new TextDecoder();
+  // Install output handlers only when this request owns the Python session.
   pyodide.setStdout({
     write: (buf) => {
-      const text = decoder.decode(buf)
-      if (!text.trim()) return buf.length
+      const text = outputDecoder.decode(buf, { stream: true })
+      if (!text) return buf.length
       if (/^(Loading|Loaded)\s/.test(text)) return buf.length
       if (text.includes('already loaded from default channel')) return buf.length
       postMessage({ id, output: text })
       return buf.length
+    },
+  });
+  pyodide.setStderr({
+    write: (buf) => {
+      const text = errorDecoder.decode(buf, { stream: true });
+      if (text) postMessage({ id, error: true, output: text });
+      return buf.length;
     },
   });
 
@@ -147,21 +179,11 @@ onmessage = async (e) => {
     pyodide.globals.set('_current_run_id', id);
     pyodide.runPython(`
 import js
+from pyodide.ffi import to_js
 def _emit_echarts(payload):
-    try:
-        js.postMessage({"id": _current_run_id, "echart": payload})
-    except Exception:
-        js.postMessage(payload)
+    # postMessage needs a cloneable JavaScript object, not a Python dict proxy.
+    js.postMessage(to_js({"id": _current_run_id, "echart": payload}, dict_converter=js.Object.fromEntries))
     `);
-
-        // --- Initialize the Widget Manager ---
-    // Import the widget manager from Jupyter Widgets HTML manager.
-    // This step creates a global widget manager that will automatically render any created widgets.
-    // await pyodide.runPythonAsync(`
-    //   import ipywidgets as widgets
-    //   from jupyterlite import widget_manager
-    //   wm = widget_manager.WidgetManager()
-    //   `);
 
     // Execute the provided code with a timeout and interrupt fallback
     const TIMEOUT_MS = 15000;
@@ -180,8 +202,8 @@ def _emit_echarts(payload):
     if (!skipWidgetState) {
       try {
         
-        // First, let's get the widget instance directly
-        const widgetInstance = pyodide.runPython(`globals().get('widget_instance', None)`);
+        // Query a boolean rather than retaining an unused widget PyProxy.
+        const widgetInstance = pyodide.runPython(`globals().get('widget_instance', None) is not None`);
         
       if (!widgetInstance) {
         return;
@@ -195,15 +217,6 @@ from ipywidgets.embed import dependency_state
 
 _widget_json_result = ""
 obj = globals().get('widget_instance', None)
-if obj is None:
-    try:
-        from ipywidgets.widgets import widget as widget_module
-        instances = getattr(widget_module, '_instances', {})
-        obj = next(reversed(instances.values())) if instances else None
-        if obj is not None:
-            globals()['widget_instance'] = obj
-    except Exception:
-        obj = None
 
 w = None
 if isinstance(obj, widgets.Widget):
@@ -241,14 +254,14 @@ else:
         postMessage({ id, widgetState: stateJSON });
       }
       } catch (e) {
-        // ignore widget serialization errors during normal runs
+        postMessage({ id, error: true, output: `Widget serialization failed: ${e.message}\n` });
       }
     }
   } catch (err) {
-    postMessage({ id, output: err.message });
+    postMessage({ id, error: true, output: err.message });
   } finally {
     postMessage({ id, done: true });
   }
-};
+}
 
 postMessage({ ready: true });

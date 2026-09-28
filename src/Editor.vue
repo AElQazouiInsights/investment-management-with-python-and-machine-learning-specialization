@@ -6,7 +6,9 @@ let waitFlag: Int32Array
 let interruptBuffer: Uint8Array
 
 const ready = ref(false)
+const activeEditorId = ref<string | null>(null)
 const encoder = new TextEncoder()
+const editorSources = new Map<string, string>()
 
 let widgetSchemaModule: any | null = null
 let schemaModulePromise: Promise<any> | null = null
@@ -44,6 +46,8 @@ import { history, defaultKeymap, historyKeymap, indentWithTab } from '@codemirro
 import { indentUnit } from '@codemirror/language'
 import { styling } from './codemirror-styling'
 import OutputDisplay from './OutputDisplay.vue'
+import { loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from './editor-storage.js'
+import { createOutputParser } from './editor-output.js'
 
 interface Props {
   id: string
@@ -61,6 +65,11 @@ const mounted = ref(false)
 const running = ref(false)
 const waitingForInput = ref(false)
 const chartOutput = ref('')
+const recoveredCode = ref<string | null>(null)
+const usingSavedCode = ref(false)
+const executionHint = ref('')
+const prerequisiteEditor = ref('')
+let acceptOutput = false
 
 const widgetContexts = new Map<string, { controls: Record<string, any>; lastCode: string }>()
 const pendingEchartUpdates = new Map<string, number>()
@@ -107,10 +116,17 @@ onMounted(() => {
     waitFlag = new Int32Array(waitBuffer)
     interruptBuffer = new Uint8Array(new SharedArrayBuffer(1))
 
-    worker.addEventListener('message', () => {
+    const onReady = (event: MessageEvent) => {
+      if (!event.data?.ready) return
       ready.value = true
       worker.postMessage({ inputBuffer, waitBuffer, interruptBuffer })
-    }, { once: true })
+      worker.removeEventListener('message', onReady)
+    }
+    worker.addEventListener('message', onReady)
+    worker.addEventListener('message', event => {
+      if (event.data?.started) activeEditorId.value = event.data.id
+      if (event.data?.done && activeEditorId.value === event.data.id) activeEditorId.value = null
+    })
   }
 
   // 2) Listen for messages from the worker
@@ -121,6 +137,10 @@ onMounted(() => {
   const codeElement = prev?.classList.contains('language-python') ? prev : null
   initialCode = codeElement?.querySelector('pre')?.textContent ?? ''
   codeElement?.setAttribute('hidden', '')
+  editorSources.set(props.id, initialCode)
+  const saved = loadEditorCode(localStorage, storageKey.value, initialCode)
+  recoveredCode.value = saved.recoveredCode
+  usingSavedCode.value = saved.code !== initialCode
 
   // 4) Create the CodeMirror editor with persisted content
   editor = new EditorView({
@@ -133,28 +153,46 @@ onMounted(() => {
       highlightActiveLine(),
       indentUnit.of('    '),
       styling,
+      EditorView.updateListener.of(update => {
+        if (update.docChanged) usingSavedCode.value = update.state.doc.toString() !== initialCode
+      }),
     ],
     parent: parent.value!,
-    doc: localStorage.getItem(storageKey.value) ?? initialCode
+    doc: saved.code
   })
 
   // 5) Save doc on tab switch or page hide
-  document.addEventListener('visibilitychange', () => {
-    save(editor.state.doc.toString())
-  })
+  document.addEventListener('visibilitychange', saveOnVisibilityChange)
 
   mounted.value = true
 })
 
 onUnmounted(() => {
   save(editor.state.doc.toString())
+  mounted.value = false
+  acceptOutput = false
+  cancelWidgetUpdates()
+  document.removeEventListener('visibilitychange', saveOnVisibilityChange)
+  editorSources.delete(props.id)
   worker.removeEventListener('message', handleMessage)
   editor.destroy()
 })
 
+function saveOnVisibilityChange() {
+  save(editor.state.doc.toString())
+}
+
+function cancelWidgetUpdates() {
+  const pending = pendingEchartUpdates.get(props.id)
+  if (pending !== undefined) window.clearTimeout(pending)
+  pendingEchartUpdates.delete(props.id)
+  latestControlValues.delete(props.id)
+  widgetContexts.delete(props.id)
+}
+
 // Worker message handler
 async function handleMessage(e: MessageEvent) {
-  if (e.data.id !== props.id) return
+  if (e.data?.id !== props.id || !acceptOutput) return
 
   if (e.data.input) {
     waitingForInput.value = true
@@ -162,12 +200,26 @@ async function handleMessage(e: MessageEvent) {
     input.value?.focus()
   }
   if (e.data.output) updateOutput(e.data.output)
-  if (typeof e.data.echart === 'string') updateOutput(e.data.echart)
+  if (typeof e.data.echart === 'string') chartOutput.value = e.data.echart
+  if (e.data.error && typeof e.data.output === 'string') {
+    const missing = e.data.output.match(/NameError: name '([A-Za-z_]\w*)' is not defined/)
+    if (missing) {
+      const name = missing[1]
+      executionHint.value = `Python variable '${name}' is missing. Run its prerequisite example in this session, or check the name in your code. Reloading the page clears Python variables.`
+      const sources = [...editorSources.entries()]
+      const current = sources.findIndex(([id]) => id === props.id)
+      const definition = new RegExp(`^${name}\\s*=`, 'm')
+      prerequisiteEditor.value = sources.slice(0, current).reverse().find(([, source]) => definition.test(source))?.[0] ?? ''
+    }
+  }
   if (e.data.widgetState) {
     console.info('ipywidgets: widgetState received')
     await renderWidget(e.data.widgetState)
   }
-  if (e.data.done) running.value = false
+  if (e.data.done) {
+    outputParser.finish()
+    running.value = false
+  }
 }
 
 const inputText = ref('')
@@ -213,9 +265,10 @@ const outputLines = computed(() => {
 function run() {
   const code = editor.state.doc.toString()
   save(code)
+  cancelWidgetUpdates()
   resetOutput()
+  acceptOutput = true
   running.value = true
-  interruptBuffer[0] = 0
   widgetContexts.set(props.id, { controls: {}, lastCode: code })
   // Run via in-page Pyodide worker for both normal and ipywidgets code.
   // The worker serializes widget state which we render in-page.
@@ -225,13 +278,20 @@ function run() {
 // If code is still running, we "interrupt" it; otherwise, reset editor
 function reset() {
   if (running.value) {
+    if (activeEditorId.value !== props.id) {
+      worker.postMessage({ cancel: props.id })
+      return
+    }
     // If the code is blocked for input, handle it first
     if (waitingForInput.value) handleInput()
     // Send a SIGINT (2)
     interruptBuffer[0] = 2
     return
   }
-  localStorage.removeItem(storageKey.value)
+  acceptOutput = false
+  cancelWidgetUpdates()
+  useCurrentExample(localStorage, storageKey.value, initialCode, editor.state.doc.toString())
+  recoveredCode.value = null
   editor.dispatch({
     changes: { from: 0, to: editor.state.doc.length, insert: initialCode },
     selection: { anchor: 0 },
@@ -243,22 +303,34 @@ function reset() {
 
 // Save doc in local storage (unless it's the original text)
 function save(code: string) {
-  if (code === initialCode) localStorage.removeItem(storageKey.value)
-  else localStorage.setItem(storageKey.value, code)
+  saveEditorCode(localStorage, storageKey.value, initialCode, code)
 }
 
-/**
- * If we detect "<ECHARTS_DATA>", we store that entire chunk in chartOutput.
- * Otherwise, we treat each character as normal console text.
- */
-function updateOutput(raw: string) {
-  if (raw.includes('<ECHARTS_DATA>')) {
-    // We'll let <OutputDisplay> parse the actual JSON
-    chartOutput.value = raw
-    return
-  }
+function restoreSavedCode() {
+  const code = restoreEditorCode(localStorage, storageKey.value, initialCode, editor.state.doc.toString())
+  editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: code } })
+  recoveredCode.value = null
+}
 
+const outputParser = createOutputParser({
+  onText: appendConsoleText,
+  onChart: (payload: string) => { chartOutput.value = payload },
+  onError: (message: string) => {
+    chartOutput.value = ''
+    appendConsoleText(`\n[${message}]\n`)
+  },
+})
+
+function updateOutput(raw: string) {
+  outputParser.push(raw)
+}
+
+function appendConsoleText(raw: string) {
   for (const c of raw) {
+    if (c === '\r') {
+      outputCol = 0
+      continue
+    }
     if (c === '\n') {
       outputRow++
       outputCol = 0
@@ -360,6 +432,7 @@ function attachValueObservers(model: any, manager: any, context: { controls: Rec
 }
 
 function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: string }) {
+  if (!mounted.value || widgetContexts.get(props.id) !== context) return
   const values: Record<string, any> = {}
   const lastCode = context.lastCode || ''
   const targetFn = lastCode.includes('show_cppi_echart') ? 'show_cppi_echart' : 'show_gbm_echart'
@@ -411,6 +484,9 @@ function buildEchartCode(values: Record<string, any>) {
 
 // Clear out console lines & chart JSON
 function resetOutput() {
+  outputParser.reset()
+  executionHint.value = ''
+  prerequisiteEditor.value = ''
   output.value = [Array.from({ length: outputWidth })]
   outputRow = 0
   outputCol = 0
@@ -613,6 +689,10 @@ async function renderWidget(stateJSON: string) {
     }
     
     const view = await manager.create_view(model)
+    if (!mounted.value || !acceptOutput) {
+      view.remove()
+      return
+    }
     const existing = widgetContexts.get(props.id)
     const context = existing ? { controls: existing.controls, lastCode: editor.state.doc.toString() } : { controls: {}, lastCode: editor.state.doc.toString() }
     widgetContexts.set(props.id, context)
@@ -643,7 +723,13 @@ async function renderWidget(stateJSON: string) {
 </script>
 
 <template>
-  <div ref="anchor" class="wrapper">
+  <div ref="anchor" class="wrapper" :id="`editor-${props.id}`" :data-editor-id="props.id">
+    <div v-if="recoveredCode !== null || usingSavedCode" class="editor-source-notice" role="status">
+      <span v-if="recoveredCode !== null">The current lesson example is loaded. Your older saved code is preserved and can be restored.</span>
+      <span v-if="usingSavedCode">You are using saved or edited code, which may differ from the lesson.</span>
+      <button v-if="recoveredCode !== null" :disabled="running" @click="restoreSavedCode">Restore saved code</button>
+      <button :disabled="running" @click="reset">Use current example</button>
+    </div>
     <!-- CodeMirror editor will mount here -->
     <div ref="parent" />
     <button
@@ -709,7 +795,11 @@ async function renderWidget(stateJSON: string) {
     </button>
   </div>
 
-  <div class="wrapper">
+  <div class="wrapper" :data-editor-output="props.id">
+    <div v-if="executionHint" class="editor-source-notice" role="status">
+      {{ executionHint }}
+      <a v-if="prerequisiteEditor" :href="`#editor-${prerequisiteEditor}`">Go to prerequisite cell</a>
+    </div>
     <!-- Console-like text output -->
     <div class="output">
       <code v-for="line, i in outputLines" :key="i">
@@ -739,6 +829,22 @@ async function renderWidget(stateJSON: string) {
 </template>
 
 <style scoped>
+.editor-source-notice {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  background: var(--vp-c-bg-soft);
+  font-size: 14px;
+}
+
+.editor-source-notice button,
+.editor-source-notice a {
+  margin-left: 12px;
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+}
+
 div.wrapper {
   position: relative;
   margin: 16px -24px;
