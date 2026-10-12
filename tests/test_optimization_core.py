@@ -118,6 +118,18 @@ class PortfolioConstructionTests(unittest.TestCase):
                 weights = pok.maximize_sharpe_ratio(np.array([0.08, 0.12]), np.full((2, 2), 0.01), 0.0, 1, 0.10)
                 np.testing.assert_allclose(weights, [0.0, 1.0], atol=1e-7)
 
+    def test_negative_excess_returns_do_not_trap_sharpe_at_a_stationary_minimum(self):
+        # Equal weighting has Sharpe -sqrt(2); either asset alone achieves -1.
+        # Cash would dominate all three, but this API requires 100% risky assets.
+        for path, pok in self.modules.items():
+            with self.subTest(module=path):
+                means = np.array([-0.10, -0.10])
+                covariance = np.eye(2) * 0.01
+                weights = pok.maximize_sharpe_ratio(means, covariance, 0.0, 1)
+                sharpe = weights @ means / np.sqrt(weights @ covariance @ weights)
+                self.assertAlmostEqual(sharpe, -1.0, places=7)
+                self.assertAlmostEqual(weights.max(), 1.0, places=7)
+
     def test_solver_failure_and_invalid_success_results_are_not_silenced(self):
         means = np.array([0.08, 0.12])
         covariance = np.diag([0.01, 0.04])

@@ -27,6 +27,54 @@ class IsolatedSiteHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+def check_unavailable_storage(browser, base_url):
+    for mode in ('blocked', 'quota'):
+        page = browser.new_page()
+        errors = []
+        page.on('pageerror', lambda error: errors.append(error.stack))
+        page.add_init_script("""
+            const mode = MODE;
+            const key = 'code-editor-simple-and-total-returns';
+            if (mode === 'quota') {
+                localStorage.setItem(key, 'print("legacy draft survives")');
+                const setItem = Storage.prototype.setItem;
+                Storage.prototype.setItem = function(...args) {
+                    if (this === localStorage) throw new DOMException('Storage full', 'QuotaExceededError');
+                    return setItem.apply(this, args);
+                };
+            } else {
+                // Deny the editor namespace, leaving VitePress/devtools' own
+                // storage initialization outside this component regression.
+                // A throwing localStorage getter is also covered in Node tests.
+                const getItem = Storage.prototype.getItem;
+                Storage.prototype.getItem = function(key) {
+                    if (key.startsWith('code-editor-')) throw new DOMException('Storage blocked', 'SecurityError');
+                    return getItem.call(this, key);
+                };
+            }
+        """.replace('MODE', json.dumps(mode)))
+        page.goto(f"{base_url.rstrip('/')}/1.1-risks.html", wait_until='domcontentloaded', timeout=120000)
+        editor = page.locator('[data-editor-id="simple-and-total-returns"]')
+        output = page.locator('[data-editor-output="simple-and-total-returns"]')
+        editor.get_by_text('Browser storage is unavailable.', exact=False).wait_for()
+        page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+        editor.locator('button.run').click()
+        output.get_by_text('Total return: 6.00%', exact=False).wait_for(timeout=180000)
+        page.wait_for_function("!document.querySelector('[data-editor-id=\"simple-and-total-returns\"] button.run').disabled")
+        if mode == 'quota':
+            assert page.evaluate("localStorage.getItem('code-editor-simple-and-total-returns')") == 'print("legacy draft survives")'
+            editor.get_by_role('button', name='Restore saved code').click()
+        else:
+            editor.locator('.cm-content').click()
+            page.keyboard.press('Control+a')
+            page.keyboard.insert_text('print("session draft runs")')
+        editor.locator('button.run').click()
+        output.get_by_text('legacy draft survives' if mode == 'quota' else 'session draft runs', exact=False).wait_for(timeout=30000)
+        assert not errors, errors
+        page.close()
+        print(f'PASS: {mode} storage does not break editor mounting, execution, or draft recovery.', flush=True)
+
+
 def run(site_dir=None, base_url=None):
     server = None
     if base_url is None:
@@ -738,6 +786,7 @@ widget_instance''')
             assert len(chart_messages('duration-widget')) == nominal_duration_count
             assert not errors, errors
             print('PASS: continuous/nominal duration controls, DV01 scaling, finite-shift errors, zero coupons, and separate instances of the shared helper are verified.', flush=True)
+            check_unavailable_storage(browser, base_url)
             browser.close()
     finally:
         if server is not None:
