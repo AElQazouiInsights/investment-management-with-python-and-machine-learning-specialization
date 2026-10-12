@@ -35,10 +35,28 @@ def audit(base_url, chapter, screenshots=None):
                                    arg=editor_id, timeout=180000)
             failures = page.evaluate("id => window.chapterMessages.filter(m => m.id === id && m.error && /Traceback|Error:/.test(m.output || ''))", editor_id)
             assert not failures, (editor_id, failures)
-        expected = {"1.3-diversification": (37, 26), "1.2-optimization": (20, 15)}[chapter]
+        expected = {"1.3-diversification": (37, 26), "1.2-optimization": (20, 15), "1.4-alm": (77, 33)}[chapter]
         assert len(ids) == expected[0], len(ids)
         panels = page.locator(".chart-panel")
         assert panels.count() == expected[1], panels.count()
+        if chapter == "1.4-alm":
+            selected = page.locator('[data-editor-output="coupon-widget"] .chart').evaluate_all("""els =>
+                els.map(el => el.__vueParentComponent.setupState.chart.getOption().series
+                    .find(series => series.name.startsWith('Selected')))
+            """)
+            assert len(selected) == 2
+            assert all(series['type'] == 'scatter' and series['showSymbol'] and series['symbol'] == 'diamond'
+                       for series in selected), selected
+            step_series = page.locator('[data-editor-output="glide-widget"] .chart').first.evaluate("""el =>
+                el.__vueParentComponent.setupState.chart.getOption().series.find(series => series.name === 'Glide path')
+            """)
+            assert step_series['step'] == 'end'
+            assert step_series['data'][-2:] == [[9.5, 20], [10, 20]]
+            floor_series = page.locator('[data-editor-output="floor-widget"] .chart').first.evaluate("""el =>
+                el.__vueParentComponent.setupState.chart.getOption().series
+            """)
+            styles = {series['name']: series['lineStyle'].get('type') for series in floor_series}
+            assert styles['Floor PV'] == 'dashed' and styles['Floor allocator'] != 'dashed', styles
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -107,7 +125,7 @@ def audit(base_url, chapter, screenshots=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:5173")
-    parser.add_argument("--chapter", choices=["1.3-diversification", "1.2-optimization"], default="1.3-diversification")
+    parser.add_argument("--chapter", choices=["1.3-diversification", "1.2-optimization", "1.4-alm"], default="1.3-diversification")
     parser.add_argument("--screenshots", type=Path)
     args = parser.parse_args()
     audit(args.base_url, args.chapter, args.screenshots)

@@ -8,6 +8,7 @@ import argparse
 import functools
 import http.server
 import json
+import math
 from pathlib import Path
 import re
 import threading
@@ -183,6 +184,560 @@ def run(site_dir=None, base_url=None):
             assert any(entry['code'] == "print('my saved tweak')" for entry in history)
             assert not errors, errors
             print("PASS: non-widget runs do not copy controls; intentional edits survive reload/reset; no browser errors.", flush=True)
+
+            page.goto(f"{base_url.rstrip('/')}/1.4-alm.html", wait_until='domcontentloaded', timeout=120000)
+            page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+            cir_editor = editor_by_id('cir-widget')
+            cir_output = output_for(cir_editor)
+            cir_editor.locator('button.run').click()
+            cir_before = wait_for_chart('cir-widget')
+            cir_output.locator('canvas').first.wait_for(timeout=30000)
+            cir_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert cir_output.get_by_role('slider').count() == 7
+            assert cir_output.locator('canvas').count() == 2
+            initial_rate = cir_output.locator('label.widget-label').filter(has_text=re.compile(r'^r0$')).locator('..').get_by_role('slider')
+            count = len(chart_messages('cir-widget'))
+            initial_rate.press('ArrowRight')
+            cir_after = wait_for_chart('cir-widget', count)
+            assert cir_after['cirBondPrices']['series']['Scenario 1'][0][1] < cir_before['cirBondPrices']['series']['Scenario 1'][0][1]
+            assert cir_after['cirRates']['series']['Scenario 1'][0][1] > cir_before['cirRates']['series']['Scenario 1'][0][1]
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'cir-widget' and 'pok.show_cir_echart(' in request['code']
+            assert 'r0=' in request['code'] and 'seed=42' in request['code']
+            volatility = cir_output.locator('label.widget-label').filter(has_text=re.compile(r'^sigma$')).locator('..').get_by_role('slider')
+            count = len(chart_messages('cir-widget'))
+            volatility.press('Home')
+            deterministic = wait_for_chart('cir-widget', count)
+            assert deterministic['cirRates']['series']['Scenario 1'] == deterministic['cirRates']['series']['Scenario 5']
+            for points in deterministic['cirBondPrices']['series'].values():
+                assert points[-1] == [5, 1]
+            for name, keys in (('a', ['Home']), ('b', ['Home', 'ArrowRight']), ('sigma', ['End'])):
+                control = cir_output.locator('label.widget-label').filter(has_text=re.compile(f'^{name}$')).locator('..').get_by_role('slider')
+                for key in keys:
+                    control.press(key)
+            page.wait_for_function("window.widgetMessages.filter(m => m.id === 'cir-widget' && m.echart).at(-1)?.echart.includes('not satisfied')", timeout=180000)
+            stress = json.loads(chart_messages('cir-widget')[-1].split('<ECHARTS_DATA>', 1)[1])
+            assert all(point[1] >= 0 for points in stress['cirRates']['series'].values() for point in points)
+            assert not errors, errors
+            print('PASS: CIR controls update both charts; initial-rate pricing, zero volatility, and nonnegative rates with a failed Feller condition are verified.', flush=True)
+
+            cir_count = len(chart_messages('cir-widget'))
+            hedging_editor = editor_by_id('hedging-widget')
+            hedging_output = output_for(hedging_editor)
+            hedging_editor.locator('button.run').click()
+            hedging_before = wait_for_chart('hedging-widget')
+            hedging_output.locator('canvas').first.wait_for(timeout=30000)
+            hedging_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert hedging_output.get_by_role('slider').count() == 9
+            assert hedging_output.locator('canvas').count() == 2
+            assert '294/500 (58.8%)' in chart_messages('hedging-widget')[-1]
+
+            def hedging_control(name):
+                return hedging_output.locator('label.widget-label').filter(has_text=re.compile(f'^{name}$')).locator('..').get_by_role('slider')
+
+            count = len(chart_messages('hedging-widget'))
+            hedging_control('initial_assets').press('ArrowRight')
+            funded = wait_for_chart('hedging-widget', count)
+            for name in ('Cash 1', 'Matching bond'):
+                for old, new in zip(hedging_before['hedgingFunding']['series'][name], funded['hedgingFunding']['series'][name]):
+                    assert old[0] == new[0] and math.isclose(new[1], old[1] * 0.80 / 0.75, rel_tol=1e-12)
+            assert 'fully funded or in surplus' in chart_messages('hedging-widget')[-1]
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'hedging-widget' and 'pok.show_liability_hedging_echart(' in request['code']
+            assert 'initial_assets=0.8' in request['code'] and 'liability=1' in request['code']
+
+            count = len(chart_messages('hedging-widget'))
+            hedging_control('seed').press('ArrowRight')
+            reseeded = wait_for_chart('hedging-widget', count)
+            assert reseeded['hedgingFunding']['series']['Matching bond'] == funded['hedgingFunding']['series']['Matching bond']
+            assert reseeded['hedgingFunding']['series']['Cash 1'] != funded['hedgingFunding']['series']['Cash 1']
+            count = len(chart_messages('hedging-widget'))
+            hedging_control('liability').press('ArrowRight')
+            larger_liability = wait_for_chart('hedging-widget', count)
+            before_ratio = reseeded['hedgingFunding']['series']['Matching bond'][0][1]
+            after_ratio = larger_liability['hedgingFunding']['series']['Matching bond'][0][1]
+            assert math.isclose(after_ratio, before_ratio / 1.1, rel_tol=1e-12), (
+                before_ratio, after_ratio, page.evaluate('window.widgetRequests.slice(-3)'),
+                [message.split('<ECHARTS_DATA>')[0] for message in chart_messages('hedging-widget')[-3:]],
+            )
+
+            count = len(chart_messages('hedging-widget'))
+            hedging_output.locator('select').select_option(label='52')
+            weekly = wait_for_chart('hedging-widget', count)
+            assert len(weekly['hedgingFunding']['series']['Cash 1']) == 521
+            assert weekly['hedgingFunding']['series']['Matching bond'] == larger_liability['hedgingFunding']['series']['Matching bond']
+            count = len(chart_messages('hedging-widget'))
+            hedging_control('sigma').press('Home')
+            deterministic_hedge = wait_for_chart('hedging-widget', count)
+            fixed_ratio = deterministic_hedge['hedgingFunding']['series']['Matching bond'][0][1]
+            for name, points in deterministic_hedge['hedgingFunding']['series'].items():
+                if name.startswith('Cash'):
+                    assert all(math.isclose(value, fixed_ratio, rel_tol=1e-12) for _, value in points)
+            count = len(chart_messages('hedging-widget'))
+            hedging_control('initial_assets').press('Home')
+            no_capital = wait_for_chart('hedging-widget', count)
+            assert all(value == 0 for _, value in no_capital['hedgingFunding']['series']['Cash 1'])
+            assert no_capital['hedgingTerminal']['series']['Matching bond'][1:3] == [[0, 0], [0, 100]]
+            assert len(chart_messages('cir-widget')) == cir_count
+            assert not errors, errors
+            print('PASS: hedging controls update capital, liability, seed, and rollover frequency; deterministic matching, zero capital, CDFs, and independent editor routing are verified.', flush=True)
+
+            hedge_count = len(chart_messages('hedging-widget'))
+            coupon_editor = editor_by_id('coupon-widget')
+            coupon_output = output_for(coupon_editor)
+            coupon_editor.locator('button.run').click()
+            coupon_before = wait_for_chart('coupon-widget')
+            coupon_output.locator('canvas').first.wait_for(timeout=30000)
+            coupon_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert coupon_output.get_by_role('slider').count() == 5
+            assert coupon_output.locator('canvas').count() == 2
+            assert math.isclose(coupon_before['couponYield']['series']['Selected bond'][0][1], 94.49187463842017)
+
+            def coupon_control(name):
+                return coupon_output.locator('label.widget-label').filter(has_text=re.compile(f'^{name}$')).locator('..').get_by_role('slider')
+
+            count = len(chart_messages('coupon-widget'))
+            coupon_control('ytm').press('ArrowRight')
+            higher_yield = wait_for_chart('coupon-widget', count)
+            assert higher_yield['couponYield']['series']['Selected bond'][0][1] < coupon_before['couponYield']['series']['Selected bond'][0][1]
+            count = len(chart_messages('coupon-widget'))
+            coupon_control('reinvestment_rate').press('ArrowRight')
+            reinvested = wait_for_chart('coupon-widget', count)
+            assert reinvested['couponYield'] == higher_yield['couponYield']
+            assert reinvested['couponReinvestment']['series']['Selected reinvestment'][0][1] > 109
+            count = len(chart_messages('coupon-widget'))
+            coupon_output.locator('select').select_option(label='Quarterly')
+            quarterly = wait_for_chart('coupon-widget', count)
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'coupon-widget' and 'pok.show_coupon_bond_echart(' in request['code']
+            assert 'coupons_per_year=4' in request['code']
+            assert 'coupon 0.75' in chart_messages('coupon-widget')[-1]
+            assert quarterly['couponYield']['series'] != reinvested['couponYield']['series']
+            count = len(chart_messages('coupon-widget'))
+            coupon_control('coupon_rate').press('Home')
+            zero_coupon = wait_for_chart('coupon-widget', count)
+            assert all(value == 100 for _, value in zero_coupon['couponReinvestment']['series']['Terminal wealth'])
+            count = len(chart_messages('coupon-widget'))
+            coupon_control('ytm').press('Home')
+            negative_yield = wait_for_chart('coupon-widget', count)
+            assert negative_yield['couponYield']['series']['Selected bond'][0][0] == -2
+            assert math.isclose(negative_yield['couponYield']['series']['Selected bond'][0][1], 100 / 0.995 ** 12, rel_tol=1e-12)
+            assert len(chart_messages('hedging-widget')) == hedge_count
+            assert not errors, errors
+            print('PASS: coupon-bond controls update YTM, reinvestment, and labeled coupon-frequency choices; zero coupons, negative yields, and editor routing are verified.', flush=True)
+
+            coupon_count = len(chart_messages('coupon-widget'))
+            duration_editor = editor_by_id('duration-widget')
+            duration_output = output_for(duration_editor)
+            duration_editor.locator('button.run').click()
+            duration_before = wait_for_chart('duration-widget')
+            duration_output.locator('canvas').first.wait_for(timeout=30000)
+            duration_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert duration_output.get_by_role('slider').count() == 5
+            assert duration_output.locator('canvas').count() == 2
+            assert 'Macaulay duration: 2.887555 years' in chart_messages('duration-widget')[-1]
+
+            def duration_control(name):
+                return duration_output.locator('label.widget-label').filter(has_text=re.compile(f'^{name}$')).locator('..').get_by_role('slider')
+
+            count = len(chart_messages('duration-widget'))
+            duration_control('principal').press('ArrowRight')
+            scaled_duration = wait_for_chart('duration-widget', count)
+            for old, new in zip(duration_before['durationWeights']['series']['PV weight'], scaled_duration['durationWeights']['series']['PV weight']):
+                assert old[0] == new[0] and math.isclose(old[1], new[1], rel_tol=1e-12)
+            assert 'Full price: 188.983749' in chart_messages('duration-widget')[-1]
+            assert 'Macaulay duration: 2.887555 years' in chart_messages('duration-widget')[-1]
+            count = len(chart_messages('duration-widget'))
+            duration_control('shift_bps').press('Home')
+            negative_shift = wait_for_chart('duration-widget', count)
+            point = negative_shift['durationSensitivity']['series']['Selected exact'][0]
+            assert point[0] == -200 and point[1] > 0
+            assert negative_shift['durationSensitivity']['xAxis']['min'] == -200
+            assert negative_shift['durationWeights'] == scaled_duration['durationWeights']
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'duration-widget' and 'pok.show_duration_echart(' in request['code']
+            assert 'shift_bps=-200' in request['code']
+            count = len(chart_messages('duration-widget'))
+            duration_output.locator('select').select_option(label='Monthly')
+            monthly_duration = wait_for_chart('duration-widget', count)
+            assert len(monthly_duration['durationWeights']['series']['PV weight']) == 36
+            assert 'coupons_per_year=12' in page.evaluate('window.widgetRequests.at(-1).code')
+            count = len(chart_messages('duration-widget'))
+            duration_control('coupon_rate').press('Home')
+            zero_duration = wait_for_chart('duration-widget', count)
+            weights = zero_duration['durationWeights']['series']['PV weight']
+            assert all(value == 0 for _, value in weights[:-1])
+            assert math.isclose(weights[-1][1], 100, rel_tol=1e-12)
+            assert 'Macaulay duration: 3.000000 years' in chart_messages('duration-widget')[-1]
+            assert len(chart_messages('coupon-widget')) == coupon_count
+            assert not errors, errors
+            print('PASS: duration controls preserve scale invariance, use signed basis-point shifts, update monthly timing weights, and recover the zero-coupon duration; routing is independent.', flush=True)
+
+            duration_count = len(chart_messages('duration-widget'))
+            matching_editor = editor_by_id('ldi-matching-widget')
+            matching_output = output_for(matching_editor)
+            matching_editor.locator('button.run').click()
+            matching_before = wait_for_chart('ldi-matching-widget')
+            matching_output.locator('canvas').first.wait_for(timeout=30000)
+            matching_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert matching_output.get_by_role('slider').count() == 5
+            assert matching_output.locator('select').count() == 2
+            assert matching_output.locator('canvas').count() == 2
+            assert 'PV surplus / deficit: -16.12' in chart_messages('ldi-matching-widget')[-1]
+
+            def matching_control(label):
+                return matching_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            count = len(chart_messages('ldi-matching-widget'))
+            matching_control('Assets ($)').get_by_role('slider').press('ArrowRight')
+            more_capital = wait_for_chart('ldi-matching-widget', count)
+            for old, new in zip(matching_before['matchingFunding']['series']['Duration matched'], more_capital['matchingFunding']['series']['Duration matched']):
+                assert old[0] == new[0] and math.isclose(new[1], old[1] * 131000 / 130000, rel_tol=1e-12)
+            assert more_capital['matchingFunding']['series']['Initial matched'][0][1] > 1
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'ldi-matching-widget' and 'pok.show_duration_matching_echart(' in request['code']
+            assert 'asset_value=131000' in request['code'] and 'Assets ($)' not in request['code']
+            count = len(chart_messages('ldi-matching-widget'))
+            matching_control('Long coupons').locator('select').select_option(label='Quarterly')
+            mixed_frequency = wait_for_chart('ldi-matching-widget', count)
+            assert len(mixed_frequency['matchingPayments']['series']['Matched']) == 80
+            assert 'long_frequency=4' in page.evaluate('window.widgetRequests.at(-1).code')
+            assert 'liability duration: 10.960799 years' in chart_messages('ldi-matching-widget')[-1]
+            count = len(chart_messages('ldi-matching-widget'))
+            matching_control('Base rate').get_by_role('slider').press('ArrowRight')
+            new_base = wait_for_chart('ldi-matching-widget', count)
+            assert math.isclose(new_base['matchingFunding']['series']['Initial matched'][0][0], 4.5)
+            count = len(chart_messages('ldi-matching-widget'))
+            matching_control('Liability delay').get_by_role('slider').press('End')
+            infeasible = wait_for_chart('ldi-matching-widget', count)
+            assert infeasible == {}
+            assert 'No unique long-only duration match' in chart_messages('ldi-matching-widget')[-1]
+            matching_output.locator('canvas').first.wait_for(state='detached', timeout=30000)
+            count = len(chart_messages('ldi-matching-widget'))
+            matching_control('Liability delay').get_by_role('slider').press('Home')
+            recovered = wait_for_chart('ldi-matching-widget', count)
+            matching_output.locator('canvas').first.wait_for(timeout=30000)
+            assert len(recovered) == 2 and matching_output.locator('canvas').count() == 2
+            assert len(chart_messages('duration-widget')) == duration_count
+            assert not errors, errors
+            print('PASS: LDI friendly labels route to Python keywords; capital, common-curve frequency, and base-rate updates work; infeasible matches clear stale charts and recover.', flush=True)
+
+            matching_count = len(chart_messages('ldi-matching-widget'))
+            mix_editor = editor_by_id('psp-lhp-widget')
+            mix_output = output_for(mix_editor)
+            mix_editor.locator('button.run').click()
+            mix_before = wait_for_chart('psp-lhp-widget')
+            mix_output.locator('canvas').first.wait_for(timeout=30000)
+            mix_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert mix_output.get_by_role('slider').count() == 9
+            assert mix_output.locator('canvas').count() == 2
+
+            def mix_control(label):
+                return mix_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_control('Stock share').get_by_role('slider').press('Home')
+            bonds_only = wait_for_chart('psp-lhp-widget', count)
+            assert bonds_only['pspLhpWealth']['series']['Fixed mix median'] == bonds_only['pspLhpWealth']['series']['Bonds median']
+            for name in ('Stocks median', 'Bonds median'):
+                assert bonds_only['pspLhpWealth']['series'][name] == mix_before['pspLhpWealth']['series'][name]
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_control('Stock share').get_by_role('slider').press('End')
+            stocks_only = wait_for_chart('psp-lhp-widget', count)
+            assert stocks_only['pspLhpWealth']['series']['Fixed mix median'] == stocks_only['pspLhpWealth']['series']['Stocks median']
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_control('Threshold').get_by_role('slider').press('End')
+            higher_threshold = wait_for_chart('psp-lhp-widget', count)
+            for name, points in stocks_only['pspLhpWealth']['series'].items():
+                if name != 'Terminal threshold':
+                    assert higher_threshold['pspLhpWealth']['series'][name] == points
+            assert higher_threshold['pspLhpTerminal']['series']['Terminal threshold'] == [[1.5, 0], [1.5, 100]]
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_control('Seed').get_by_role('slider').press('ArrowRight')
+            new_seed = wait_for_chart('psp-lhp-widget', count)
+            assert new_seed['pspLhpWealth']['series']['Stocks median'] != higher_threshold['pspLhpWealth']['series']['Stocks median']
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_control('Rebalance').locator('select').select_option(label='Quarterly')
+            quarterly_mix = wait_for_chart('psp-lhp-widget', count)
+            assert len(quarterly_mix['pspLhpWealth']['series']['Fixed mix median']) == 41
+            assert 'periods_per_year=4' in page.evaluate('window.widgetRequests.at(-1).code')
+            assert len(chart_messages('ldi-matching-widget')) == matching_count
+
+            # Rerun with fewer controls and non-default fixed arguments. Old models
+            # must not override the new callback's fixed parameters on a slider edit.
+            content = mix_editor.locator('.cm-content')
+            content.click()
+            content.press('ControlOrMeta+a')
+            page.keyboard.insert_text('''import ipywidgets as widgets
+import PortfolioOptimizationKit as pok
+widget_instance = widgets.interactive(
+    pok.show_psp_lhp_echart,
+    n_years=widgets.fixed(2), n_scenarios=widgets.fixed(100),
+    periods_per_year=widgets.fixed(4), mu=widgets.fixed(0.03),
+    sigma=widgets.fixed(0.0), rate_sigma=widgets.fixed(0.0),
+    short_weight=widgets.fixed(0.4), floor=widgets.fixed(1.0), seed=widgets.fixed(9),
+    psp_weight=widgets.FloatSlider(value=0.5, min=0, max=1, step=0.1, description="Stock share", continuous_update=False),
+)
+widget_instance''')
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_editor.locator('button.run').click()
+            wait_for_chart('psp-lhp-widget', count)
+            mix_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert mix_output.get_by_role('slider').count() == 1
+            count = len(chart_messages('psp-lhp-widget'))
+            mix_control('Stock share').get_by_role('slider').press('ArrowRight')
+            fixed_parameters = wait_for_chart('psp-lhp-widget', count)
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            for parameter in ('n_years=2', 'n_scenarios=100', 'periods_per_year=4', 'mu=0.03', 'seed=9', 'psp_weight=0.6'):
+                assert parameter in request['code'], request
+            expected = (1 + 0.6 * math.expm1(0.03 / 4) + 0.4 * (1.03 ** 0.25 - 1)) ** 8
+            points = fixed_parameters['pspLhpWealth']['series']['Fixed mix median']
+            assert len(points) == 9 and math.isclose(points[-1][1], expected, rel_tol=1e-12)
+            assert not errors, errors
+            print('PASS: fixed-mix allocation endpoints, paired samples, terminal thresholds, seeds, and frequency updates work; reruns discard retired controls and preserve fixed callback arguments.', flush=True)
+
+            mix_count = len(chart_messages('psp-lhp-widget'))
+            glide_editor = editor_by_id('glide-widget')
+            glide_output = output_for(glide_editor)
+            glide_editor.locator('button.run').click()
+            glide_before = wait_for_chart('glide-widget')
+            glide_output.locator('canvas').first.wait_for(timeout=30000)
+            glide_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert glide_output.get_by_role('slider').count() == 6
+            assert glide_output.locator('canvas').count() == 2
+            targets = glide_before['glideTargets']['series']['Glide path']
+            assert targets[0] == [0, 80] and targets[-2:] == [[9.5, 20], [10, 20]]
+
+            def glide_control(label):
+                return glide_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            count = len(chart_messages('glide-widget'))
+            glide_control('Start stocks').get_by_role('slider').press('Home')
+            new_start = wait_for_chart('glide-widget', count)
+            assert new_start['glideWealth']['series']['Fixed 70/30'] == glide_before['glideWealth']['series']['Fixed 70/30']
+            assert new_start['glideWealth']['series']['Glide path'] != glide_before['glideWealth']['series']['Glide path']
+            count = len(chart_messages('glide-widget'))
+            glide_control('End stocks').get_by_role('slider').press('Home')
+            constant_glide = wait_for_chart('glide-widget', count)
+            assert constant_glide['glideWealth']['series']['Glide path'] == constant_glide['glideWealth']['series']['Constant mean target']
+            count = len(chart_messages('glide-widget'))
+            glide_control('End stocks').get_by_role('slider').press('End')
+            increasing = wait_for_chart('glide-widget', count)
+            assert increasing['glideTargets']['series']['Glide path'][-2:] == [[9.5, 100], [10, 100]]
+            count = len(chart_messages('glide-widget'))
+            glide_control('Rebalance').locator('select').select_option(label='Quarterly')
+            quarterly_glide = wait_for_chart('glide-widget', count)
+            assert len(quarterly_glide['glideTargets']['series']['Glide path']) == 41
+            assert quarterly_glide['glideTargets']['series']['Glide path'][-2:] == [[9.75, 100], [10, 100]]
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'glide-widget' and 'pok.show_glidepath_echart(' in request['code']
+            assert 'periods_per_year=4' in request['code'] and 'start=0' in request['code']
+            count = len(chart_messages('glide-widget'))
+            glide_control('Threshold').get_by_role('slider').press('End')
+            threshold_glide = wait_for_chart('glide-widget', count)
+            assert threshold_glide['glideTargets'] == quarterly_glide['glideTargets']
+            for name in ('Glide path', 'Constant mean target', 'Fixed 70/30'):
+                assert threshold_glide['glideWealth']['series'][name] == quarterly_glide['glideWealth']['series'][name]
+            assert len(chart_messages('psp-lhp-widget')) == mix_count
+            assert not errors, errors
+            print('PASS: glide endpoints, unchanged fixed comparator, constant and increasing schedules, decision timing, threshold independence, and widget routing are verified.', flush=True)
+
+            glide_count = len(chart_messages('glide-widget'))
+            floor_editor = editor_by_id('floor-widget')
+            floor_output = output_for(floor_editor)
+            floor_editor.locator('button.run').click()
+            floor_before = wait_for_chart('floor-widget')
+            floor_output.locator('canvas').first.wait_for(timeout=30000)
+            floor_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert floor_output.get_by_role('slider').count() == 7
+            assert floor_output.locator('canvas').count() == 2
+            assert 'initial matching cost: 0.596090' in chart_messages('floor-widget')[-1]
+
+            def floor_control(label):
+                return floor_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            initial_text = chart_messages('floor-widget')[-1].split('<ECHARTS_DATA>')[0]
+            count = len(chart_messages('floor-widget'))
+            floor_control('Path').get_by_role('slider').press('ArrowRight')
+            second_path = wait_for_chart('floor-widget', count)
+            assert 'Scenario 2' in second_path['floorWealth']['title']
+            assert second_path['floorWealth']['series']['Floor PV'] != floor_before['floorWealth']['series']['Floor PV']
+            assert chart_messages('floor-widget')[-1].split('<ECHARTS_DATA>')[0] == initial_text
+            count = len(chart_messages('floor-widget'))
+            floor_control('Multiplier').get_by_role('slider').press('Home')
+            all_bonds = wait_for_chart('floor-widget', count)
+            for actual, expected in zip(all_bonds['floorWealth']['series']['Floor allocator'], all_bonds['floorWealth']['series']['ZCB only']):
+                assert actual[0] == expected[0] and math.isclose(actual[1], expected[1], rel_tol=1e-12)
+            assert all(value == 0 for _, value in all_bonds['floorWeights']['series']['Floor allocator'])
+            count = len(chart_messages('floor-widget'))
+            floor_control('Terminal floor').get_by_role('slider').press('End')
+            underfunded = wait_for_chart('floor-widget', count)
+            assert 'initially underfunded' in chart_messages('floor-widget')[-1]
+            assert '1000/1000' in chart_messages('floor-widget')[-1]
+            assert underfunded['floorWealth']['series']['Floor PV'][0][1] > 1
+            assert all(value == 0 for _, value in underfunded['floorWeights']['series']['Floor allocator'])
+
+            floor_control('Terminal floor').get_by_role('slider').press('Home')
+            for _ in range(8):
+                floor_control('Terminal floor').get_by_role('slider').press('ArrowRight')
+            page.wait_for_function("window.widgetMessages.filter(m => m.id === 'floor-widget' && m.echart).at(-1)?.echart.includes('Terminal promise: 0.8000')", timeout=180000)
+            count = len(chart_messages('floor-widget'))
+            floor_control('Multiplier').get_by_role('slider').press('End')
+            leveraged_cushion = wait_for_chart('floor-widget', count)
+            assert leveraged_cushion['floorWealth']['series']['Fixed 70/30'] == second_path['floorWealth']['series']['Fixed 70/30']
+            count = len(chart_messages('floor-widget'))
+            floor_control('Stock vol').get_by_role('slider').press('End')
+            wait_for_chart('floor-widget', count)
+            count = len(chart_messages('floor-widget'))
+            floor_control('Rebalance').locator('select').select_option(label='Semiannual')
+            stressed_floor = wait_for_chart('floor-widget', count)
+            assert len(stressed_floor['floorWealth']['series']['Floor allocator']) == 21
+            text = chart_messages('floor-widget')[-1].split('<ECHARTS_DATA>')[0]
+            breaches = re.search(r'PV breaches \(including time zero\): (\d+)/1000', text)
+            assert breaches and int(breaches.group(1)) > 0, text
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'floor-widget' and 'pok.show_floor_echart(' in request['code']
+            assert 'periods_per_year=2' in request['code'] and 'scenario=2' in request['code']
+            assert len(chart_messages('glide-widget')) == glide_count
+            assert not errors, errors
+            print('PASS: floor controls preserve paired paths, distinguish initial underfunding, recover the all-bond limit, and expose sampled gap losses with larger risk; routing is independent.', flush=True)
+
+            floor_count = len(chart_messages('floor-widget'))
+            dd_editor = editor_by_id('drawdown-widget')
+            dd_output = output_for(dd_editor)
+            dd_editor.locator('button.run').click()
+            dd_before = wait_for_chart('drawdown-widget')
+            dd_output.locator('canvas').first.wait_for(timeout=30000)
+            dd_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert dd_output.get_by_role('slider').count() == 6
+            assert dd_output.locator('select').count() == 2
+            assert dd_output.locator('canvas').count() == 2
+
+            def dd_control(label):
+                return dd_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            initial_text = chart_messages('drawdown-widget')[-1].split('<ECHARTS_DATA>')[0]
+            count = len(chart_messages('drawdown-widget'))
+            dd_control('Display hedge').locator('select').select_option(label='Matching ZCB')
+            dd_bond = wait_for_chart('drawdown-widget', count)
+            assert dd_bond['drawdownLoss'] == dd_before['drawdownLoss']
+            assert dd_bond['drawdownWealth']['series']['Policy wealth'] != dd_before['drawdownWealth']['series']['Policy wealth']
+            assert chart_messages('drawdown-widget')[-1].split('<ECHARTS_DATA>')[0] == initial_text
+            assert 'hedge="zcb"' in page.evaluate('window.widgetRequests.at(-1).code')
+            count = len(chart_messages('drawdown-widget'))
+            dd_control('Path').get_by_role('slider').press('ArrowRight')
+            dd_path = wait_for_chart('drawdown-widget', count)
+            assert 'Scenario 2' in dd_path['drawdownWealth']['title']
+            assert chart_messages('drawdown-widget')[-1].split('<ECHARTS_DATA>')[0] == initial_text
+            count = len(chart_messages('drawdown-widget'))
+            dd_control('DD request').get_by_role('slider').press('Home')
+            dd_tight = wait_for_chart('drawdown-widget', count)
+            assert dd_tight['drawdownLoss']['series']['Drawdown limit'] == [[0, -5], [10, -5]]
+            assert math.isclose(dd_tight['drawdownWealth']['series']['Policy wealth'][1][1],
+                                dd_path['drawdownWealth']['series']['Policy wealth'][1][1], rel_tol=1e-12)
+            assert 'rule multiplier: 20' in chart_messages('drawdown-widget')[-1]
+            count = len(chart_messages('drawdown-widget'))
+            dd_control('Rebalance').locator('select').select_option(label='Semiannual')
+            dd_semiannual = wait_for_chart('drawdown-widget', count)
+            assert len(dd_semiannual['drawdownLoss']['series']['Policy + cash']) == 21
+            assert any(value < -5 for _, value in dd_semiannual['drawdownLoss']['series']['Policy + cash'])
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'drawdown-widget' and 'pok.show_drawdown_echart(' in request['code']
+            assert 'periods_per_year=2' in request['code'] and 'maxdd=0.05' in request['code']
+            assert len(chart_messages('floor-widget')) == floor_count
+            assert not errors, errors
+            print('PASS: drawdown hedge and path selectors preserve paired statistics; tighter requests retain full initial stock exposure, and sampled cash-policy breaches remain possible.', flush=True)
+
+            dd_count = len(chart_messages('drawdown-widget'))
+            historical_editor = editor_by_id('historical-widget')
+            historical_output = output_for(historical_editor)
+            historical_editor.locator('button.run').click()
+            historical_before = wait_for_chart('historical-widget')
+            historical_output.locator('canvas').first.wait_for(timeout=30000)
+            historical_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert historical_output.get_by_role('slider').count() == 3
+            assert historical_output.locator('canvas').count() == 2
+            assert historical_before['dates'][0] == '1989-12' and historical_before['dates'][-1] == '2018-12'
+            assert len(historical_before['dates']) == 349
+            assert historical_before['historicalWealth']['yAxis']['type'] == 'log'
+            assert '348 monthly returns' in chart_messages('historical-widget')[-1]
+
+            def historical_control(label):
+                return historical_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..').get_by_role('slider')
+
+            count = len(chart_messages('historical-widget'))
+            historical_control('DD request').press('Home')
+            historical_tight = wait_for_chart('historical-widget', count)
+            assert historical_tight['historicalDrawdowns']['series']['Drawdown policy'][1] < -5
+            assert historical_tight['historicalWealth']['series']['Market proxy'] == historical_before['historicalWealth']['series']['Market proxy']
+            count = len(chart_messages('historical-widget'))
+            historical_control('Start year').press('End')
+            historical_short = wait_for_chart('historical-widget', count)
+            assert historical_short['dates'][0] == '2017-12' and len(historical_short['dates']) == 13
+            for name in ('Market proxy', 'Drawdown policy', 'Fixed 70/30', 'Assumed cash'):
+                assert historical_short['historicalWealth']['series'][name][0] == 1
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'historical-widget' and 'pok.show_historical_drawdown_echart(' in request['code']
+            assert 'start_year=2018' in request['code'] and 'end_year=2018' in request['code']
+            count = len(chart_messages('historical-widget'))
+            historical_control('Cash rate').press('Home')
+            historical_zero_cash = wait_for_chart('historical-widget', count)
+            assert all(value == 1 for value in historical_zero_cash['historicalWealth']['series']['Assumed cash'])
+            assert historical_zero_cash['historicalWealth']['series']['Market proxy'] == historical_short['historicalWealth']['series']['Market proxy']
+            assert 'Assumed cash: 0.00%' in chart_messages('historical-widget')[-1]
+            assert len(chart_messages('drawdown-widget')) == dd_count
+            assert not errors, errors
+            print('PASS: historical data load in-browser; first-month losses, window resets, fixed end dates, cash assumptions, and independent routing are verified.', flush=True)
+
+            nominal_duration_count = len(chart_messages('duration-widget'))
+            modified_editor = editor_by_id('modified-duration-widget')
+            modified_output = output_for(modified_editor)
+            modified_editor.locator('button.run').click()
+            modified_before = wait_for_chart('modified-duration-widget')
+            modified_output.locator('canvas').first.wait_for(timeout=30000)
+            modified_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert modified_output.get_by_role('slider').count() == 5
+            assert modified_output.locator('select').count() == 2
+            assert modified_output.locator('canvas').count() == 2
+            assert 'Full price: 94.213021' in chart_messages('modified-duration-widget')[-1]
+            assert 'exact minus linear price: +0.000356' in chart_messages('modified-duration-widget')[-1]
+
+            def modified_control(label):
+                return modified_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            count = len(chart_messages('modified-duration-widget'))
+            modified_control('Face value').get_by_role('slider').press('ArrowRight')
+            scaled = wait_for_chart('modified-duration-widget', count)
+            assert scaled['durationSensitivity']['series'] == modified_before['durationSensitivity']['series']
+            assert 'Full price: 188.426041' in chart_messages('modified-duration-widget')[-1]
+            assert 'DV01 for this quote: 0.049990' in chart_messages('modified-duration-widget')[-1]
+            count = len(chart_messages('modified-duration-widget'))
+            modified_control('Yield shift bp').get_by_role('slider').press('End')
+            large_shift = wait_for_chart('modified-duration-widget', count)
+            selected = large_shift['durationSensitivity']['series']
+            baseline = modified_before['durationSensitivity']['series']
+            assert selected['Selected exact'][0][0] == 300
+            assert selected['Selected exact'][0][1] - selected['Selected approximation'][0][1] > 100 * (baseline['Selected exact'][0][1] - baseline['Selected approximation'][0][1])
+            count = len(chart_messages('modified-duration-widget'))
+            modified_control('Convention').locator('select').select_option(label='Nominal annual')
+            nominal = wait_for_chart('modified-duration-widget', count)
+            assert nominal['durationSensitivity']['xAxis']['name'] == 'Nominal YTM change (bp)'
+            assert 'quote="nominal"' in page.evaluate('window.widgetRequests.at(-1).code')
+            count = len(chart_messages('modified-duration-widget'))
+            modified_control('Coupon rate').get_by_role('slider').press('Home')
+            wait_for_chart('modified-duration-widget', count)
+            count = len(chart_messages('modified-duration-widget'))
+            modified_control('Convention').locator('select').select_option(label='Continuous annual')
+            zero_coupon = wait_for_chart('modified-duration-widget', count)
+            assert 'Macaulay duration: 3.000000 years; modified duration: 3.000000 years' in chart_messages('modified-duration-widget')[-1]
+            count = len(chart_messages('modified-duration-widget'))
+            modified_control('Coupons').locator('select').select_option(label='Quarterly')
+            quarterly_zero = wait_for_chart('modified-duration-widget', count)
+            assert len(quarterly_zero['durationWeights']['series']['PV weight']) == 12
+            assert quarterly_zero['durationSensitivity']['series'] == zero_coupon['durationSensitivity']['series']
+            assert len(chart_messages('duration-widget')) == nominal_duration_count
+            assert not errors, errors
+            print('PASS: continuous/nominal duration controls, DV01 scaling, finite-shift errors, zero coupons, and separate instances of the shared helper are verified.', flush=True)
             browser.close()
     finally:
         if server is not None:

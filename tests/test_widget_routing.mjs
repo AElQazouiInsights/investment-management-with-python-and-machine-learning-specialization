@@ -53,19 +53,79 @@ test('slider updates retain their widget and do not reserialize controls', async
   assert.equal(messages.filter(message => message.widgetState).length, 1)
 })
 
+test('dropdown changes use the underlying option value, including zero, rather than its label or index', async () => {
+  const { controlChangeEvent, controlValue } = await import('../src/widget-controls.js')
+  const state = { _model_name: 'DropdownModel', _options_labels: ['None', 'Monthly', 'Weekly'],
+    _echarts_option_values: [0, 12, 52], index: 0 }
+  const model = { get: key => state[key] }
+  assert.equal(controlChangeEvent(model), 'change:index')
+  assert.equal(controlValue(model), 0)
+  state.index = 2
+  assert.equal(controlValue(model), 52)
+  state.index = null
+  assert.equal(controlValue(model), undefined)
+  state._model_name = 'FloatSliderModel'
+  state.value = 1.1
+  assert.equal(controlChangeEvent(model), 'change:value')
+  assert.equal(controlValue(model), 1.1)
+})
+
 test('the editor forwards seed zero to the correct Python chart helper', async () => {
-  const source = await readFile(new URL('../src/Editor.vue', import.meta.url), 'utf8')
-  const allowed = source.match(/const allowedParamsByFunction: Record<string, Set<string>> = (\{[\s\S]*?\n\})/)[1]
-  const builder = source.match(/function buildEchartCode\(values: Record<string, any>\) \{[\s\S]*?\n\}/)[0]
-    .replace('values: Record<string, any>', 'values')
-  // Remove only the type annotation; run the editor's actual filtering/build logic.
-  const createBuilder = new Function('widgetContexts', 'props', `const allowedParamsByFunction = ${allowed};\n${builder};\nreturn buildEchartCode;`)
-  for (const helper of ['show_gbm_echart', 'show_cppi_echart']) {
-    const contexts = new Map([['editor', { lastCode: `pok.${helper}(seed=42)` }]])
-    const build = createBuilder(contexts, { id: 'editor' })
-    assert.equal(build({ seed: 0, mu: 0.07, unsupported: 1 }),
-      `import PortfolioOptimizationKit as pok\npok.${helper}(seed=0, mu=0.07)`)
+  const { buildChartCode } = await import('../src/widget-controls.js')
+  for (const helper of ['show_gbm_echart', 'show_cppi_echart', 'show_cir_echart']) {
+    const values = helper === 'show_cir_echart' ? { seed: 0, a: 0.5, r0: 0.05, unsupported: 1 } : { seed: 0, mu: 0.07, unsupported: 1 }
+    const parameters = helper === 'show_cir_echart' ? 'seed=0, a=0.5, r0=0.05' : 'seed=0, mu=0.07'
+    assert.equal(buildChartCode(`pok.${helper}(seed=42)`, values), `import PortfolioOptimizationKit as pok\npok.${helper}(${parameters})`)
   }
+  assert.equal(buildChartCode('pok.show_liability_hedging_echart(seed=42)',
+    { seed: 0, initial_assets: 0, liability: 2, periods_per_year: 52, r0: 0.03, unsupported: 1 }),
+    'import PortfolioOptimizationKit as pok\npok.show_liability_hedging_echart(seed=0, initial_assets=0, liability=2, periods_per_year=52, r0=0.03)')
+  assert.equal(buildChartCode('pok.show_coupon_bond_echart()',
+    { coupon_rate: 0, ytm: -0.01, coupons_per_year: 4, reinvestment_rate: 0, seed: 42 }),
+    'import PortfolioOptimizationKit as pok\npok.show_coupon_bond_echart(coupon_rate=0, ytm=-0.01, coupons_per_year=4, reinvestment_rate=0)')
+  assert.equal(buildChartCode('widgets.interactive(pok.show_duration_echart)',
+    { principal: 100, ytm: 0, coupons_per_year: 12, shift_bps: -50, reinvestment_rate: 0 }),
+    'import PortfolioOptimizationKit as pok\npok.show_duration_echart(principal=100, ytm=0, coupons_per_year=12, shift_bps=-50)')
+})
+
+test('unknown helpers and empty supported controls do not generate widget reruns', async () => {
+  const { buildChartCode, chartHelperName } = await import('../src/widget-controls.js')
+  assert.equal(chartHelperName('print(42)'), undefined)
+  assert.equal(buildChartCode('print(42)', { seed: 1 }), '')
+  assert.equal(buildChartCode('pok.show_duration_echart()', { maturity: undefined, seed: 42 }), '')
+  assert.equal(buildChartCode('pok.show_cir_echart()', { r0: null }),
+    'import PortfolioOptimizationKit as pok\npok.show_cir_echart(r0=None)')
+  assert.equal(buildChartCode('pok.show_psp_lhp_echart()', { psp_weight: 0, sigma: 0, seed: 0, unsupported: true }),
+    'import PortfolioOptimizationKit as pok\npok.show_psp_lhp_echart(psp_weight=0, sigma=0, seed=0)')
+  assert.equal(buildChartCode('pok.show_cppi_echart()', { floor: false }),
+    'import PortfolioOptimizationKit as pok\npok.show_cppi_echart(floor=False)')
+  assert.equal(buildChartCode('pok.show_glidepath_echart()', { start: 0, end: 1, periods_per_year: 12, seed: 0, mu: 0.07 }),
+    'import PortfolioOptimizationKit as pok\npok.show_glidepath_echart(start=0, end=1, periods_per_year=12, seed=0)')
+  assert.equal(buildChartCode('pok.show_floor_echart()', { floor: 0, m: 0, scenario: 2, seed: 0, mu: 0.07 }),
+    'import PortfolioOptimizationKit as pok\npok.show_floor_echart(floor=0, m=0, scenario=2, seed=0)')
+  assert.equal(buildChartCode('pok.show_drawdown_echart()', { hedge: 'zcb', maxdd: 0.1, scenario: 2, seed: 0, m: 5 }),
+    'import PortfolioOptimizationKit as pok\npok.show_drawdown_echart(hedge="zcb", maxdd=0.1, scenario=2, seed=0)')
+  assert.equal(buildChartCode('pok.show_historical_drawdown_echart()', { start_year: 2000, end_year: 2018, maxdd: 0.2, cash_rate: 0, seed: 42 }),
+    'import PortfolioOptimizationKit as pok\npok.show_historical_drawdown_echart(start_year=2000, end_year=2018, maxdd=0.2, cash_rate=0)')
+  assert.equal(buildChartCode('pok.show_duration_echart()', { quote: 'continuous', ytm: 0, shift_bps: -10 }),
+    'import PortfolioOptimizationKit as pok\npok.show_duration_echart(quote="continuous", ytm=0, shift_bps=-10)')
+})
+
+test('friendly widget labels route through their Python parameter metadata', async () => {
+  const { controlParameterName, controlValue, buildChartCode } = await import('../src/widget-controls.js')
+  const state = { _model_name: 'IntSliderModel', description: 'Assets ($)', _echarts_parameter: 'asset_value', value: 131000 }
+  const model = { get: key => state[key] }
+  assert.equal(controlParameterName(model), 'asset_value')
+  assert.equal(buildChartCode('widgets.interactive(pok.show_duration_matching_echart)',
+    { [controlParameterName(model)]: controlValue(model), liability_delay: 0, seed: 42 }),
+    'import PortfolioOptimizationKit as pok\npok.show_duration_matching_echart(asset_value=131000, liability_delay=0)')
+  state.description = 'Starting capital'
+  assert.equal(controlParameterName(model), 'asset_value')
+  delete state._echarts_parameter
+  state.description = 'Zoom Y axis'
+  assert.equal(controlParameterName(model), 'ymax')
+  state.description = 'seed'
+  assert.equal(controlParameterName(model), 'seed')
 })
 
 test('asynchronous cell runs are serialized and keep their own stdout routing', async () => {

@@ -28,6 +28,7 @@
 import { ref, watch, computed } from 'vue'
 import { defineAsyncComponent } from 'vue'
 import { formatChartTick, formatChartValue } from './chart-format.js'
+import { buildChartSeries } from './chart-series.js'
 
 // Dynamically import VChart to prevent SSR processing
 const VChart = defineAsyncComponent(() => import('vue-echarts'))
@@ -114,74 +115,10 @@ const chartObjects = computed(() => {
     const chartTitle = dataObj.title || key.replace(/([a-z])([A-Z])/g, '$1 $2')
 
     // Build sub-series for the chart
-    const series = subKeys.map(subKey => {
-      const rawData = dataObj.series[subKey] || []
-      let finalType = chartType
-      if (subKey === 'Portfolios') {
-        finalType = 'scatter'
-      } else if (subKey === 'Frontier') {
-        finalType = 'line'
-      } else if (subKey === 'GMV' || subKey === 'MSR') {
-        finalType = 'scatter'
-      }
-      let encodeObj = {}
-      if (dataObj.xAxis?.type === 'value') {
-        encodeObj = { x: 0, y: 1 }
-      }
-      let itemStyle = {}
-      let symbol = 'circle'
-      let symbolSize = 8
-      let zIndex = 1
-
-      if (subKey === 'GMV') {
-        finalType = 'scatter'
-        itemStyle = { color: 'black' }
-        symbol = 'diamond'
-        symbolSize = 12
-        zIndex = 10
-      } else if (subKey === 'Frontier') {
-        finalType = 'line'
-      } else if (subKey === 'MSR') {
-        finalType = 'scatter'
-        itemStyle = { color: 'red' }
-        symbol = 'rect'
-        symbolSize = 12
-        zIndex = 10
-      } else if (subKey === 'MinVolForTarget') {
-        finalType = 'scatter'
-        itemStyle = { color: 'black' }
-        symbol = 'diamond'
-        symbolSize = 12
-        zIndex = 10
-      } else if (subKey === 'MaxSharpePort') {
-        finalType = 'scatter'
-        itemStyle = { color: 'red' }
-        symbol = 'diamond'
-        symbolSize = 12
-        zIndex = 10
-      } else if (subKey === 'CML') {
-        finalType = 'line'
-      } else if (subKey === 'EWP') {
-        finalType = 'scatter'
-        itemStyle = { color: 'goldenrod' }
-        symbol = 'rect'
-        symbolSize = 12
-        zIndex = 10
-      }
-      return {
-        name: subKey,
-        type: finalType,
-        data: rawData,
-        encode: encodeObj,
-        itemStyle,
-        symbol,
-        symbolSize,
-        z: zIndex,
-        showSymbol: finalType !== 'line',
-        lineStyle: finalType === 'line' && (/floor/i.test(subKey) || subKey === 'Target')
-          ? { type: 'dashed', width: 2 } : { width: 2 },
-      }
-    })
+    const series = subKeys.map(subKey => buildChartSeries(
+      subKey, dataObj.series[subKey] || [], chartType,
+      dataObj.xAxis?.type === 'value', dataObj.seriesOptions?.[subKey],
+    ))
 
     // Configure xAxis based on dataObj specifications
     let xAxisOption

@@ -237,7 +237,19 @@ if w is not None:
             if isinstance(child, widgets.Widget):
                 collect(child)
     collect(w)
-    st = dependency_state(all_widgets)
+    # Python and JavaScript widget defaults can differ (e.g. FloatSlider.step).
+    st = dependency_state(all_widgets, drop_defaults=False)
+    if isinstance(getattr(w, 'kwargs', None), dict):
+        st[w._model_id]['state']['_echarts_kwargs'] = {
+            key: value for key, value in w.kwargs.items()
+            if value is None or isinstance(value, (str, int, float, bool))
+        }
+    for widget in all_widgets:
+        parameter = getattr(widget, '_kwarg', None)
+        if isinstance(parameter, str):
+            st[widget._model_id]['state']['_echarts_parameter'] = parameter
+        if isinstance(widget, widgets.Dropdown):
+            st[widget._model_id]['state']['_echarts_option_values'] = list(widget._options_values)
     _widget_json_result = json.dumps({
         'version_major': 2,
         'version_minor': 0,

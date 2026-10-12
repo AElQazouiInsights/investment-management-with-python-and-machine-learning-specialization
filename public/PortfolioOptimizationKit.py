@@ -117,36 +117,44 @@ def get_ind_file(filetype="rets", nind=30, ew=False):
 
 
 def get_ind_market_caps(nind=30, weights=False):
-    """
-    Load the industry portfolio dataset and returns single industries market caps.
-    If weights=True, it returns single industries market cap-weights as a percentage of
-    of the total market cap.
+    """Implied industry capitalization: firm count times average firm size.
+
+    With weights=True return same-row fractions summing to one, not percent
+    numbers or lagged investment weights. Require complete aligned metadata.
     """
     ind_nfirms = get_ind_file(filetype="nfirms", nind=nind)
     ind_size = get_ind_file(filetype="size", nind=nind)
-    # compute the market capitalization of each industry sector
+    if not ind_nfirms.index.equals(ind_size.index) or not ind_nfirms.columns.equals(ind_size.columns):
+        raise ValueError("Firm counts and sizes must have identical dates and industry order")
+    for frame in (ind_nfirms, ind_size):
+        if not np.isfinite(frame.to_numpy()).all() or (frame.to_numpy() < 0).any():
+            raise ValueError("Capitalization metadata must be complete, finite, and nonnegative")
     ind_caps = ind_nfirms * ind_size
-    if weights:
-        # compute the total market capitalization
-        total_cap = ind_caps.sum(axis=1)
-        # compute single market capitalizations as a percentage of the total market cap
-        ind_cap_weight = ind_caps.divide(total_cap, axis=0)
-        return ind_cap_weight
-    else:
-        return ind_caps
+    total_cap = ind_caps.sum(axis=1)
+    if not np.isfinite(ind_caps.to_numpy()).all() or not np.isfinite(total_cap).all() or (total_cap <= 0).any():
+        raise ValueError("Each month must have positive finite total capitalization")
+    return ind_caps.div(total_cap, axis=0) if weights else ind_caps
 
 
 def get_total_market_index_returns(nind=30):
+    """One-month-lagged industry-market proxy, not an official market index.
+
+    Weight each month's value-weighted industry returns using the preceding
+    month's implied capitalization. Drop only the first month, which lacks
+    prior weights. Lag before selecting a backtest window. The bundled files
+    do not establish point-in-time publication availability of the metadata.
     """
-    Computes the returns of a cap-weighted total market index from Kenneth French Industry portfolios
-    """
-    # load the right returns
     ind_rets = get_ind_file(filetype="rets", nind=nind)
-    # load the cap-weights of each industry
-    ind_cap_weight = get_ind_market_caps(nind=nind, weights=True)
-    # total market returns
-    total_market_return = (ind_cap_weight * ind_rets).sum(axis=1)
-    return total_market_return
+    weights = get_ind_market_caps(nind=nind, weights=True)
+    if not ind_rets.index.equals(weights.index) or not ind_rets.columns.equals(weights.columns):
+        raise ValueError("Returns and capitalization weights must have identical dates and industry order")
+    if len(ind_rets) < 2 or not isinstance(ind_rets.index, pd.PeriodIndex) or ind_rets.index.freqstr != "M":
+        raise ValueError("The market proxy requires at least two monthly observations")
+    if not ind_rets.index.equals(pd.period_range(ind_rets.index[0], ind_rets.index[-1], freq="M")):
+        raise ValueError("Monthly observations must be consecutive before lagging weights")
+    if not np.isfinite(ind_rets.to_numpy()).all() or (ind_rets.to_numpy() < -1).any():
+        raise ValueError("Industry returns must be complete, finite simple returns of at least -1")
+    return (weights.shift(1) * ind_rets).sum(axis=1, min_count=ind_rets.shape[1]).iloc[1:]
 
 
 def get_total_market_index(nind=30, capital=1000):
@@ -714,39 +722,37 @@ def summary_stats(s, risk_free_rate=0.03, periods_per_year=12, var_level=0.05):
 def summary_stats_terminal(
     rets, floor=0.8, periods_per_year=2, name="Stats", target=np.inf
 ):
-    """
-    Return a dataframe of statistics for a given input pd.DataFrame of asset returns.
-    Statistics computed are:
-    - the mean annualized return
-    - the mean terminal wealth (compounded return)
-    - the mean terminal wealth volatility
-    - the probability that an input floor is breached by terminal wealths
-    - the expected shortfall of those terminal wealths breaching the input floor
-    """
-    # terminal wealths over scenarios, i.e., compounded returns
-    terminal_wlt = terminal_wealth(rets)
+    """Cross-scenario terminal outcomes per unit of starting wealth.
 
-    # boolean vector of terminal wealths going below the floor
-    floor_breach = terminal_wlt < floor
-
-    stats = pd.DataFrame.from_dict(
-        {
-            "Mean ann. ret.": annualize_rets(
-                rets, periods_per_year=periods_per_year
-            ).mean(),  # mean annualized returns over scenarios
-            "Mean wealth": terminal_wlt.mean(),  # terminal wealths mean
-            "Mean wealth std": terminal_wlt.std(),  # terminal wealths volatility
-            "Prob breach": floor_breach.mean()
-            if floor_breach.sum() > 0
-            else 0,  # probability of breaching the floor
-            "Exp shortfall": (floor - terminal_wlt[floor_breach]).mean()
-            if floor_breach.sum() > 0
-            else 0,  # expected shortfall if floor is reached
-        },
-        orient="index",
-        columns=[name],
-    )
-    return stats
+    Legacy labels are retained: 'Mean wealth std' is the SAMPLE standard
+    deviation of terminal wealth, not time-series volatility. 'Exp shortfall'
+    is conditional on a terminal floor miss, reported as zero if none occur.
+    'Mean shortfall' is unconditional. A finite target adds its attainment
+    frequency and unconditional surplus. These are sample statistics, not
+    calibrated probabilities; equality is respected up to roundoff tolerance.
+    """
+    rets = _ldi_return_frame(rets)
+    if not np.isscalar(floor) or not np.isfinite(floor) or floor < 0:
+        raise ValueError("The terminal floor must be finite and nonnegative")
+    if not np.isscalar(target) or np.isnan(target) or target < 0:
+        raise ValueError("The terminal target must be nonnegative or positive infinity")
+    terminal = terminal_wealth(rets)
+    if not np.isfinite(terminal).all():
+        raise ValueError("Terminal wealth must be finite")
+    breach = terminal < floor - 1e-10 * max(1, floor)
+    losses = (floor - terminal).where(breach, 0.0)
+    stats = {
+        "Mean ann. ret.": annualize_rets(rets, periods_per_year).mean(),
+        "Mean wealth": terminal.mean(),
+        "Mean wealth std": terminal.std(ddof=1),
+        "Prob breach": breach.mean(),
+        "Exp shortfall": losses[breach].mean() if breach.any() else 0.0,
+        "Mean shortfall": losses.mean(),
+    }
+    if np.isfinite(target):
+        stats["Prob reach target"] = (terminal >= target - 1e-10 * max(1, target)).mean()
+        stats["Mean surplus"] = (terminal - target).clip(lower=0).mean()
+    return pd.Series(stats).to_frame(name)
 
 def get_portfolio_features(weights, rets, covmat, risk_free_rate, periods_per_year):
     """
@@ -1577,234 +1583,439 @@ def show_cppi_echart(
 # ---------------------------------------------------------------------------------
 # Securities
 # ---------------------------------------------------------------------------------
+def _valuation_vector(values, name):
+    """Normalize a scalar/vector while preserving explicit scenario labels."""
+    if isinstance(values, pd.Series):
+        vector = values.astype(float)
+    else:
+        array = np.atleast_1d(np.asarray(values, dtype=float))
+        if array.ndim != 1:
+            raise ValueError(f"{name} must be a scalar or one-dimensional vector")
+        vector = pd.Series(array)
+    if vector.empty or not vector.index.is_unique or not np.isfinite(vector.to_numpy()).all():
+        raise ValueError(f"{name} must be nonempty and finite with unique labels")
+    return vector
+
+
 def discount(t, r):
-    """
-    Compute the price of a pure discount bond that pays 1 at time t (year),
-    given an interest rate (return) r. That is, considering FV = 1 at time t,
-    want to obtain the PV given r, i.e., PV = FV/(1+r)^t = 1/(1+r)^t.
-    Note that t has to be a pd.Series of times.
-    """
-    if not isinstance(t, pd.Series):
-        t = pd.Series(t)
+    """Return (1+r)^(-t), with times as rows and flat-rate cases as columns.
 
-    if not isinstance(r, list):
-        r = [r]
-
-    ds = pd.DataFrame([1 / (1 + rate) ** (t) for rate in r]).T
-    ds.index = t
-    return ds
+    Times are nonnegative numeric period counts, not calendar dates. Rates are
+    effective per matching period (annual when times are years) and exceed -1.
+    A rate Series preserves its labels; other rate inputs use columns 0..n-1.
+    """
+    times = np.atleast_1d(np.asarray(t))
+    if times.ndim != 1 or not times.size or times.dtype.kind not in "iuf":
+        raise ValueError("Times must be nonempty numeric period counts")
+    if not np.isfinite(times).all() or (times < 0).any():
+        raise ValueError("Times must be finite and nonnegative")
+    rates = _valuation_vector(r, "Rates")
+    if (rates <= -1).any():
+        raise ValueError("Effective rates must be greater than -1")
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        factors = np.exp(-np.outer(times, np.log1p(rates.to_numpy())))
+    if not np.isfinite(factors).all() or (factors <= 0).any():
+        raise ValueError("Discount factors must be finite and positive")
+    return pd.DataFrame(factors, index=pd.Index(times, name=getattr(t, "name", None)), columns=rates.index)
 
 
 def present_value(L, r):
     """
-    Computes the (cumulative) present value PV of a DataFrame
-    of liabilities L at a given interest rate r.
-    Liabilities L has to be a pd.DataFrame
+    Value complete cash-flow streams with numeric payment times in the index.
+    One rate applies to every column. One stream with multiple rates produces
+    rate scenarios. Otherwise supply one rate per stream: lists/arrays pair by
+    position, while a rate Series aligns by column label. Rates are flat over
+    payment dates, not a term structure. Return a labeled Series of values.
     """
     if not isinstance(L, pd.DataFrame):
         raise TypeError("Expected pd.DataFrame")
 
-    dates = pd.Series(L.index)
-    ds = discount(dates, r)  # this is the series of present values of future cashflows
-    return (ds * L).sum()
+    L = L.astype(float)
+    if L.empty or not L.columns.is_unique or not np.isfinite(L.to_numpy(dtype=float)).all():
+        raise ValueError("Cash flows must be complete and finite with unique stream labels")
+    factors = discount(L.index, r)
+    if factors.shape[1] == 1:
+        return L.mul(factors.iloc[:, 0], axis=0).sum()
+    if L.shape[1] == 1:
+        return factors.mul(L.iloc[:, 0], axis=0).sum()
+    if factors.shape[1] != L.shape[1]:
+        raise ValueError("Supply one rate or one rate per cash-flow stream")
+    if isinstance(r, pd.Series):
+        if not factors.columns.isin(L.columns).all():
+            raise ValueError("Rate labels must match the cash-flow columns")
+        factors = factors.reindex(columns=L.columns)
+    else:
+        factors.columns = L.columns
+    return (L * factors).sum()
 
 
 def funding_ratio(asset_value, liabilities, r):
     """
-    Computes the funding ratio between the value of holding assets and the present
-    value of the liabilities given an interest rate r (or a list of)
+    Divide current asset values by positive liability present values.
+    A single asset value or liability PV broadcasts. Otherwise labeled assets
+    align to the valuation labels, and unlabeled vectors pair by position.
     """
-    return asset_value / present_value(liabilities, r)
+    pv = present_value(liabilities, r)
+    if not np.isfinite(pv.to_numpy()).all() or (pv <= 0).any():
+        raise ValueError("Funding ratios require positive, finite liability present values")
+    assets = _valuation_vector(asset_value, "Asset values")
+    if (assets < 0).any():
+        raise ValueError("Asset values must be nonnegative")
+    if len(assets) == 1:
+        return assets.iloc[0] / pv
+    if len(pv) == 1:
+        return assets / pv.iloc[0]
+    if len(assets) != len(pv):
+        raise ValueError("Supply one asset value or one per liability valuation")
+    if isinstance(asset_value, pd.Series):
+        if not assets.index.isin(pv.index).all():
+            raise ValueError("Asset labels must match the liability valuations")
+        assets = assets.reindex(pv.index)
+    else:
+        assets.index = pv.index
+    return assets / pv
+
+
+def _compounding_inputs(rate, periods_per_year):
+    """Validate rate quotes while retaining pandas labels and array shapes."""
+    if periods_per_year is not None:
+        if (isinstance(periods_per_year, (bool, np.bool_))
+                or not isinstance(periods_per_year, (int, float, np.integer, np.floating))
+                or not np.isfinite(periods_per_year) or periods_per_year <= 0
+                or periods_per_year != int(periods_per_year)):
+            raise ValueError("periods_per_year must be a positive integer")
+    rates = rate.astype(float) if isinstance(rate, (pd.Series, pd.DataFrame)) else np.asarray(rate, dtype=float)
+    if not np.isfinite(np.asarray(rates)).all():
+        raise ValueError("Rate quotes must be finite")
+    return rates
 
 
 def compounding_rate(r, periods_per_year=None):
+    """Convert a quoted rate to an effective annual rate.
+
+    With frequency m, r is the nominal annual quote compounded m times a year.
+    With None, r is the continuously compounded annual rate. These are distinct
+    conventions. Preserve pandas labels; log1p/expm1 retain small-rate precision.
     """
-    Given a nominal rate r, it returns the continuously compounded rate R = e^r - 1 if periods_per_year is None.
-    If periods_per_year is not None, then returns the discrete compounded rate R = (1+r/N)**N-1.
-    """
+    rate = _compounding_inputs(r, periods_per_year)
     if periods_per_year is None:
-        return np.exp(r) - 1
+        exponent = rate
     else:
-        return (1 + r / periods_per_year) ** periods_per_year - 1
+        if (np.asarray(rate) / periods_per_year <= -1).any():
+            raise ValueError("The per-period gross return must be positive")
+        exponent = periods_per_year * np.log1p(rate / periods_per_year)
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        effective = np.expm1(exponent)
+    if not np.isfinite(np.asarray(effective)).all() or (np.asarray(effective) <= -1).any():
+        raise ValueError("The effective annual rate is outside representable bounds")
+    return effective
 
 
 def compounding_rate_inv(R, periods_per_year=None):
     """
-    Given a compounded rate, it returns the nominal rate from continuously compounding
-    r = log(1+R) if periods_per_year is None.
-    If periods_per_year is not None, then returns the nominal rate from discrete
-    compounding r = N*((1+R)^1/N-1).
+    Convert an effective annual rate R to an equivalent annual quote.
+    With frequency m, return the nominal quote m*((1+R)**(1/m)-1).
+    With None, return the continuously compounded rate log(1+R).
+    R must exceed -1; preserve pandas labels and array shapes.
     """
+    rate = _compounding_inputs(R, periods_per_year)
+    if (np.asarray(rate) <= -1).any():
+        raise ValueError("Effective annual rates must be greater than -1")
     if periods_per_year is None:
-        return np.log(1 + R)
-    else:
-        return periods_per_year * ((1 + R) ** (1 / periods_per_year) - 1)
+        return np.log1p(rate)
+    return periods_per_year * np.expm1(np.log1p(rate) / periods_per_year)
+
+
+def _cir_parameters(a, b, sigma):
+    """Validate CIR parameters; b is an effective-annual representation of the mean level."""
+    parameters = np.asarray([a, b, sigma], dtype=float)
+    if parameters.shape != (3,) or not np.isfinite(parameters).all() or a <= 0 or b < 0 or sigma < 0:
+        raise ValueError("CIR requires finite a > 0, b >= 0, and sigma >= 0")
+    return float(np.log1p(b))
+
+
+def _cir_zcb_price(ttm, short_rate, a, mean_level, sigma):
+    """Affine risk-neutral price with continuous short rates and a stable deterministic limit."""
+    if sigma == 0:
+        integral = mean_level * ttm + (short_rate - mean_level) * (-np.expm1(-a * ttm)) / a
+        return np.exp(-integral)
+    h = np.hypot(a, np.sqrt(2) * sigma)
+    a_minus_h = -2 * sigma ** 2 / (a + h)
+    u = -np.expm1(-h * ttm)
+    denominator = 2 * h + a_minus_h * u
+    B = 2 * u / denominator
+    log_A = (2 * a * mean_level / sigma ** 2) * (
+        -np.log1p(a_minus_h * u / (2 * h)) + a_minus_h * ttm / 2
+    )
+    return np.exp(log_A - B * short_rate)
+
+
+def cir_zero_coupon_price(ttm, r, a=0.05, b=0.03, sigma=0.05):
+    """Price one unit at maturity using CIR risk-neutral parameters.
+
+    ttm is remaining time in years; r and b use effective annual quote units.
+    Internally the short rate and mean level are log1p(r) and log1p(b).
+    Scalar/array inputs broadcast; sigma=0 uses deterministic mean reversion.
+    """
+    mean_level = _cir_parameters(a, b, sigma)
+    time = np.asarray(ttm, dtype=float)
+    quoted_rate = np.asarray(r, dtype=float)
+    if not np.isfinite(time).all() or (time < 0).any() or not np.isfinite(quoted_rate).all() or (quoted_rate < 0).any():
+        raise ValueError("CIR pricing requires finite, nonnegative times and rate quotes")
+    price = _cir_zcb_price(time, np.log1p(quoted_rate), a, mean_level, sigma)
+    if not np.isfinite(price).all() or (price <= 0).any():
+        raise ValueError("CIR bond prices must be finite and positive")
+    return price
 
 
 def simulate_cir(
-    n_years=10, n_scenarios=10, a=0.05, b=0.03, sigma=0.05, periods_per_year=12, r0=None
+    n_years=10, n_scenarios=10, a=0.05, b=0.03, sigma=0.05, periods_per_year=12, r0=None,
+    seed=None,
 ):
+    """Exact-grid CIR rate paths and prices of a zero-coupon bond maturing at n_years.
+
+    b and r0 are effective annual quotes; both are converted to continuous rates.
+    Return annualized effective short-rate quotes (not realized annual returns)
+    and unit bond prices, with rows 0..n including the initial observation.
+    Parameters describe the risk-neutral dynamics used for the affine prices.
+    Explicit seeds are local. With b=0, the exact transition includes mass at zero.
     """
-    Evolution of (instantaneous) interest rates and corresponding zero-coupon bond using the CIR model:
-        dr_t = a*(b-r_t) + sigma*sqrt(r_t)*xi,
-    where xi are normal random variable N(0,1).
-    The analytical solution for the zero-coupon bond price is also computed.
-    The method returns a dataframe of interest rate and zero-coupon bond prices
+    mean_level = _cir_parameters(a, b, sigma)
+    initial_quote = b if r0 is None else r0
+    if not np.isscalar(initial_quote) or not np.isfinite(initial_quote) or initial_quote < 0:
+        raise ValueError("r0 must be a finite, nonnegative annual quote")
+    _compounding_inputs(0.0, periods_per_year)
+    if periods_per_year is None or not np.isfinite(n_years) or n_years <= 0:
+        raise ValueError("CIR requires a positive horizon and an observation frequency")
+    steps = n_years * periods_per_year
+    if not np.isfinite(steps) or steps < 1 or not np.isclose(steps, round(steps), atol=1e-10, rtol=0):
+        raise ValueError("The horizon must contain a positive integer number of periods")
+    if not isinstance(n_scenarios, (int, np.integer)) or isinstance(n_scenarios, (bool, np.bool_)) or n_scenarios < 1:
+        raise ValueError("n_scenarios must be a positive integer")
+    n_steps = int(round(steps))
+    times = np.arange(n_steps + 1) / periods_per_year
+    initial_rate = np.log1p(initial_quote)
+    if sigma == 0:
+        path = mean_level + (initial_rate - mean_level) * np.exp(-a * times)
+        short_rates = np.repeat(path[:, None], n_scenarios, axis=1)
+    else:
+        rng = np.random if seed is None else np.random.default_rng(seed)
+        decay = np.exp(-a / periods_per_year)
+        scale = sigma ** 2 * (-np.expm1(-a / periods_per_year)) / (4 * a)
+        degrees = 4 * a * mean_level / sigma ** 2
+        short_rates = np.empty((n_steps + 1, n_scenarios))
+        short_rates[0] = initial_rate
+        for step in range(1, n_steps + 1):
+            noncentrality = decay * short_rates[step - 1] / scale
+            if degrees == 0:
+                counts = rng.poisson(noncentrality / 2)
+                short_rates[step] = scale * rng.gamma(counts, 2.0)
+            else:
+                short_rates[step] = scale * rng.noncentral_chisquare(degrees, noncentrality)
+    remaining = np.maximum(n_years - times, 0)[:, None]
+    prices = _cir_zcb_price(remaining, short_rates, a, mean_level, sigma)
+    prices[-1] = 1.0
+    if not np.isfinite(prices).all() or (prices <= 0).any():
+        raise ValueError("CIR bond prices must be finite and positive")
+    return pd.DataFrame(compounding_rate(short_rates)), pd.DataFrame(prices)
+
+
+def show_cir_echart(n_years=5, n_scenarios=5, a=0.5, b=0.03, sigma=0.10,
+                    periods_per_year=12, r0=0.05, seed=42):
+    """Emit linked CIR short-rate and zero-coupon-price paths for the lesson widget."""
+    rates, prices = simulate_cir(n_years=n_years, n_scenarios=n_scenarios, a=a, b=b,
+                                sigma=sigma, periods_per_year=periods_per_year, r0=r0, seed=seed)
+    times = rates.index.to_numpy() / periods_per_year
+    continuous_rates = compounding_rate_inv(rates)
+    initial_quote = b if r0 is None else r0
+    mean_level = np.log1p(b)
+    conditional_mean = mean_level + (np.log1p(initial_quote) - mean_level) * np.exp(-a * times)
+    plots = {}
+    for key, title, label, values in (
+        ("cirRates", "CIR Short Rates: Pricing-Measure Paths", "Continuous short rate (%)", continuous_rates * 100),
+        ("cirBondPrices", "Zero-Coupon Bond: Same Maturity, Same Rate Paths", "Price per 1 paid at maturity", prices),
+    ):
+        plots[key] = {
+            "type": "line", "title": title,
+            "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+            "yAxis": {"type": "value", "name": label, "scale": True},
+            "series": {f"Scenario {column + 1}": np.column_stack([times, values[column]]).tolist()
+                       for column in values.columns},
+        }
+    plots["cirRates"]["yAxis"]["min"] = 0
+    plots["cirBondPrices"]["yAxis"]["max"] = 1
+    plots["cirRates"]["series"]["Conditional mean"] = np.column_stack([times, conditional_mean * 100]).tolist()
+    feller = "satisfied" if 2 * a * mean_level >= sigma ** 2 else "not satisfied; zero is accessible"
+    condition = "Deterministic rate path (sigma=0)" if sigma == 0 else f"Feller condition: {feller}"
+    text = (f"Risk-neutral CIR; seed={seed}. Inputs b={b:.2%}, r0={initial_quote:.2%} are effective annual quotes.\n"
+            f"Continuous mean level: {mean_level:.4%}; initial continuous rate: {np.log1p(initial_quote):.4%}.\n"
+            f"{condition}. Initial unit bond price: {prices.iloc[0, 0]:.6f}; maturity payoff: 1.")
+    _publish_echarts(plots, text)
+
+
+def cir_cash_wealth(rates, initial_assets=1.0, a=0.05, b=0.03, sigma=0.05, periods_per_year=12):
+    """Cash proxy: roll default-free one-period bonds priced in the CIR model.
+
+    rates is a time-by-scenario DataFrame of effective annual short-rate quotes,
+    including time zero, observed at equally spaced intervals 1/periods_per_year.
+    Use each beginning quote to price the next interval's bond; its redemption
+    funds the next purchase. Return wealth at roll dates, preserving labels.
+    This is discrete bond rollover, not exact integration of a short-rate path.
     """
-    if r0 is None:
-        # Assign the long-term mean interest rate as initial rate
-        r0 = b
+    _compounding_inputs(0.0, periods_per_year)
+    if periods_per_year is None:
+        raise ValueError("Cash rollover requires an observation frequency")
+    if not np.isscalar(initial_assets) or not np.isfinite(initial_assets) or initial_assets < 0:
+        raise ValueError("initial_assets must be finite and nonnegative")
+    if not isinstance(rates, pd.DataFrame) or rates.empty or len(rates) < 2:
+        raise ValueError("rates must be a DataFrame including time zero and at least one interval")
+    if not rates.index.is_unique or not rates.index.is_monotonic_increasing or not rates.columns.is_unique:
+        raise ValueError("Rate dates must be ordered and unique, with unique scenario labels")
+    quotes = rates.to_numpy(dtype=float)
+    if not np.isfinite(quotes).all() or (quotes < 0).any():
+        raise ValueError("CIR rate quotes must be finite and nonnegative")
+    short_prices = cir_zero_coupon_price(1 / periods_per_year, quotes[:-1], a=a, b=b, sigma=sigma)
+    log_growth = np.vstack([np.zeros(rates.shape[1]), np.cumsum(-np.log(short_prices), axis=0)])
+    with np.errstate(over="ignore", invalid="ignore"):
+        wealth = initial_assets * np.exp(log_growth)
+    if not np.isfinite(wealth).all():
+        raise ValueError("Cash wealth is outside representable bounds")
+    return pd.DataFrame(wealth, index=rates.index, columns=rates.columns)
 
-    # Compute the price of a ZCB
-    def zcbprice(ttm, r, h):
-        A = (
-            (2 * h * np.exp(0.5 * (a + h) * ttm))
-            / (2 * h + (a + h) * (np.exp(h * ttm) - 1))
-        ) ** (2 * a * b / (sigma**2))
-        B = (2 * (np.exp(h * ttm) - 1)) / (2 * h + (a + h) * (np.exp(h * ttm) - 1))
-        return A * np.exp(-B * r)
 
-    dt = 1 / periods_per_year
-    n_steps = int(n_years * periods_per_year) + 1
+def show_liability_hedging_echart(n_years=10, n_scenarios=500, initial_assets=0.75, liability=1.0,
+                                 a=0.05, b=0.03, sigma=0.08, periods_per_year=12, r0=0.03, seed=42):
+    """Compare rolled cash with a maturity-matched zero coupon on shared Q paths.
 
-    # get the nominal (instantaneous) rate
-    r0 = compounding_rate_inv(r0)
+    Amounts are in millions. Plot five cash funding paths, the constant matched
+    ratio, and empirical terminal CDFs on one probability scale. A matching bond
+    removes rate risk relative to this fixed liability, not a capital deficit.
+    """
+    if not np.isscalar(initial_assets) or not np.isfinite(initial_assets) or initial_assets < 0:
+        raise ValueError("initial_assets must be finite and nonnegative")
+    if not np.isscalar(liability) or not np.isfinite(liability) or liability <= 0:
+        raise ValueError("liability must be finite and positive")
+    rates, prices = simulate_cir(n_years=n_years, n_scenarios=n_scenarios, a=a, b=b,
+                                sigma=sigma, periods_per_year=periods_per_year, r0=r0, seed=seed)
+    cash = cir_cash_wealth(rates, initial_assets, a=a, b=b, sigma=sigma, periods_per_year=periods_per_year)
+    initial_price = float(prices.iloc[0, 0])
+    matched_ratio = initial_assets / (liability * initial_price)
+    cash_ratios = cash / (liability * prices)
+    times = rates.index.to_numpy() / periods_per_year
+    paths = {f"Cash {column + 1}": np.column_stack([times, cash_ratios[column]]).tolist()
+             for column in rates.columns[:5]}
+    paths["Matching bond"] = [[0, matched_ratio], [n_years, matched_ratio]]
+    paths["Target"] = [[0, 1], [n_years, 1]]
 
-    # the schock is sqrt(dt)*xi_t, with xi_t being standard normal r.v.
-    shock = np.random.normal(loc=0, scale=(dt) ** (0.5), size=(n_steps, n_scenarios))
-
-    # Rates initialization
-    rates = np.zeros_like(shock)
-    rates[0] = r0
-
-    # Price initialization and parameters
-    zcb_prices = np.zeros_like(shock)
-    h = np.sqrt(a**2 + 2 * sigma**2)
-    zcb_prices[0] = zcbprice(n_years, r0, h)
-
-    for step in range(1, n_steps):
-        # previous interest rate
-        r_t = rates[step - 1]
-
-        # Current (updated) interest rate: CIR equation
-        rates[step] = r_t + a * (b - r_t) + sigma * np.sqrt(r_t) * shock[step]
-
-        # Current (updated) ZCB price
-        zcb_prices[step] = zcbprice(n_years - dt * step, r_t, h)
-
-    # the rates generated (according to the periods_per_year) are transformed back to annual rates
-    rates = pd.DataFrame(compounding_rate(rates))
-    zcb_prices = pd.DataFrame(zcb_prices)
-
-    return rates, zcb_prices
+    # Duplicate x values draw genuine CDF steps, including the bond's point mass.
+    terminal = np.sort(cash_ratios.iloc[-1].to_numpy())
+    xmin = max(0.0, min(terminal[0], matched_ratio, 1.0) * 0.95)
+    xmax = max(terminal[-1], matched_ratio, 1.0) * 1.05
+    heights = np.column_stack([np.arange(n_scenarios), np.arange(1, n_scenarios + 1)])
+    cash_cdf = np.column_stack([np.repeat(terminal, 2), heights.ravel() * 100 / n_scenarios])
+    cash_cdf = np.vstack([[xmin, 0], cash_cdf, [xmax, 100]])
+    plots = {
+        "hedgingFunding": {
+            "type": "line", "title": "Funding Ratios: Cash and a Matching Bond",
+            "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+            "yAxis": {"type": "value", "name": "Funding ratio", "scale": True}, "series": paths,
+        },
+        "hedgingTerminal": {
+            "type": "line", "title": "Terminal Funding: Empirical Cumulative Distributions",
+            "xAxis": {"type": "value", "name": "Terminal funding ratio", "min": xmin, "max": xmax},
+            "yAxis": {"type": "value", "name": "Scenarios at or below x (%)", "min": 0, "max": 100},
+            "series": {
+                "Cash": cash_cdf.tolist(),
+                "Matching bond": [[xmin, 0], [matched_ratio, 0], [matched_ratio, 100], [xmax, 100]],
+                "Target": [[1, 0], [1, 100]],
+            },
+        },
+    }
+    # Ignore floating-point noise at exactly full funding; no economic buffer.
+    cash_failures = int((terminal < 1 - 1e-10).sum())
+    bond_status = "underfunded" if matched_ratio < 1 - 1e-10 else "fully funded or in surplus"
+    text = (f"Risk-neutral scenario exercise (not a real-world forecast); seed={seed}.\n"
+            f"Same starting assets: {initial_assets:.6f} million; liability at year {n_years:g}: {liability:.6f} million.\n"
+            f"Initial unit bond price: {initial_price:.6f}; full matching cost: {liability * initial_price:.6f} million.\n"
+            f"Matching bond: funding ratio {matched_ratio:.6f}, {bond_status}; terminal assets {liability * matched_ratio:.6f} million.\n"
+            f"Cash terminal shortfalls (FR < 1): {cash_failures}/{n_scenarios} ({cash_failures / n_scenarios:.1%}).\n"
+            f"First {min(5, n_scenarios)} cash paths shown; terminal CDF uses all {n_scenarios}. "
+            "CDF includes equality; a jump at 1 is not a shortfall.")
+    _publish_echarts(plots, text)
 
 
 def bond_cash_flows(principal=100, maturity=10, coupon_rate=0.03, coupons_per_year=2):
+    """Regular payments indexed in coupon periods, including final face value.
+
+    principal is face value, not purchase price. Coupon rate is annual nominal;
+    each coupon is principal*coupon_rate/coupons_per_year. No stub periods.
     """
-    Generates a pd.Series of cash flows of a regular bond. Note that:
+    _compounding_inputs(0.0, coupons_per_year)
+    if coupons_per_year is None or not np.isfinite([principal, maturity, coupon_rate]).all():
+        raise ValueError("Bond terms and coupon frequency must be finite")
+    if principal <= 0 or maturity <= 0 or coupon_rate < 0:
+        raise ValueError("Require positive face value and maturity, and a nonnegative coupon rate")
+    periods = maturity * coupons_per_year
+    if not np.isclose(periods, round(periods), atol=1e-10, rtol=0) or periods < 1:
+        raise ValueError("Maturity must contain an integer number of coupon periods")
+    flows = pd.DataFrame(principal * coupon_rate / coupons_per_year,
+                         index=np.arange(1, int(round(periods)) + 1), columns=[0])
+    flows.iloc[-1, 0] += principal
+    return flows
+
+
+def _bond_grid(frame, maturity, coupons_per_year, periods_per_year):
+    """Validate steps 0..n, with every coupon on an observation date."""
+    _compounding_inputs(0.0, periods_per_year)
+    if periods_per_year is None or periods_per_year % coupons_per_year:
+        raise ValueError("Observation frequency must be a positive multiple of coupon frequency")
+    if not isinstance(frame, pd.DataFrame) or frame.empty or not frame.columns.is_unique:
+        raise ValueError("Expected a nonempty time-by-scenario DataFrame with unique columns")
+    if not np.array_equal(frame.index.to_numpy(), np.arange(len(frame))):
+        raise ValueError("Observation index must be consecutive steps starting at zero")
+    values = frame.to_numpy(dtype=float)
+    times = np.arange(len(frame)) / periods_per_year
+    if not np.isfinite(values).all() or times[-1] > maturity + 1e-10:
+        raise ValueError("Observations must be finite and cannot extend beyond maturity")
+    return values, times
+
+
+def bond_price(principal=100, maturity=10, coupon_rate=0.02, coupons_per_year=2,
+               ytm=0.03, cf=None, periods_per_year=None):
+    """Price at a flat nominal annual YTM compounded at coupon frequency.
+
+    Scalar ytm returns the time-zero price. A DataFrame contains YTM scenarios
+    at steps 0..n; observation frequency defaults to coupon frequency. Full
+    (dirty) prices exclude payments at each observation, ending at zero after
+    redemption. Optional cf is one column indexed in coupon periods, with its
+    final payment at the stated maturity.
     """
-    # total number of coupons
-    n_coupons = round(maturity * coupons_per_year)
-
-    # coupon amount
-    coupon_amount = (coupon_rate / coupons_per_year) * principal
-
-    # Cash flows
-    cash_flows = pd.DataFrame(
-        coupon_amount, index=np.arange(1, n_coupons + 1), columns=[0]
-    )
-    cash_flows.iloc[-1] = cash_flows.iloc[-1] + principal
-
-    return cash_flows
-
-
-def bond_price(
-    principal=100, maturity=10, coupon_rate=0.02, coupons_per_year=2, ytm=0.03, cf=None
-):
-    """
-    Return the price of regular coupon-bearing bonds
-    Note that:
-    - the maturity is intended as an annual variable (e.g., for a 6-months bond, maturity is 0.5);
-    - the principal (face value) simply corresponds to the capital invested in the bond;
-    - the coupon_rate has to be an annual rate;
-    - the coupons_per_year is the number of coupons paid per year;
-    - the ytm is the yield to maturity: then ytm divided by coupons_per_year gives the discount rate of cash flows
-    The ytm variable can be both a single value and a pd.DataFrame.
-    In the former case, a single bond price is computed. In addition, if the flux of cash flows is computed beforehand,
-    the method can takes it as input and avoid recomputing it.
-    In the latter case, the dataframe is intended as a t-by-scenarios matrix, where t are the dates and scenarios denotes
-    the number of rates scenario in input. Here, for each scenario, single bond prices are computed according to different ytms.
-    """
-
-    # single bond price
-    def single_price_bond(
-        principal=principal,
-        maturity=maturity,
-        coupon_rate=coupon_rate,
-        coupons_per_year=coupons_per_year,
-        ytm=ytm,
-        cf=cf,
-    ):
-        if cf is None:
-            # compute the bond cash flow on the fly
-            cf = bond_cash_flows(
-                maturity=maturity,
-                principal=principal,
-                coupon_rate=coupon_rate,
-                coupons_per_year=coupons_per_year,
-            )
-        bond_price = present_value(cf, ytm / coupons_per_year)[0]
-        return bond_price
-
-    if isinstance(ytm, pd.Series):
-        raise TypeError("Expected pd.DataFrame or a single value for ytm")
-
-    if isinstance(ytm, pd.DataFrame):
-        # ytm is a dataframe of rates for different scenarios
-        n_scenarios = ytm.shape[1]
-        bond_price = pd.DataFrame()
-        # we have a for over each scenarios of rates (ytms)
-        for i in range(n_scenarios):
-            # for each scenario, a list comprehension computes bond prices according to ytms up to time maturity minus 1
-            prices = [
-                single_price_bond(
-                    principal=principal,
-                    maturity=maturity - t / coupons_per_year,
-                    coupon_rate=coupon_rate,
-                    coupons_per_year=coupons_per_year,
-                    ytm=y,
-                    cf=cf,
-                )
-                for t, y in zip(ytm.index[:-1], ytm.iloc[:-1, i])
-            ]
-            bond_price = pd.concat([bond_price, pd.DataFrame(prices)], axis=1)
-        # rename columns with scenarios
-        bond_price.columns = ytm.columns
-        # concatenate one last row with bond prices at maturity for each scenario
-        bond_price = pd.concat(
-            [
-                bond_price,
-                pd.DataFrame(
-                    [
-                        [principal + principal * coupon_rate / coupons_per_year]
-                        * n_scenarios
-                    ],
-                    index=[ytm.index[-1]],
-                ),
-            ],
-            axis=0,
-        )
-        return bond_price
-    else:
-        # base case: ytm is a value and a single bond price is computed
-        return single_price_bond(
-            principal=principal,
-            maturity=maturity,
-            coupon_rate=coupon_rate,
-            coupons_per_year=coupons_per_year,
-            ytm=ytm,
-            cf=cf,
-        )
+    flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+    if cf is not None:
+        if not isinstance(cf, pd.DataFrame) or cf.shape[1] != 1 or cf.empty:
+            raise ValueError("cf must contain one nonempty cash-flow column")
+        dates = np.asarray(cf.index, dtype=float)
+        if (not np.isfinite(dates).all() or (dates <= 0).any() or (np.diff(dates) <= 0).any()
+                or not np.isclose(dates[-1], maturity * coupons_per_year, atol=1e-10, rtol=0)
+                or not np.isfinite(cf.to_numpy()).all() or (cf.to_numpy() < 0).any()):
+            raise ValueError("cf must have ordered positive dates, nonnegative payments, and the stated maturity")
+        flows = cf
+    if np.isscalar(ytm):
+        return float(present_value(flows, float(ytm) / coupons_per_year).iloc[0])
+    frequency = coupons_per_year if periods_per_year is None else periods_per_year
+    yields, times = _bond_grid(ytm, maturity, coupons_per_year, frequency)
+    if (yields <= -coupons_per_year).any():
+        raise ValueError("Nominal YTM divided by coupon frequency must exceed -1")
+    prices = np.zeros_like(yields)
+    for period, payment in flows.iloc[:, 0].items():
+        remaining = period - times * coupons_per_year
+        pending = remaining > 1e-10
+        prices[pending] += payment * np.exp(-np.log1p(yields[pending] / coupons_per_year) * remaining[pending, None])
+    if not np.isfinite(prices).all():
+        raise ValueError("Bond prices are outside representable bounds")
+    result = pd.DataFrame(prices, index=ytm.index, columns=ytm.columns)
+    result.attrs.update(maturity=maturity, periods_per_year=frequency)
+    return result
 
 
 def bond_returns(
@@ -1815,178 +2026,781 @@ def bond_returns(
     periods_per_year,
     maturity=None,
 ):
-    """
-    Computes the total return of a coupon-paying bond.
-    The bond_prices can be a pd.DataFrame of bond prices for different ytms and scenarios
-    as well as a single bond price for a fixed ytm.
-    In the first case, remind to annualize the computed returns.
-    In the latter case, the maturity of the bond has to passed since cash-flows needs to be recovered.
-    Moreover, the computed return does not have to be annualized.
+    """Total returns from post-payment full prices, counting each payment once.
+
+    Maturity is explicit or comes from price-frame attrs; a truncated frame
+    does not imply early redemption. Compounding these returns assumes coupon
+    reinvestment in the bond. For a scalar purchase price, return annualized
+    terminal-wealth growth with coupons held at ZERO interest, not YTM.
     """
     if isinstance(bond_prices, pd.DataFrame):
-        coupons = pd.DataFrame(
-            data=0, index=bond_prices.index, columns=bond_prices.columns
-        )
-        last_date = bond_prices.index.max()
-        pay_date = np.linspace(
-            periods_per_year / coupons_per_year,
-            last_date,
-            int(coupons_per_year * last_date / periods_per_year),
-            dtype=int,
-        )
-        coupons.iloc[pay_date] = principal * coupon_rate / coupons_per_year
-        tot_return = (bond_prices + coupons) / bond_prices.shift(1) - 1
-        return tot_return.dropna()
-    else:
-        cf = bond_cash_flows(
-            principal=principal,
-            maturity=maturity,
-            coupon_rate=coupon_rate,
-            coupons_per_year=coupons_per_year,
-        )
-        tot_return = (cf.sum() / bond_prices) ** (1 / maturity) - 1
-        return tot_return[0]
+        maturity = bond_prices.attrs.get("maturity") if maturity is None else maturity
+        if maturity is None:
+            raise ValueError("Maturity is required to schedule redemption")
+        flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+        prices, times = _bond_grid(bond_prices, maturity, coupons_per_year, periods_per_year)
+        if len(prices) < 2 or (prices[:-1] <= 0).any() or (prices[-1] < 0).any():
+            raise ValueError("Returns require at least two dates and positive prices before redemption")
+        if bond_prices.attrs.get("periods_per_year", periods_per_year) != periods_per_year:
+            raise ValueError("Return frequency must match the price observations")
+        at_maturity = np.isclose(times[-1], maturity, atol=1e-10, rtol=0)
+        if (at_maturity and (prices[-1] != 0).any()) or (not at_maturity and (prices[-1] <= 0).any()):
+            raise ValueError("Post-payment price must be zero at maturity and positive before it")
+        payments = np.zeros(len(prices))
+        for period, payment in flows.iloc[:, 0].items():
+            step = int(round(period * periods_per_year / coupons_per_year))
+            if step < len(payments):
+                payments[step] = payment
+        returns = (prices[1:] + payments[1:, None]) / prices[:-1] - 1
+        return pd.DataFrame(returns, index=bond_prices.index[1:], columns=bond_prices.columns)
+    if maturity is None or not np.isscalar(bond_prices) or not np.isfinite(bond_prices) or bond_prices <= 0:
+        raise ValueError("A scalar purchase price must be positive and finite, with maturity supplied")
+    flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+    return float((flows.iloc[:, 0].sum() / bond_prices) ** (1 / maturity) - 1)
+
+
+def cir_bond_price(rates, principal=100, maturity=3, coupon_rate=0.03, coupons_per_year=2,
+                   periods_per_year=12, a=0.05, b=0.03, sigma=0.05):
+    """Value remaining payments on the CIR curve, not at a short-rate YTM.
+
+    rates contains effective annual short-rate quotes at steps 0..n. Use the
+    same risk-neutral parameters as the simulated curve. Full prices exclude
+    payments made at the observation date, including final redemption.
+    """
+    flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+    quotes, times = _bond_grid(rates, maturity, coupons_per_year, periods_per_year)
+    _cir_parameters(a, b, sigma)
+    if (quotes < 0).any():
+        raise ValueError("CIR short-rate quotes must be nonnegative")
+    prices = np.zeros_like(quotes)
+    for period, payment in flows.iloc[:, 0].items():
+        remaining = period / coupons_per_year - times
+        pending = remaining > 1e-10
+        prices[pending] += payment * cir_zero_coupon_price(
+            remaining[pending, None], quotes[pending], a=a, b=b, sigma=sigma)
+    result = pd.DataFrame(prices, index=rates.index, columns=rates.columns)
+    result.attrs.update(maturity=maturity, periods_per_year=periods_per_year)
+    return result
+
+
+def show_coupon_bond_echart(principal=100, maturity=3, coupon_rate=0.03, coupons_per_year=2,
+                            ytm=0.05, reinvestment_rate=0.0):
+    """Explore nominal YTM pricing and effective-annual coupon reinvestment."""
+    flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+    price = bond_price(principal, maturity, coupon_rate, coupons_per_year, ytm)
+    if not np.isfinite(reinvestment_rate) or reinvestment_rate <= -1:
+        raise ValueError("Effective annual reinvestment rate must exceed -1")
+    effective_ytm = np.expm1(coupons_per_year * np.log1p(ytm / coupons_per_year))
+    yield_grid = np.linspace(min(-0.02, ytm), max(0.10, ytm + 0.02, coupon_rate + 0.02), 101)
+    price_curve = [bond_price(principal, maturity, coupon_rate, coupons_per_year, y) for y in yield_grid]
+    reinvestment_grid = np.linspace(min(-0.02, reinvestment_rate, effective_ytm),
+                                   max(0.10, reinvestment_rate + 0.02, effective_ytm + 0.02), 101)
+    remaining = maturity - flows.index.to_numpy() / coupons_per_year
+    payments = flows.iloc[:, 0].to_numpy()
+    terminal_curve = ((1 + reinvestment_grid[:, None]) ** remaining * payments).sum(axis=1)
+    terminal = float(((1 + reinvestment_rate) ** remaining * payments).sum())
+    realized = (terminal / price) ** (1 / maturity) - 1
+    plots = {
+        "couponYield": {
+            "type": "line", "title": "Coupon Bond: Price and Yield to Maturity",
+            "xAxis": {"type": "value", "name": "Nominal annual YTM (%)", "scale": True},
+            "yAxis": {"type": "value", "name": "Full bond price (dollars)", "scale": True},
+            "series": {"Bond price": np.column_stack([yield_grid * 100, price_curve]).tolist(),
+                       "Face value": [[yield_grid[0] * 100, principal], [yield_grid[-1] * 100, principal]],
+                       "Selected bond": [[ytm * 100, price]]},
+            "seriesOptions": {"Selected bond": {"type": "scatter", "symbol": "diamond", "symbolSize": 11},
+                              "Face value": {"lineStyle": {"type": "dashed"}}},
+        },
+        "couponReinvestment": {
+            "type": "line", "title": "Terminal Wealth Depends on Coupon Reinvestment",
+            "xAxis": {"type": "value", "name": "Effective reinvestment rate (%)", "scale": True},
+            "yAxis": {"type": "value", "name": "Terminal wealth (dollars)", "scale": True},
+            "series": {"Terminal wealth": np.column_stack([reinvestment_grid * 100, terminal_curve]).tolist(),
+                       "Selected reinvestment": [[reinvestment_rate * 100, terminal]]},
+            "seriesOptions": {"Selected reinvestment": {"type": "scatter", "symbol": "diamond", "symbolSize": 11}},
+        },
+    }
+    text = (f"Face value {principal:.2f}; coupon {principal * coupon_rate / coupons_per_year:.2f}, "
+            f"paid {coupons_per_year} times/year for {maturity:g} years. Full purchase price: {price:.6f}.\n"
+            f"Nominal YTM: {ytm:.4%}; effective annual equivalent: {effective_ytm:.4%}.\n"
+            f"Coupon reinvestment at {reinvestment_rate:.4%} effective annually: terminal wealth {terminal:.6f}; "
+            f"annualized realized return {realized:.4%}.\n"
+            "Fixed promised payments, no default, and purchase on a coupon date after payment. "
+            "YTM is a cash-flow IRR; reinvesting interim coupons at its effective annual equivalent reproduces that compounded return.")
+    _publish_echarts(plots, text)
 
 
 def mac_duration(cash_flows, discount_rate):
-    """
-    Computed the Macaulay duration of an asset involving regular cash flows a given discount rate
-    Note that if the cash_flows dates are normalized, then the discount_rate is simply the YTM.
-    Otherwise, it has to be the YTM divided by the coupons per years.
+    """PV-weighted payment time, in the units of the numeric cash-flow index.
+
+    Use effective rates per index unit: y/m for coupon periods, or (1+y/m)**m-1
+    for years when y is a nominal annual YTM. Nonnegative payments must have
+    positive PV. Rate/stream alignment follows present_value. Return a float
+    for one valuation, otherwise a labeled Series of durations.
     """
     if not isinstance(cash_flows, pd.DataFrame):
         raise ValueError("Expected a pd.DataFrame of cash_flows")
+    flows = cash_flows.astype(float)
+    price = present_value(flows, discount_rate)
+    if (flows.to_numpy() < 0).any() or not np.isfinite(price).all() or (price <= 0).any():
+        raise ValueError("Duration requires nonnegative cash flows with positive, finite present values")
+    weighted_pv = present_value(flows.mul(flows.index.to_numpy(dtype=float), axis=0), discount_rate)
+    result = weighted_pv / price
+    if not np.isfinite(result).all():
+        raise ValueError("Duration must be finite")
+    return float(result.iloc[0]) if len(result) == 1 else result
 
-    dates = cash_flows.index
 
-    # present value of single cash flows (discounted cash flows)
-    discount_cf = discount(dates, discount_rate) * cash_flows
+def bond_sensitivity(principal=100, maturity=3, coupon_rate=0.03, coupons_per_year=2,
+                     ytm=0.05, quote="nominal"):
+    """Price and local derivatives with respect to the specified annual yield quote.
 
-    # weights: the present value of the entire payment, i.e., discount_cf.sum() is equal to the principal
-    weights = discount_cf / discount_cf.sum()
+    quote='nominal' compounds ytm at coupon frequency; 'continuous' discounts
+    by exp(-ytm*t). Duration is in years and convexity in years squared.
+    Dollar duration is -dPrice/dQuote; DV01 is its positive 1-bp loss estimate.
+    Cash flows and valuation date stay fixed. No optionality or curve twists.
+    """
+    flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+    if quote not in ("nominal", "continuous"):
+        raise ValueError("Yield quote must be nominal or continuous")
+    if not np.isscalar(ytm) or not np.isfinite(ytm):
+        raise ValueError("The annual yield quote must be a finite scalar")
+    times = flows.index.to_numpy() / coupons_per_year
+    if quote == "continuous":
+        exponent, sensitivity_times, curvature = ytm * times, times, times ** 2
+    else:
+        base = 1 + ytm / coupons_per_year
+        if base <= 0:
+            raise ValueError("Nominal YTM divided by coupon frequency must exceed -1")
+        exponent = coupons_per_year * np.log1p(ytm / coupons_per_year) * times
+        sensitivity_times = times / base
+        curvature = times * (times + 1 / coupons_per_year) / base ** 2
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        present_values = flows.iloc[:, 0].to_numpy() * np.exp(-exponent)
+        price = present_values.sum()
+    if not np.isfinite(present_values).all() or not np.isfinite(price) or price <= 0:
+        raise ValueError("Bond present value must be positive and finite")
+    weights = present_values / price
+    mac, modified, convexity = (float(weights @ values) for values in (times, sensitivity_times, curvature))
+    result = {"Price": float(price), "Macaulay duration": mac, "Modified duration": modified,
+              "Convexity": convexity, "Dollar duration": float(price * modified), "DV01": float(price * modified * 1e-4)}
+    if not np.isfinite(list(result.values())).all():
+        raise ValueError("Bond sensitivities must be finite")
+    return result
 
-    # sum of weights * dates
-    return (weights * pd.DataFrame(dates, index=weights.index)).sum()[0]
+
+def show_duration_echart(principal=100, maturity=3, coupon_rate=0.03, coupons_per_year=2,
+                         ytm=0.05, shift_bps=50, quote="nominal"):
+    """PV timing and exact versus first-order repricing under an explicit quote.
+
+    One bp is 0.0001 of the chosen nominal or continuous annual yield. Changing
+    quote without converting its numeric value changes the discount curve.
+    """
+    flows = bond_cash_flows(principal, maturity, coupon_rate, coupons_per_year)
+    measures = bond_sensitivity(principal, maturity, coupon_rate, coupons_per_year, ytm, quote)
+    price, mac, modified = measures["Price"], measures["Macaulay duration"], measures["Modified duration"]
+    if not np.isscalar(shift_bps) or not np.isfinite(shift_bps):
+        raise ValueError("Yield shift must be a finite number of basis points")
+    times = flows.index.to_numpy() / coupons_per_year
+    exponent = ytm * times if quote == "continuous" else coupons_per_year * np.log1p(ytm / coupons_per_year) * times
+    weights = flows[0].to_numpy() * np.exp(-exponent) / price
+    width = max(100, abs(shift_bps))
+    shifts = np.linspace(-width, width, 81)
+    repriced = np.array([bond_sensitivity(principal, maturity, coupon_rate, coupons_per_year,
+                                         ytm + shift / 10000, quote)["Price"] for shift in shifts])
+    exact = (repriced / price - 1) * 100
+    approximate = -modified * shifts / 100
+    selected_price = bond_sensitivity(principal, maturity, coupon_rate, coupons_per_year, ytm + shift_bps / 10000, quote)["Price"]
+    selected_exact = (selected_price / price - 1) * 100
+    selected_approximate = -modified * shift_bps / 100
+    plots = {
+        "durationWeights": {
+            "type": "bar", "title": "Macaulay Duration: Present-Value Timing Weights",
+            "xAxis": {"type": "value", "name": "Payment year", "min": 0, "max": maturity + 0.5 / coupons_per_year,
+                      "axisLabel": {"showMaxLabel": False}},
+            "yAxis": {"type": "value", "name": "Share of bond present value (%)", "min": 0, "max": 100},
+            "series": {"PV weight": np.column_stack([times, weights * 100]).tolist()},
+        },
+        "durationSensitivity": {
+            "type": "line", "title": "Yield Shift: Exact Repricing and Duration Approximation",
+            "xAxis": {"type": "value", "name": "Continuous yield change (bp)" if quote == "continuous" else "Nominal YTM change (bp)", "min": -width, "max": width},
+            "yAxis": {"type": "value", "name": "Price change (%)", "scale": True},
+            "series": {"Exact": np.column_stack([shifts, exact]).tolist(),
+                       "Duration approximation": np.column_stack([shifts, approximate]).tolist(),
+                       "Selected exact": [[shift_bps, selected_exact]],
+                       "Selected approximation": [[shift_bps, selected_approximate]]},
+            "seriesOptions": {"Duration approximation": {"lineStyle": {"type": "dashed"}},
+                              "Selected exact": {"type": "scatter", "symbol": "diamond", "symbolSize": 11},
+                              "Selected approximation": {"type": "scatter", "symbolSize": 9}},
+        },
+    }
+    convention = "continuous annual yield" if quote == "continuous" else f"nominal annual YTM compounded {coupons_per_year} times/year"
+    error = selected_price - (price - measures["Dollar duration"] * shift_bps / 10000)
+    text = (f"Full price: {price:.6f}; {convention}: {ytm:.4%}.\n"
+            f"Macaulay duration: {mac:.6f} years; modified duration: {modified:.6f} years.\n"
+            f"Selected yield shift: {shift_bps:+g} bp. Exact price change: {selected_exact:+.6f}%; "
+            f"duration approximation: {selected_approximate:+.6f}%.\n"
+            f"DV01 for this quote: {measures['DV01']:.6f}; exact minus linear price: {error:+.6f}.\n"
+            "Payment dates and amounts are fixed. Duration is a weighted-average time, not a payback date. "
+            "Modified duration is a local slope; finite shifts introduce approximation error.")
+    _publish_echarts(plots, text)
 
 
 # ---------------------------------------------------------------------------------
 # Liability driven strategies
 # ---------------------------------------------------------------------------------
+def duration_match_weight(d1, d2, d_liab):
+    """Long-only market-value weights matching a target duration in common units.
+
+    Durations must be measured against the same rate convention. Distinct
+    asset durations must bracket the liability duration; do not silently
+    replace an infeasible match with a leveraged or short position.
+    """
+    durations = np.asarray([d1, d2, d_liab], dtype=float)
+    if durations.shape != (3,) or not np.isfinite(durations).all() or (durations < 0).any():
+        raise ValueError("Durations must be finite, nonnegative scalars")
+    if np.isclose(d1, d2, atol=1e-12, rtol=0):
+        raise ValueError("Distinct asset durations are required for a unique two-bond match")
+    weight = float((d_liab - d2) / (d1 - d2))
+    if weight < -1e-12 or weight > 1 + 1e-12:
+        raise ValueError("The target duration must lie between the two asset durations for a long-only match")
+    weight = float(np.clip(weight, 0, 1))  # Roundoff at a feasible endpoint only.
+    return weight, 1 - weight
+
+
+def show_duration_matching_echart(asset_value=130000, discount_rate=0.04, short_maturity=10,
+                                  long_maturity=20, short_frequency=1, long_frequency=1, liability_delay=0):
+    """Match two 5%-coupon bonds against two 100,000-dollar obligations.
+
+    All dates are years and all discount rates are effective annual rates.
+    Purchase at the selected base curve; hold bond quantities fixed when
+    repricing. The second panel compares contractual cash flows, not wealth.
+    """
+    if not np.isfinite([asset_value, discount_rate, liability_delay]).all() or asset_value <= 0 or liability_delay < 0:
+        raise ValueError("Require positive finite capital, a finite rate, and a nonnegative liability delay")
+    liabilities = pd.DataFrame({"Liability": [100000.0, 100000.0]}, index=[10 + liability_delay, 12 + liability_delay])
+    short = bond_cash_flows(1000, short_maturity, 0.05, short_frequency).rename(columns={0: "Short"})
+    long = bond_cash_flows(1000, long_maturity, 0.05, long_frequency).rename(columns={0: "Long"})
+    short.index = short.index / short_frequency
+    long.index = long.index / long_frequency
+    bonds = pd.concat([short, long], axis=1).fillna(0).sort_index()
+    prices = present_value(bonds, discount_rate)
+    durations = mac_duration(bonds, discount_rate)
+    liability_pv = float(present_value(liabilities, discount_rate).iloc[0])
+    liability_duration = mac_duration(liabilities, discount_rate)
+    try:
+        weights = duration_match_weight(durations["Short"], durations["Long"], liability_duration)
+    except ValueError as error:
+        _publish_echarts({}, f"No unique long-only duration match. {error}\n"
+                         f"Short: {durations['Short']:.6f}; long: {durations['Long']:.6f}; "
+                         f"liability: {liability_duration:.6f} years. Change the maturities or liability delay.")
+        return
+    units = pd.Series(weights, index=bonds.columns) * asset_value / prices
+    matched = bonds.mul(units, axis=1).sum(axis=1).to_frame("Matched")
+    portfolios = {"Short only": short * (asset_value / prices["Short"]),
+                  "Long only": long * (asset_value / prices["Long"]), "Duration matched": matched}
+    rates = np.unique(np.append(np.linspace(max(-0.99, discount_rate - 0.03), discount_rate + 0.03, 121), discount_rate))
+    liability_values = present_value(liabilities, rates)
+    ratios = {name: np.column_stack([rates * 100, present_value(flows, rates) / liability_values]).tolist()
+              for name, flows in portfolios.items()}
+    ratios["Target"] = [[rates[0] * 100, 1], [rates[-1] * 100, 1]]
+    ratios["Initial matched"] = [[discount_rate * 100, asset_value / liability_pv]]
+    payments = pd.concat([matched, liabilities], axis=1).fillna(0).sort_index()
+    plots = {
+        "matchingFunding": {
+            "type": "line", "title": "Fixed Holdings: Funding Ratios Under Parallel Rate Changes",
+            "xAxis": {"type": "value", "name": "Effective annual rate (%)",
+                      "min": round(float(rates[0] * 100), 10), "max": round(float(rates[-1] * 100), 10)},
+            "yAxis": {"type": "value", "name": "Funding ratio", "scale": True}, "series": ratios,
+            "seriesOptions": {"Initial matched": {"type": "scatter", "symbol": "diamond", "symbolSize": 11}},
+        },
+        "matchingPayments": {
+            "type": "bar", "title": "Duration Matching Does Not Match Every Payment",
+            "xAxis": {"type": "value", "name": "Payment year", "min": 0, "max": float(payments.index.max()) + 0.5,
+                      "axisLabel": {"showMaxLabel": False}},
+            "yAxis": {"type": "value", "name": "Contractual payment (thousand dollars)", "min": 0},
+            "series": {name: np.column_stack([payments.index, payments[name] / 1000]).tolist() for name in payments},
+        },
+    }
+    text = (f"Base effective annual rate: {discount_rate:.2%}. Liability PV: {liability_pv:,.2f}; assets: {asset_value:,.2f}.\n"
+            f"Initial funding ratio: {asset_value / liability_pv:.6f}; PV surplus / deficit: {asset_value - liability_pv:,.2f}.\n"
+            f"Market-value weights: short {weights[0]:.4%}, long {weights[1]:.4%}. "
+            f"Bond quantities: {units['Short']:.6f}, {units['Long']:.6f}.\n"
+            f"Asset duration: {mac_duration(matched, discount_rate):.6f}; liability duration: {liability_duration:.6f} years.\n"
+            "Holdings are fixed across the rate scenarios. Duration matching makes the funding ratio locally flat; "
+            "it neither supplies missing capital nor guarantees payment under arbitrary yield-curve changes.")
+    _publish_echarts(plots, text)
+
+
+def _ldi_return_frame(rets):
+    """Complete simple returns with unique, chronological dates and scenario labels."""
+    if (not isinstance(rets, pd.DataFrame) or rets.empty or not rets.index.is_unique
+            or not rets.index.is_monotonic_increasing or not rets.columns.is_unique):
+        raise ValueError("Returns require a nonempty DataFrame with ordered unique dates and unique scenarios")
+    frame = rets.astype(float)
+    if not np.isfinite(frame.to_numpy()).all() or (frame.to_numpy() < -1).any():
+        raise ValueError("Simple returns must be complete, finite, and at least -1")
+    return frame
+
+
 def ldi_mixer(psp_rets, lhp_rets, allocator, **kwargs):
+    """Mix aligned SIMPLE returns using beginning-of-interval long-only weights.
+
+    The allocator returns a labeled weight frame for the first sleeve and must
+    use only information available before each return. A fixed weight implies
+    periodic rebalancing, not buy-and-hold. No fees or external cash flows.
     """
-    Liability-Driven Investing strategy allocator.
-    The method takes in input the returns of two portoflios, the returns of the PSP assets, psp_rets,
-    and the returns of the LHP assets, lhp_rets.
-    The allocator is the name of the allocator method to be used and which returns the weight in psp_rets,
-    while the extra arguments which are te arguments used by the allocator.
-    The method returns a dataframe consisting of the weighted average
-    of the returns.
-    """
-    if not psp_rets.shape == lhp_rets.shape:
-        # make sure shapes coincides
-        raise ValueError("Expected psp_rets and lhp_rets to be the same shape")
-
-    weights = allocator(psp_rets, lhp_rets, **kwargs)
-
-    if not weights.shape == psp_rets.shape:
-        # make sure shapes coincides
-        raise ValueError("Weight shapes do not match psp_rets (and lhp_rets) shape")
-
-    return weights * psp_rets + (1 - weights) * lhp_rets
+    psp = _ldi_return_frame(psp_rets)
+    lhp = _ldi_return_frame(lhp_rets)
+    if not psp.index.equals(lhp.index) or not psp.columns.equals(lhp.columns):
+        raise ValueError("Return dates and scenario labels must match in the same order")
+    weights = allocator(psp, lhp, **kwargs)
+    if (not isinstance(weights, pd.DataFrame) or not weights.index.equals(psp.index)
+            or not weights.columns.equals(psp.columns)):
+        raise ValueError("Allocator weights must match the return dates and scenarios")
+    weights = weights.astype(float)
+    if not np.isfinite(weights.to_numpy()).all() or ((weights < 0) | (weights > 1)).to_numpy().any():
+        raise ValueError("Long-only allocation weights must be finite and between zero and one")
+    return weights * psp + (1 - weights) * lhp
 
 
 def ldi_fixed_allocator(psp_rets, lhp_rets, w1, **kwargs):
-    """
-    Fixed-mix strategy allocation between two asset returns.
-    Here, psp_rets and lhp_rets are the returns of the PSP assets and the LHP assets, respectively,
-    and w1 is the weight in psp_rets.
-    The method returns a dataframe consisting of the weight w1.
-    The method is called by the LDI_MIXER method.
-    """
+    """Constant beginning-period fraction in the first sleeve; reset each interval."""
+    if not np.isscalar(w1) or not np.isfinite(w1) or not 0 <= w1 <= 1:
+        raise ValueError("The fixed weight must be a finite scalar between zero and one")
     return pd.DataFrame(data=w1, index=psp_rets.index, columns=psp_rets.columns)
 
 
+def simulate_psp_lhp(n_years=10, n_scenarios=1000, periods_per_year=2, mu=0.07,
+                     sigma=0.10, rate_sigma=0.02, short_weight=0.6, psp_weight=0.7, seed=42):
+    """Paired illustrative stock/bond scenarios for fixed-mix comparisons.
+
+    Rate dynamics equal pricing dynamics (zero modeled short-rate risk premium).
+    Equity total-return GBM is a real-world scenario assumption, with independent
+    stock/rate shocks. These parameters are not calibrated forecasts. The short
+    bond matures at year 10, the long bond at year 20; stop no later than year 10.
+    """
+    if not np.isfinite(n_years) or not 0 < n_years <= 10:
+        raise ValueError("The experiment horizon must be positive and no longer than the short bond's 10 years")
+    _compounding_inputs(0.0, periods_per_year)
+    if periods_per_year is None or periods_per_year % 2:
+        raise ValueError("Observations must include the semiannual coupon dates")
+    rate_seed, stock_seed = np.random.SeedSequence(seed).spawn(2)
+    rates, _ = simulate_cir(n_years, n_scenarios, a=0.05, b=0.03, sigma=rate_sigma,
+                            periods_per_year=periods_per_year, r0=0.03, seed=rate_seed)
+    bond_prices, bond_returns_by_maturity = {}, {}
+    for maturity, coupon in ((10, 0.028), (20, 0.035)):
+        prices = cir_bond_price(rates, principal=100, maturity=maturity, coupon_rate=coupon,
+                                coupons_per_year=2, periods_per_year=periods_per_year,
+                                a=0.05, b=0.03, sigma=rate_sigma)
+        bond_prices[maturity] = prices
+        bond_returns_by_maturity[maturity] = bond_returns(100, prices, coupon, 2, periods_per_year, maturity)
+    bonds = ldi_mixer(bond_returns_by_maturity[10], bond_returns_by_maturity[20], ldi_fixed_allocator, w1=short_weight)
+    stock_prices, stock_logs = simulate_gbm_from_prices(n_years, n_scenarios, mu, sigma,
+                                                       periods_per_year, start=100, seed=stock_seed)
+    stocks = np.expm1(stock_logs)
+    mixed = ldi_mixer(stocks, bonds, ldi_fixed_allocator, w1=psp_weight)
+    return {"Rates": rates, "Short prices": bond_prices[10], "Long prices": bond_prices[20],
+            "Short returns": bond_returns_by_maturity[10], "Long returns": bond_returns_by_maturity[20],
+            "Stock prices": stock_prices, "Stock log returns": stock_logs,
+            "Stocks": stocks, "Bonds": bonds, "Fixed mix": mixed}
+
+
+def show_psp_lhp_echart(n_years=10, n_scenarios=1000, periods_per_year=2, mu=0.07,
+                       sigma=0.10, rate_sigma=0.02, short_weight=0.6, psp_weight=0.7, floor=0.8, seed=42):
+    """Paired wealth and terminal-outcome charts for a periodically rebalanced mix."""
+    sample = simulate_psp_lhp(n_years, n_scenarios, periods_per_year, mu, sigma,
+                              rate_sigma, short_weight, psp_weight, seed)
+    stats = pd.concat([summary_stats_terminal(sample[name], floor, periods_per_year, name)
+                       for name in ("Stocks", "Bonds", "Fixed mix")], axis=1)
+    times = np.arange(len(sample["Stocks"]) + 1) / periods_per_year
+    paths, terminal = {}, {}
+    for name in ("Stocks", "Bonds", "Fixed mix"):
+        wealth = np.vstack([np.ones(n_scenarios), (1 + sample[name]).cumprod().to_numpy()])
+        paths[f"{name} median"] = np.column_stack([times, np.median(wealth, axis=1)]).tolist()
+        terminal[name] = wealth[-1]
+        if name == "Fixed mix":
+            for percentile in (5, 95):
+                paths[f"Mix {percentile}th percentile"] = np.column_stack([times, np.percentile(wealth, percentile, axis=1)]).tolist()
+    paths["Terminal threshold"] = [[0, floor], [n_years, floor]]
+    xmin = max(0.0, min(floor, *(values.min() for values in terminal.values())) * 0.95)
+    xmax = max(1, floor, *(values.max() for values in terminal.values())) * 1.05
+    cdfs = {}
+    heights = np.column_stack([np.arange(n_scenarios), np.arange(1, n_scenarios + 1)]).ravel() * 100 / n_scenarios
+    for name, values in terminal.items():
+        points = np.column_stack([np.repeat(np.sort(values), 2), heights])
+        cdfs[name] = np.vstack([[xmin, 0], points, [xmax, 100]]).tolist()
+    cdfs["Terminal threshold"] = [[floor, 0], [floor, 100]]
+    threshold_style = {"Terminal threshold": {"lineStyle": {"type": "dashed"}}}
+    plots = {
+        "pspLhpWealth": {"type": "line", "title": "Paired Scenarios: Wealth per Unit Invested",
+                         "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+                         "yAxis": {"type": "value", "name": "Wealth per initial 1", "min": 0},
+                         "series": paths, "seriesOptions": threshold_style},
+        "pspLhpTerminal": {"type": "line", "title": "Terminal Wealth: Empirical Cumulative Distributions",
+                            "xAxis": {"type": "value", "name": "Terminal wealth per initial 1", "min": xmin, "max": xmax},
+                            "yAxis": {"type": "value", "name": "Scenarios at or below x (%)", "min": 0, "max": 100},
+                            "series": cdfs, "seriesOptions": threshold_style},
+    }
+    misses = int((terminal["Fixed mix"] < floor - 1e-10 * max(1, floor)).sum())
+    low, high = _binomial_interval(misses, n_scenarios)
+    display_stats = stats.rename(index={"Mean ann. ret.": "Mean scenario CAGR (%)", "Mean wealth std": "Terminal wealth std",
+                                       "Prob breach": "Terminal shortfalls (%)", "Exp shortfall": "Conditional shortfall"})
+    display_stats.loc[["Mean scenario CAGR (%)", "Terminal shortfalls (%)"]] *= 100
+    text = (f"Uncalibrated scenarios; seed={seed}. Zero modeled short-rate risk premium; independent stock/rate shocks.\n"
+            f"Rebalance {periods_per_year} times/year: PSP {psp_weight:.1%}; bond sleeve short/long {short_weight:.1%}/{1-short_weight:.1%}.\n"
+            "Medians and percentiles are pointwise summaries, not individual paths. The threshold is tested at the experiment horizon only.\n"
+            + display_stats.to_string(float_format=lambda value: f"{value:.4f}")
+            + f"\nMixed terminal shortfalls: {misses}/{n_scenarios}; 95% Wilson interval {low:.2%} to {high:.2%}. "
+            "This interval reflects Monte Carlo sampling, not model uncertainty. CDF includes equality; shortfall means below the threshold.")
+    _publish_echarts(plots, text)
+
+
 def ldi_glidepath_allocator(psp_rets, lhp_rets, start=1, end=0):
+    """Calendar schedule of beginning-interval PSP weights on equally spaced dates.
+
+    start applies to the first return and end to the last, not to a trade after
+    the horizon. For one interval use start alone. The same schedule applies
+    to every scenario; no realized return determines an allocation.
     """
-    Glide path fixed-mix strategy allocation between two asset returns.
-    Here, psp_rets and lhp_rets are the returns of the PSP assets and the LHP assets, respectively,
-    and w1 is the weight in psp_rets.
-    The method returns a dataframe consisting of linearly spaced weights (in psp_rets)
-    from start to end, which have to be given in input.
-    The method is called by the LDI_MIXER method.
+    psp, lhp = _ldi_return_frame(psp_rets), _ldi_return_frame(lhp_rets)
+    if not psp.index.equals(lhp.index) or not psp.columns.equals(lhp.columns):
+        raise ValueError("Return dates and scenario labels must match in the same order")
+    for weight in (start, end):
+        if not np.isscalar(weight) or not np.isfinite(weight) or not 0 <= weight <= 1:
+            raise ValueError("Glide-path endpoints must be finite scalars between zero and one")
+    schedule = np.linspace(start, end, len(psp))
+    return pd.DataFrame(np.repeat(schedule[:, None], psp.shape[1], axis=1), index=psp.index, columns=psp.columns)
+
+
+def show_glidepath_echart(start=0.8, end=0.2, n_years=10, n_scenarios=1000,
+                          periods_per_year=2, floor=0.8, seed=42):
+    """Compare a scheduled glide path with fixed 70% and mean-target allocations.
+
+    Reuse the baseline stock/CIR scenario model and bond sleeve. Targets apply
+    before each interval; step lines depict targets, not realized weights.
     """
-    # allocating linearly spaced weigths from strat to end
-    single_path = pd.DataFrame(data=np.linspace(start, end, num=psp_rets.shape[0]))
-    paths = pd.concat([single_path] * psp_rets.shape[1], axis=1)
-    paths.index = psp_rets.index
-    paths.columns = psp_rets.columns
-    return paths
+    sample = simulate_psp_lhp(n_years=n_years, n_scenarios=n_scenarios,
+                              periods_per_year=periods_per_year, seed=seed)
+    stocks, bonds = sample["Stocks"], sample["Bonds"]
+    weights = ldi_glidepath_allocator(stocks, bonds, start, end)
+    average = float(weights.iloc[:, 0].mean())
+    glide = ldi_mixer(stocks, bonds, ldi_glidepath_allocator, start=start, end=end)
+    constant = ldi_mixer(stocks, bonds, ldi_fixed_allocator, w1=average)
+    returns = {"Glide path": glide, "Constant mean target": constant, "Fixed 70/30": sample["Fixed mix"]}
+    times = np.arange(len(stocks) + 1) / periods_per_year
+    targets = np.r_[weights.iloc[:, 0].to_numpy(), weights.iloc[-1, 0]] * 100
+    wealth_series, terminal = {}, {}
+    for name, rets in returns.items():
+        wealth = np.vstack([np.ones(n_scenarios), (1 + rets).cumprod().to_numpy()])
+        wealth_series[name] = np.column_stack([times, np.median(wealth, axis=1)]).tolist()
+        terminal[name] = wealth[-1]
+    stats = pd.concat([summary_stats_terminal(rets, floor, periods_per_year, name) for name, rets in returns.items()], axis=1)
+    stats = stats.rename(index={"Mean ann. ret.": "Mean scenario CAGR (%)", "Mean wealth std": "Terminal wealth std",
+                               "Prob breach": "Terminal shortfalls (%)", "Exp shortfall": "Conditional shortfall"})
+    stats.loc[["Mean scenario CAGR (%)", "Terminal shortfalls (%)"]] *= 100
+    plots = {
+        "glideTargets": {
+            "type": "line", "title": "Glide Path: Beginning-Period Stock Targets",
+            "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+            "yAxis": {"type": "value", "name": "Target stock allocation (%)", "min": 0, "max": 100},
+            "series": {"Glide path": np.column_stack([times, targets]).tolist(),
+                       "Constant mean target": [[0, average * 100], [n_years, average * 100]],
+                       "Fixed 70/30": [[0, 70], [n_years, 70]]},
+            "seriesOptions": {"Glide path": {"step": "end"}},
+        },
+        "glideWealth": {
+            "type": "line", "title": "Same Scenarios: Pointwise Median Wealth",
+            "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+            "yAxis": {"type": "value", "name": "Wealth per initial 1", "min": 0},
+            "series": {**wealth_series, "Terminal threshold": [[0, floor], [n_years, floor]]},
+            "seriesOptions": {"Terminal threshold": {"lineStyle": {"type": "dashed"}}},
+        },
+    }
+    difference = terminal["Glide path"] - terminal["Constant mean target"]
+    text = (f"Uncalibrated baseline stock/CIR model; seed={seed}; shared scenarios and a 60/40 bond sleeve.\n"
+            f"First stock target {start:.1%}; last applied target {weights.iloc[-1, 0]:.1%} at year {times[-2]:g}; "
+            f"mean target {average:.1%}. A single interval uses the start target only.\n"
+            + stats.to_string(float_format=lambda value: f"{value:.4f}")
+            + f"\nPaired terminal difference (glide minus constant mean target): mean {difference.mean():+.6f}; "
+            f"glide higher in {(difference > 1e-10).mean():.1%} of scenarios.\n"
+            "Equal average target weight does not imply equal risk. Median curves are not individual paths. "
+            "The threshold measures terminal outcomes; the schedule does not guarantee a floor.")
+    _publish_echarts(plots, text)
 
 
 def ldi_floor_allocator(psp_rets, lhp_rets, zcb_price, floor, m=3):
-    """
-    Allocate weights to PSP and LHP with the goal to provide exposure to the upside
-    of the PSP without going violating the floor.
-    The method uses a CPPI-style dynamic risk budgeting algorithm by investing a multiple
-    of a cushion in the PSP. The cushion is computed by using a floor value to be
-    equal to the floor times the prices of the ZCB.
-    The method return a pd.DataFrame containing the weights in the PSP
-    """
-    if not zcb_price.shape == psp_rets.shape:
-        raise ValueError("PSP rets and ZCB prices must have the same shape")
+    """Beginning-interval stock weights; pass the FULL unit-ZCB price path.
 
-    dates, n_scenarios = psp_rets.shape
-    account_value = np.repeat(1, n_scenarios)
-    floor_value = np.repeat(1, n_scenarios)
-    weight_history = pd.DataFrame(index=psp_rets.index, columns=psp_rets.columns)
-    for date in range(dates):
-        floor_value = floor * zcb_price.iloc[date]
-        cushion = (account_value - floor_value) / account_value
-        # weights in the PSP and LHP
-        psp_w = (m * cushion).clip(0, 1)
-        lhp_w = 1 - psp_w
-        # update
-        account_value = psp_w * account_value * (
-            1 + psp_rets.iloc[date]
-        ) + lhp_w * account_value * (1 + lhp_rets.iloc[date])
-        weight_history.iloc[date] = psp_w
-    return weight_history
+    Prices include time zero and redemption, one more row than returns.
+    lhp_rets must be this bond's holding-period returns. Starting wealth is 1;
+    floor is the promised amount at maturity. For account histories and
+    undefined returns after depletion, use ldi_floor_backtest directly.
+    """
+    return ldi_floor_backtest(psp_rets, lhp_rets, zcb_price, floor, m)["Risky allocation"]
+
+
+def ldi_floor_backtest(psp_rets, lhp_rets, zcb_price, floor=0.8, m=3):
+    """Self-financing stock/ZCB policy with contemporaneous floor PV f*P(t,T).
+
+    Choose exposure from W_t and P_t BEFORE applying interval t+1 returns.
+    Nonnegative stock values and an initially funded, default-free matching
+    bond support the m<=1 reserve argument; m>1 can breach between rebalances.
+    Depleted accounts remain zero and subsequent account returns are NaN.
+    """
+    risky, hedge = _ldi_return_frame(psp_rets), _ldi_return_frame(lhp_rets)
+    if not risky.index.equals(hedge.index) or not risky.columns.equals(hedge.columns):
+        raise ValueError("Return dates and scenario labels must match in the same order")
+    if (not isinstance(zcb_price, pd.DataFrame) or len(zcb_price) != len(risky) + 1
+            or not zcb_price.index.is_unique or not zcb_price.index.is_monotonic_increasing
+            or not zcb_price.index[1:].equals(risky.index) or not zcb_price.columns.equals(risky.columns)):
+        raise ValueError("Unit bond prices must include time zero and every return endpoint, with matching scenarios")
+    prices = zcb_price.to_numpy(dtype=float)
+    if not np.isfinite(prices).all() or (prices <= 0).any() or not np.allclose(prices[-1], 1, atol=1e-12, rtol=0):
+        raise ValueError("Unit bond prices must be finite and positive, with redemption value one")
+    if not np.allclose(1 + hedge.to_numpy(), prices[1:] / prices[:-1], atol=1e-12, rtol=1e-10):
+        raise ValueError("Hedge returns must match the supplied zero-coupon bond price path")
+    for value in (floor, m):
+        if not np.isscalar(value) or not np.isfinite(value) or value < 0:
+            raise ValueError("The terminal floor and multiplier must be finite nonnegative scalars")
+    floors = floor * prices
+    if not np.isfinite(floors).all():
+        raise ValueError("Floor present values must be finite")
+    wealth = np.ones_like(prices)
+    weights = np.zeros(risky.shape)
+    cushions = np.zeros(risky.shape)
+    returns = np.full(risky.shape, np.nan)
+    risky_values, hedge_values = risky.to_numpy(), hedge.to_numpy()
+    for step in range(len(risky)):
+        before = wealth[step]
+        cushions[step] = before - floors[step]
+        fraction = np.divide(cushions[step], before, out=np.zeros_like(before), where=before > 0)
+        weights[step] = np.clip(m * fraction, 0, 1)
+        with np.errstate(over="ignore", invalid="ignore"):
+            wealth[step + 1] = before * (weights[step] * (1 + risky_values[step]) + (1 - weights[step]) * (1 + hedge_values[step]))
+        if not np.isfinite(wealth[step + 1]).all():
+            raise ValueError("Account wealth is outside representable bounds")
+        returns[step] = np.divide(wealth[step + 1], before, out=np.full_like(before, np.nan), where=before > 0) - 1
+    result = {name: pd.DataFrame(values, index=risky.index, columns=risky.columns)
+              for name, values in (("Returns", returns), ("Risky allocation", weights), ("Cushions", cushions))}
+    for name, values in (("Wealth", wealth), ("Floor value", floors),
+                         ("Floor breaches", wealth < floors - 1e-10 * np.maximum(1, floors))):
+        result[name] = pd.DataFrame(values, index=zcb_price.index, columns=risky.columns)
+    return result
+
+
+def show_floor_echart(floor=0.8, m=1, n_years=10, n_scenarios=1000, periods_per_year=12,
+                      sigma=0.15, scenario=1, seed=42):
+    """Compare a terminal-floor policy with matching bonds and fixed 70/30.
+
+    Use the uncalibrated, zero-rate-risk-premium CIR scenario assumption and
+    independent stock shocks. The selected path is illustrative; statistics
+    cover every scenario and distinguish sampled PV breaches from terminal misses.
+    """
+    rate_seed, stock_seed = np.random.SeedSequence(seed).spawn(2)
+    _, prices = simulate_cir(n_years, n_scenarios, a=0.05, b=0.03, sigma=0.02,
+                             periods_per_year=periods_per_year, r0=0.03, seed=rate_seed)
+    _, logs = simulate_gbm_from_prices(n_years, n_scenarios, mu=0.07, sigma=sigma,
+                                       periods_per_year=periods_per_year, seed=stock_seed)
+    stocks, bonds = np.expm1(logs), prices.pct_change(fill_method=None).iloc[1:]
+    result = ldi_floor_backtest(stocks, bonds, prices, floor, m)
+    if not isinstance(scenario, (int, np.integer)) or isinstance(scenario, (bool, np.bool_)) or not 1 <= scenario <= n_scenarios:
+        raise ValueError("The selected scenario must be an integer between one and n_scenarios")
+    fixed = ldi_mixer(stocks, bonds, ldi_fixed_allocator, w1=0.7)
+    strategies = {"Floor allocator": result["Returns"], "Fixed 70/30": fixed, "ZCB only": bonds, "Stocks": stocks}
+    stats = pd.concat([summary_stats_terminal(rets, floor, periods_per_year, name) for name, rets in strategies.items()], axis=1)
+    stats = stats.rename(index={"Mean ann. ret.": "Mean scenario CAGR (%)", "Mean wealth std": "Terminal wealth std",
+                               "Prob breach": "Terminal shortfalls (%)", "Exp shortfall": "Conditional shortfall"})
+    stats.loc[["Mean scenario CAGR (%)", "Terminal shortfalls (%)"]] *= 100
+    column = scenario - 1
+    times = np.arange(len(prices)) / periods_per_year
+    values = {"Floor allocator": result["Wealth"].iloc[:, column].to_numpy(),
+              "Fixed 70/30": np.r_[1, (1 + fixed.iloc[:, column]).cumprod()],
+              "ZCB only": prices.iloc[:, column].to_numpy() / prices.iloc[0, column],
+              "Floor PV": result["Floor value"].iloc[:, column].to_numpy()}
+    applied = result["Risky allocation"].iloc[:, column].to_numpy()
+    plots = {
+        "floorWealth": {"type": "line", "title": f"Scenario {scenario}: Wealth and Current Floor Value",
+                        "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+                        "yAxis": {"type": "value", "name": "Value per initial 1", "min": 0},
+                        "series": {name: np.column_stack([times, path]).tolist() for name, path in values.items()}},
+        "floorWeights": {"type": "line", "title": f"Scenario {scenario}: Beginning-Period Stock Allocation",
+                         "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+                         "yAxis": {"type": "value", "name": "Stock allocation (%)", "min": 0, "max": 100},
+                         "series": {"Floor allocator": np.column_stack([times, np.r_[applied, applied[-1]] * 100]).tolist(),
+                                    "Fixed 70/30": [[0, 70], [n_years, 70]], "ZCB only": [[0, 0], [n_years, 0]]},
+                         "seriesOptions": {"Floor allocator": {"step": "end"}}},
+    }
+    cost = float(result["Floor value"].iloc[0, 0])
+    status = "initially funded" if cost <= 1 + 1e-10 else "initially underfunded; the promise cannot be locked in with this capital"
+    breaches = int(result["Floor breaches"].any(axis=0).sum())
+    text = (f"Uncalibrated paired scenarios; seed={seed}; zero modeled short-rate risk premium and independent stock shocks.\n"
+            f"Terminal promise: {floor:.4f}; initial matching cost: {cost:.6f}; {status}. Multiplier: {m:g}.\n"
+            f"Floor-allocator sampled PV breaches (including time zero): {breaches}/{n_scenarios}.\n"
+            + stats.to_string(float_format=lambda value: f"{value:.4f}")
+            + "\nDecisions use beginning prices. With an initially funded default-free matching bond, nonnegative stock values, "
+            "and no costs, m<=1 retains the floor reserve; larger multipliers expose it to gap risk. "
+            "The plotted path is one scenario, not a quantile or a forecast.")
+    _publish_echarts(plots, text)
 
 
 def ldi_drawdown_allocator(psp_rets, lhp_rets, maxdd=0.2):
-    """
-    Allocate weights to PSP and LHP with the goal to provide exposure to the upside
-    of the PSP without going violating the floor.
-    The method uses a CPPI-style dynamic risk budgeting algorithm with a drawdown constraint:
-    we investing a multiple m (equal the inverse of the maxdd) of the cushion in the PSP.
-    The cushion is computed by using a floor value equal to (1-maxdd) times the current peak.
-    The method return a pd.DataFrame containing the weights in the PSP.
-    Also look at the LDI_FLOOR_ALLOCATOR.
-    """
-    if not psp_rets.shape == lhp_rets.shape:
-        raise ValueError("PSP and LHP returns must have the same shape")
+    """Beginning-period weights for the high-water rule m=1/maxdd.
 
-    # define the multipler as the inverse of the maximum drawdown
-    m = 1 / maxdd
-    dates, n_scenarios = psp_rets.shape
-    account_value = np.repeat(1, n_scenarios)
-    floor_value = np.repeat(1, n_scenarios)
-    peak_value = np.repeat(1, n_scenarios)
-    weight_history = pd.DataFrame(index=psp_rets.index, columns=psp_rets.columns)
+    maxdd is a requested drawdown limit, not a guarantee. Each account uses
+    its own prior wealth peak. Use ldi_drawdown_backtest for full diagnostics.
+    """
+    return ldi_drawdown_backtest(psp_rets, lhp_rets, maxdd)["Risky allocation"]
 
-    for date in range(dates):
-        floor_value = (1 - maxdd) * peak_value
-        cushion = (account_value - floor_value) / account_value
-        # weights in the PSP and LHP
-        psp_w = (m * cushion).clip(0, 1)
-        lhp_w = 1 - psp_w
-        # update
-        account_value = psp_w * account_value * (
-            1 + psp_rets.iloc[date]
-        ) + lhp_w * account_value * (1 + lhp_rets.iloc[date])
-        peak_value = np.maximum(peak_value, account_value)
-        weight_history.iloc[date] = psp_w
-    return weight_history
+
+def ldi_drawdown_backtest(psp_rets, lhp_rets, maxdd=0.2):
+    """Reuse CPPI's causal high-water accounting, starting each account at 1.
+
+    All frames retain return-endpoint labels. 'Prior peaks', 'Floor value',
+    and weights are beginning-period values; 'Wealth', 'Peaks', 'Next floor',
+    and negative 'Drawdown' are ending values. Initial wealth is included in
+    the peak calculation. Returns after depletion are undefined (NaN).
+    """
+    risky, defensive = _ldi_return_frame(psp_rets), _ldi_return_frame(lhp_rets)
+    if not np.isscalar(maxdd) or not np.isfinite(maxdd) or not 0 < maxdd <= 1:
+        raise ValueError("The requested drawdown must be greater than zero and at most one")
+    account = cppi(risky, safe_rets=defensive, start_value=1, drawdown=maxdd)
+    wealth = account["CPPI wealth"]
+    if not np.isfinite(wealth.to_numpy()).all():
+        raise ValueError("Account wealth is outside representable bounds")
+    all_values = np.vstack([np.ones(risky.shape[1]), wealth.to_numpy()])
+    peaks = pd.DataFrame(np.maximum.accumulate(all_values, axis=0)[1:], index=risky.index, columns=risky.columns)
+    drawdowns = wealth / peaks - 1
+    return {"Wealth": wealth, "Returns": account["CPPI returns"], "Risky allocation": account["Risky allocation"],
+            "Prior peaks": account["Peaks"], "Floor value": account["Floor value"],
+            "Peaks": peaks, "Next floor": (1 - maxdd) * peaks, "Drawdown": drawdowns,
+            "Drawdown breaches": drawdowns < -maxdd - 1e-10, "m": account["m"]}
+
+
+def show_drawdown_echart(maxdd=0.2, hedge="cash", n_years=10, n_scenarios=1000,
+                         periods_per_year=12, sigma=0.15, scenario=1, seed=42):
+    """Compare long-ZCB and rolled-cash defensive sleeves on paired stock paths."""
+    if hedge not in ("cash", "zcb"):
+        raise ValueError("The displayed hedge must be cash or zcb")
+    rate_seed, stock_seed = np.random.SeedSequence(seed).spawn(2)
+    rates, prices = simulate_cir(n_years, n_scenarios, a=0.05, b=0.03, sigma=0.02,
+                                 periods_per_year=periods_per_year, r0=0.03, seed=rate_seed)
+    _, logs = simulate_gbm_from_prices(n_years, n_scenarios, mu=0.07, sigma=sigma,
+                                       periods_per_year=periods_per_year, seed=stock_seed)
+    stocks = np.expm1(logs)
+    cash_wealth = cir_cash_wealth(rates, a=0.05, b=0.03, sigma=0.02, periods_per_year=periods_per_year)
+    defensive = {"cash": cash_wealth.pct_change(fill_method=None).iloc[1:],
+                 "zcb": prices.pct_change(fill_method=None).iloc[1:]}
+    runs = {name: ldi_drawdown_backtest(stocks, rets, maxdd) for name, rets in defensive.items()}
+    if not isinstance(scenario, (int, np.integer)) or isinstance(scenario, (bool, np.bool_)) or not 1 <= scenario <= n_scenarios:
+        raise ValueError("The selected scenario must be an integer between one and n_scenarios")
+    selected, column = runs[hedge], scenario - 1
+    times = np.arange(len(stocks) + 1) / periods_per_year
+    wealth = np.r_[1, selected["Wealth"].iloc[:, column]]
+    peaks = np.r_[1, selected["Peaks"].iloc[:, column]]
+    drawdown_series = {f"Policy + {name.upper() if name == 'zcb' else name}":
+                      np.column_stack([times, np.r_[0, run["Drawdown"].iloc[:, column]] * 100]).tolist()
+                      for name, run in runs.items()}
+    stock_wealth = np.vstack([np.ones(n_scenarios), (1 + stocks).cumprod().to_numpy()])
+    stock_drawdowns = stock_wealth / np.maximum.accumulate(stock_wealth, axis=0) - 1
+    drawdown_series["Stocks"] = np.column_stack([times, stock_drawdowns[:, column] * 100]).tolist()
+    drawdown_series["Drawdown limit"] = [[0, -maxdd * 100], [n_years, -maxdd * 100]]
+    plots = {
+        "drawdownWealth": {"type": "line", "title": f"Scenario {scenario}: {hedge.upper()} Policy Wealth and Peak",
+                           "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+                           "yAxis": {"type": "value", "name": "Value per initial 1", "min": 0},
+                           "series": {"Policy wealth": np.column_stack([times, wealth]).tolist(),
+                                      "High-water mark": np.column_stack([times, peaks]).tolist(),
+                                      "High-water floor": np.column_stack([times, (1 - maxdd) * peaks]).tolist()},
+                           "seriesOptions": {"High-water floor": {"step": "end"}}},
+        "drawdownLoss": {"type": "line", "title": f"Scenario {scenario}: Drawdowns from Each Strategy's Own Peak",
+                         "xAxis": {"type": "value", "name": "Elapsed years", "min": 0, "max": n_years},
+                         "yAxis": {"type": "value", "name": "Drawdown (%)", "max": 0}, "series": drawdown_series},
+    }
+    stats = pd.DataFrame({name: {
+        "Mean terminal wealth": run["Wealth"].iloc[-1].mean(),
+        "Mean worst drawdown (%)": run["Drawdown"].min().mean() * 100,
+        "Paths beyond limit (%)": run["Drawdown breaches"].any().mean() * 100,
+        "Terminal below 0.8 (%)": (run["Wealth"].iloc[-1] < 0.8 - 1e-10).mean() * 100,
+    } for name, run in runs.items()})
+    text = (f"Uncalibrated paired stock/CIR scenarios; seed={seed}; independent shocks and zero modeled short-rate risk premium.\n"
+            f"Requested drawdown: {maxdd:.1%}; rule multiplier: {1 / maxdd:g}. The initial stock weight is 100%.\n"
+            + stats.to_string(float_format=lambda value: f"{value:.4f}")
+            + "\nPeaks include initial wealth. Decisions use prior peaks; the plotted updated floor is the next decision's reference. "
+            "Rolled cash uses the same CIR curve. Its nonnegative returns at roll dates do not remove stock gap risk. "
+            "Terminal wealth below 0.8 and drawdowns beyond the requested limit are different events.")
+    _publish_echarts(plots, text)
+
+
+def historical_drawdown(start_year=1990, end_year=2018, maxdd=0.2, cash_rate=0.03):
+    """Restart a monthly policy on the bundled lagged 30-industry proxy.
+
+    Cash is a constant effective-annual assumption, not historical bill data.
+    Require complete calendar years. Initial wealth is one immediately before
+    the first selected return; lagged industry weights are computed beforehand.
+    """
+    for year in (start_year, end_year):
+        if not isinstance(year, (int, np.integer)) or isinstance(year, (bool, np.bool_)):
+            raise ValueError("Window years must be integers")
+    if start_year > end_year:
+        raise ValueError("The start year cannot exceed the end year")
+    if not np.isscalar(cash_rate) or not np.isfinite(cash_rate) or cash_rate <= -1:
+        raise ValueError("The assumed effective annual cash rate must exceed -1")
+    proxy = get_total_market_index_returns()
+    begin, end = pd.Period(year=start_year, month=1, freq="M"), pd.Period(year=end_year, month=12, freq="M")
+    market = proxy.loc[begin:end].to_frame("Market proxy")
+    if len(market) != 12 * (end_year - start_year + 1) or market.index[0] != begin or market.index[-1] != end:
+        raise ValueError("The requested whole-year window is not fully covered by the bundled snapshot")
+    monthly_cash = np.expm1(np.log1p(cash_rate) / 12)
+    cash = pd.DataFrame(monthly_cash, index=market.index, columns=market.columns)
+    policy = ldi_drawdown_backtest(market, cash, maxdd)
+    fixed = ldi_mixer(market, cash, ldi_fixed_allocator, w1=0.7)
+    returns = pd.concat([market.iloc[:, 0], policy["Returns"].iloc[:, 0].rename("Drawdown policy"),
+                         fixed.iloc[:, 0].rename("Fixed 70/30"), cash.iloc[:, 0].rename("Assumed cash")], axis=1)
+    dates = market.index.insert(0, market.index[0] - 1)
+    wealth = pd.DataFrame(np.vstack([np.ones(returns.shape[1]), (1 + returns).cumprod().to_numpy()]),
+                          index=dates, columns=returns.columns)
+    drawdowns = wealth / wealth.cummax() - 1
+    stats = pd.DataFrame({"CAGR (%)": annualize_rets(returns, 12) * 100,
+                          "Annualized vol (%)": annualize_vol(returns, 12) * 100,
+                          "Sharpe vs assumed cash": sharpe_ratio(returns, cash_rate, 12),
+                          "Worst drawdown (%)": drawdowns.min() * 100,
+                          "Months beyond limit": (drawdowns < -maxdd - 1e-10).sum()})
+    return {"Market returns": market, "Cash returns": cash, "Policy": policy,
+            "Returns": returns, "Wealth": wealth, "Drawdown": drawdowns, "Statistics": stats}
+
+
+def show_historical_drawdown_echart(start_year=1990, end_year=2018, maxdd=0.2, cash_rate=0.03):
+    """Historical proxy illustration with a synthetic cash benchmark and explicit reset date."""
+    result = historical_drawdown(start_year, end_year, maxdd, cash_rate)
+    wealth, drawdowns = result["Wealth"], result["Drawdown"]
+    dates = wealth.index.astype(str).tolist()
+    wealth_series = {name: wealth[name].tolist() for name in wealth}
+    if maxdd < 1:
+        wealth_series["High-water floor"] = ((1 - maxdd) * wealth["Drawdown policy"].cummax()).tolist()
+    plots = {
+        "dates": dates,
+        "historicalWealth": {"type": "line", "title": "Historical Proxy: Wealth from the Same Starting Capital",
+                             "xAxis": {"type": "category", "name": "Month"},
+                             "yAxis": {"type": "log", "name": "Wealth per initial 1",
+                                       "min": min(min(path) for path in wealth_series.values()) * 0.95,
+                                       "max": max(max(path) for path in wealth_series.values()) * 1.05},
+                             "series": wealth_series, "seriesOptions": {"High-water floor": {"step": "end"}}},
+        "historicalDrawdowns": {"type": "line", "title": "Observed Month-End Drawdowns from Each Portfolio's Peak",
+                                 "xAxis": {"type": "category", "name": "Month"},
+                                 "yAxis": {"type": "value", "name": "Drawdown (%)", "max": 0},
+                                 "series": {**{name: (drawdowns[name] * 100).tolist() for name in ("Market proxy", "Drawdown policy", "Fixed 70/30")},
+                                            "Drawdown limit": [-maxdd * 100] * len(dates)}},
+    }
+    market = result["Market returns"]
+    text = (f"Bundled, one-month-lagged 30-industry proxy: {market.index[0]} to {market.index[-1]}, {len(market)} monthly returns.\n"
+            f"Restart wealth and peaks at 1 in {dates[0]}; that initial marker is not another return. "
+            f"Assumed cash: {cash_rate:.2%} effective annually; requested drawdown: {maxdd:.1%}.\n"
+            + result["Statistics"].to_string(float_format=lambda value: f"{value:.4f}", na_rep="—")
+            + "\nOne observed history: counts of months are not forecast probabilities. Cash is hypothetical, "
+            "costs are omitted, and lagging does not establish point-in-time investability. "
+            "Changing the start year restarts the policy rather than zooming an existing account.")
+    _publish_echarts(plots, text)
 
 
 # ---------------------------------------------------------------------------------
