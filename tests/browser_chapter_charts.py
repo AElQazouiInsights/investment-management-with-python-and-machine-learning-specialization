@@ -9,6 +9,15 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
+CHAPTERS = {
+    "1.0-overview": (0, 0),
+    "1.1-risks": (33, 9),
+    "1.2-optimization": (20, 15),
+    "1.3-diversification": (37, 26),
+    "1.4-alm": (77, 33),
+}
+
+
 def audit(base_url, chapter, screenshots=None):
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -27,7 +36,10 @@ def audit(base_url, chapter, screenshots=None):
             };
         """)
         page.goto(f"{base_url.rstrip('/')}/{chapter}", wait_until="domcontentloaded", timeout=120000)
-        page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+        expected = CHAPTERS[chapter]
+        page.locator('.vp-doc h1').wait_for()
+        if expected[0]:
+            page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
         ids = page.locator("[data-editor-id]").evaluate_all("els => els.map(el => el.dataset.editorId)")
         for editor_id in ids:
             page.locator(f'[data-editor-id="{editor_id}"] button.run').click()
@@ -35,8 +47,11 @@ def audit(base_url, chapter, screenshots=None):
                                    arg=editor_id, timeout=180000)
             failures = page.evaluate("id => window.chapterMessages.filter(m => m.id === id && m.error && /Traceback|Error:/.test(m.output || ''))", editor_id)
             assert not failures, (editor_id, failures)
-        expected = {"1.3-diversification": (37, 26), "1.2-optimization": (20, 15), "1.4-alm": (77, 33)}[chapter]
         assert len(ids) == expected[0], len(ids)
+        assert len(ids) == len(set(ids)), "Editor IDs must be unique"
+        assert page.locator('mjx-merror, [data-mml-node="merror"], .katex-error').count() == 0
+        assert not page.get_by_text('[Invalid chart JSON:', exact=False).count()
+        assert not page.get_by_text('[Incomplete chart JSON received]', exact=False).count()
         panels = page.locator(".chart-panel")
         assert panels.count() == expected[1], panels.count()
         if chapter == "1.4-alm":
@@ -125,7 +140,7 @@ def audit(base_url, chapter, screenshots=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:5173")
-    parser.add_argument("--chapter", choices=["1.3-diversification", "1.2-optimization", "1.4-alm"], default="1.3-diversification")
+    parser.add_argument("--chapter", choices=CHAPTERS, default="1.3-diversification")
     parser.add_argument("--screenshots", type=Path)
     args = parser.parse_args()
     audit(args.base_url, args.chapter, args.screenshots)

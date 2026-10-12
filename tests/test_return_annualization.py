@@ -74,6 +74,21 @@ class ReturnAnnualizationTests(unittest.TestCase):
                 result = pok.annualize_rets(pd.Series([0.10, -1.0]), 12)
                 self.assertEqual(result, -1.0)
 
+    def test_annualized_growth_remains_finite_when_terminal_product_overflows_or_underflows(self):
+        # Each observation is one year: the constant growth rate is unchanged
+        # by sample length even when terminal wealth is outside float range.
+        for path, pok in self.modules.items():
+            for rate in (1.0, -0.5):
+                with self.subTest(module=path, rate=rate):
+                    self.assertAlmostEqual(pok.annualize_rets(pd.Series([rate] * 1100), 1), rate)
+
+    def test_annualized_growth_rejects_invalid_simple_returns(self):
+        for path, pok in self.modules.items():
+            for values in ([-1.2, -1.2], [0.1, np.inf], [-np.inf, 0.1]):
+                with self.subTest(module=path, values=values):
+                    with self.assertRaisesRegex(ValueError, "finite simple returns"):
+                        pok.annualize_rets(pd.Series(values), 12)
+
     def test_dataframe_honors_the_variance_denominator(self):
         returns = pd.DataFrame({
             "A": [0.02, -0.02, 0.02, -0.02],

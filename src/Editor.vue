@@ -9,6 +9,10 @@ const ready = ref(false)
 const activeEditorId = ref<string | null>(null)
 const encoder = new TextEncoder()
 const editorSources = new Map<string, string>()
+const storageUnavailable = ref(false)
+const draftStorage = createEditorStorage(() => window.localStorage, () => {
+  storageUnavailable.value = true
+})
 
 let widgetSchemaModule: any | null = null
 let schemaModulePromise: Promise<any> | null = null
@@ -46,7 +50,7 @@ import { history, defaultKeymap, historyKeymap, indentWithTab } from '@codemirro
 import { indentUnit } from '@codemirror/language'
 import { styling } from './codemirror-styling'
 import OutputDisplay from './OutputDisplay.vue'
-import { loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from './editor-storage.js'
+import { createEditorStorage, loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from './editor-storage.js'
 import { createOutputParser } from './editor-output.js'
 import { controlChangeEvent, controlValue, controlParameterName, chartHelperName, chartHelperParameters, buildChartCode } from './widget-controls.js'
 
@@ -124,7 +128,7 @@ onMounted(() => {
   initialCode = codeElement?.querySelector('pre')?.textContent ?? ''
   codeElement?.setAttribute('hidden', '')
   editorSources.set(props.id, initialCode)
-  const saved = loadEditorCode(localStorage, storageKey.value, initialCode)
+  const saved = loadEditorCode(draftStorage, storageKey.value, initialCode)
   recoveredCode.value = saved.recoveredCode
   usingSavedCode.value = saved.code !== initialCode
 
@@ -276,7 +280,7 @@ function reset() {
   }
   acceptOutput = false
   cancelWidgetUpdates()
-  useCurrentExample(localStorage, storageKey.value, initialCode, editor.state.doc.toString())
+  useCurrentExample(draftStorage, storageKey.value, initialCode, editor.state.doc.toString())
   recoveredCode.value = null
   editor.dispatch({
     changes: { from: 0, to: editor.state.doc.length, insert: initialCode },
@@ -289,11 +293,11 @@ function reset() {
 
 // Save doc in local storage (unless it's the original text)
 function save(code: string) {
-  saveEditorCode(localStorage, storageKey.value, initialCode, code)
+  saveEditorCode(draftStorage, storageKey.value, initialCode, code)
 }
 
 function restoreSavedCode() {
-  const code = restoreEditorCode(localStorage, storageKey.value, initialCode, editor.state.doc.toString())
+  const code = restoreEditorCode(draftStorage, storageKey.value, initialCode, editor.state.doc.toString())
   editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: code } })
   recoveredCode.value = null
 }
@@ -694,6 +698,9 @@ async function renderWidget(stateJSON: string) {
 
 <template>
   <div ref="anchor" class="wrapper" :id="`editor-${props.id}`" :data-editor-id="props.id">
+    <div v-if="storageUnavailable" class="editor-source-notice" role="status">
+      Browser storage is unavailable. You can still run and edit examples; copy your changes before reloading or closing this page.
+    </div>
     <div v-if="recoveredCode !== null || usingSavedCode" class="editor-source-notice" role="status">
       <span v-if="recoveredCode !== null">The current lesson example is loaded. Your older saved code is preserved and can be restored.</span>
       <span v-if="usingSavedCode">You are using saved or edited code, which may differ from the lesson.</span>

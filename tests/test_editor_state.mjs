@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from '../src/editor-storage.js'
+import { createEditorStorage, loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from '../src/editor-storage.js'
 import { createOutputParser } from '../src/editor-output.js'
 
 function storage() {
@@ -53,6 +53,39 @@ function outputHarness() {
   const parser = createOutputParser({ onText: part => text.push(part), onChart: chart => charts.push(chart), onError: error => errors.push(error) })
   return { parser, text, charts, errors }
 }
+
+test('blocked storage keeps drafts editable and restorable within the session', () => {
+  let notices = 0
+  const store = createEditorStorage(() => { throw new Error('SecurityError') }, () => notices++)
+  const key = 'code-editor-example'
+  assert.equal(loadEditorCode(store, key, 'source v1').code, 'source v1')
+  saveEditorCode(store, key, 'source v1', 'my draft')
+  assert.equal(loadEditorCode(store, key, 'source v1').code, 'my draft')
+  assert.equal(loadEditorCode(store, key, 'source v2').recoveredCode, 'my draft')
+  assert.equal(restoreEditorCode(store, key, 'source v2', 'source v2'), 'my draft')
+  assert.equal(notices, 1)
+})
+
+test('full storage cannot delete an old draft before its archive is persisted', () => {
+  const disk = storage()
+  const key = 'code-editor-example'
+  disk.setItem(key, 'legacy draft')
+  disk.setItem = () => { throw new Error('QuotaExceededError') }
+  const store = createEditorStorage(() => disk, () => {})
+  assert.deepEqual(loadEditorCode(store, key, 'new source'), {
+    code: 'new source', recoveredCode: 'legacy draft',
+  })
+  assert.equal(disk.getItem(key), 'legacy draft')
+  assert.equal(restoreEditorCode(store, key, 'new source', 'new source'), 'legacy draft')
+})
+
+test('malformed source metadata cannot prevent recovery of the legacy draft', () => {
+  const store = storage()
+  const key = 'code-editor-example'
+  store.setItem(key, 'legacy draft')
+  store.setItem(`${key}:state`, JSON.stringify({ version: 1, history: [null], pending: 0 }))
+  assert.deepEqual(loadEditorCode(store, key, 'source'), { code: 'source', recoveredCode: 'legacy draft' })
+})
 
 test('streamed chart markers and JSON can be split at every character', () => {
   const { parser, text, charts, errors } = outputHarness()

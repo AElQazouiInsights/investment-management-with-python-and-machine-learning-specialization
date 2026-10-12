@@ -425,17 +425,22 @@ def annualize_rets(s, periods_per_year):
     DataFrame column; an empty or entirely missing Series returns np.nan.
     Missing calendar periods must be resolved by the caller: this function
     measures growth over observed periods and does not infer elapsed time.
+    Observed returns must be finite and at least -1. Compute in log space to
+    avoid overflowing or underflowing the intermediate terminal-wealth product.
     """
     if not np.isfinite(periods_per_year) or periods_per_year <= 0:
         raise ValueError("periods_per_year must be positive and finite")
     if isinstance(s, pd.DataFrame):
         return s.aggregate(annualize_rets, periods_per_year=periods_per_year)
     elif isinstance(s, pd.Series):
-        n_period_growth = s.count()
-        if n_period_growth == 0:
+        observed = s.dropna()
+        if observed.empty:
             return np.nan
-        growth = (1 + s).prod()
-        return growth ** (periods_per_year / n_period_growth) - 1
+        if not np.isfinite(observed).all() or (observed < -1).any():
+            raise ValueError("Expected finite simple returns of at least -1")
+        if (observed == -1).any():
+            return -1.0
+        return np.expm1(np.log1p(observed).mean() * periods_per_year)
     else:
         raise TypeError("Expected pd.DataFrame or pd.Series")
 
@@ -940,7 +945,9 @@ def maximize_sharpe_ratio(
         raise ValueError("risk_free_rate must be finite")
     n_assets = rets.shape[0]
     init_guess = np.repeat(1 / n_assets, n_assets)
-    initial_guesses = [init_guess]
+    # Include the vertices even without a risk target: when all excess means
+    # are negative, equal weights can be a stationary Sharpe MINIMUM.
+    initial_guesses = [init_guess, *np.eye(n_assets)]
     weights_constraint = {"type": "eq", "fun": lambda w: 1.0 - np.sum(w)}
     if target_volatility is not None:
         if not np.isfinite(target_volatility) or target_volatility <= 0:
@@ -963,7 +970,6 @@ def maximize_sharpe_ratio(
         constr = (volatility_constraint, weights_constraint)
         # Exact-risk surfaces can have disconnected branches. Start from each
         # asset as well as equal weights, retaining the best verified solution.
-        initial_guesses.extend(np.eye(n_assets))
         if np.isclose(min_volatility, max_volatility, atol=1e-12, rtol=0):
             constr = weights_constraint  # All allocations have the same risk.
     else:
