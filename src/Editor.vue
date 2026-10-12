@@ -48,6 +48,7 @@ import { styling } from './codemirror-styling'
 import OutputDisplay from './OutputDisplay.vue'
 import { loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from './editor-storage.js'
 import { createOutputParser } from './editor-output.js'
+import { controlChangeEvent, controlValue, controlParameterName, chartHelperName, chartHelperParameters, buildChartCode } from './widget-controls.js'
 
 interface Props {
   id: string
@@ -71,30 +72,15 @@ const executionHint = ref('')
 const prerequisiteEditor = ref('')
 let acceptOutput = false
 
-const widgetContexts = new Map<string, { controls: Record<string, any>; lastCode: string }>()
+interface WidgetContext {
+  controls: Record<string, any>
+  baseValues: Record<string, any>
+  lastCode: string
+}
+
+const widgetContexts = new Map<string, WidgetContext>()
 const pendingEchartUpdates = new Map<string, number>()
 const latestControlValues = new Map<string, Record<string, any>>()
-
-const labelToParam = new Map<string, string>([
-  ['Zoom Y axis', 'ymax'],
-])
-
-const allowedParamsByFunction: Record<string, Set<string>> = {
-  show_gbm_echart: new Set(['n_years', 'n_scenarios', 'mu', 'sigma', 'periods_per_year', 'start', 'seed']),
-  show_cppi_echart: new Set([
-    'n_years',
-    'n_scenarios',
-    'mu',
-    'sigma',
-    'periods_per_year',
-    'start',
-    'm',
-    'floor',
-    'risk_free_rate',
-    'ymax',
-    'seed',
-  ]),
-}
 
 // The CodeMirror anchor and input references
 let anchor = ref<HTMLDivElement>()
@@ -269,7 +255,7 @@ function run() {
   resetOutput()
   acceptOutput = true
   running.value = true
-  widgetContexts.set(props.id, { controls: {}, lastCode: code })
+  widgetContexts.set(props.id, { controls: {}, baseValues: {}, lastCode: code })
   // Run via in-page Pyodide worker for both normal and ipywidgets code.
   // The worker serializes widget state which we render in-page.
   worker.postMessage({ id: props.id, code, skipWidgetState: false })
@@ -354,7 +340,7 @@ function appendConsoleText(raw: string) {
   }
 }
 
-function attachOutputListeners(model: any, manager: any, context: { controls: Record<string, any>; lastCode: string }) {
+function attachOutputListeners(model: any, manager: any, context: WidgetContext) {
   if (!model || typeof model.get !== 'function') return
   if ((model as any)._echartsAttached) return
   (model as any)._echartsAttached = true
@@ -404,16 +390,15 @@ function attachOutputListeners(model: any, manager: any, context: { controls: Re
 
 const controlModelNames = new Set(['IntSliderModel', 'FloatSliderModel', 'DropdownModel'])
 
-function attachValueObservers(model: any, manager: any, context: { controls: Record<string, any>; lastCode: string }) {
+function attachValueObservers(model: any, manager: any, context: WidgetContext) {
   if (!model || typeof model.get !== 'function') return
   if ((model as any)._echartsValueAttached) return
   (model as any)._echartsValueAttached = true
 
   const modelName = model.get('_model_name')
   if (controlModelNames.has(modelName)) {
-    const label = model.get('description') || modelName
-    context.controls[label] = model
-    model.on('change:value', () => queueEchartUpdate(context))
+    context.controls[controlParameterName(model)] = model
+    model.on(controlChangeEvent(model), () => queueEchartUpdate(context))
   }
 
   const children = model.get('children')
@@ -431,22 +416,21 @@ function attachValueObservers(model: any, manager: any, context: { controls: Rec
   }
 }
 
-function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: string }) {
+function queueEchartUpdate(context: WidgetContext) {
   if (!mounted.value || widgetContexts.get(props.id) !== context) return
-  const values: Record<string, any> = {}
-  const lastCode = context.lastCode || ''
-  const targetFn = lastCode.includes('show_cppi_echart') ? 'show_cppi_echart' : 'show_gbm_echart'
-  const allowedParams = allowedParamsByFunction[targetFn] || allowedParamsByFunction.show_gbm_echart
+  const values: Record<string, any> = { ...context.baseValues }
+  const targetFn = chartHelperName(context.lastCode)
+  if (!targetFn) return
+  const allowedParams = chartHelperParameters[targetFn]
 
-  for (const [label, model] of Object.entries(context.controls)) {
-    const param = labelToParam.get(label) ?? label
+  for (const [param, model] of Object.entries(context.controls)) {
     if (!allowedParams.has(param)) continue
     try {
-      const value = model.get?.('value')
-      if (value === undefined || value === null) continue
+      const value = controlValue(model)
+      if (value === undefined) continue
       values[param] = value
     } catch (err) {
-      console.warn('Failed to read control value', label, err)
+      console.warn('Failed to read control value', param, err)
     }
   }
 
@@ -455,8 +439,9 @@ function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: s
 
   const handle = window.setTimeout(() => {
     pendingEchartUpdates.delete(props.id)
+    if (!mounted.value || widgetContexts.get(props.id) !== context) return
     const latestValues = latestControlValues.get(props.id) || {}
-    const code = buildEchartCode(latestValues)
+    const code = buildChartCode(context.lastCode, latestValues)
     if (!code) return
     worker.postMessage({ id: props.id, code, skipWidgetState: true })
     const ctx = widgetContexts.get(props.id)
@@ -464,22 +449,6 @@ function queueEchartUpdate(context: { controls: Record<string, any>; lastCode: s
   }, 120)
 
   pendingEchartUpdates.set(props.id, handle)
-}
-
-function buildEchartCode(values: Record<string, any>) {
-  const context = widgetContexts.get(props.id)
-  const lastCode = context?.lastCode || ''
-  const targetFn = lastCode.includes('show_cppi_echart') ? 'show_cppi_echart' : 'show_gbm_echart'
-  const allowedParams = allowedParamsByFunction[targetFn] || allowedParamsByFunction.show_gbm_echart
-
-  const entries = Object.entries(values)
-    .filter(([key, value]) => allowedParams.has(key) && value !== undefined && value !== null)
-    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-
-  if (entries.length === 0) return ''
-
-  const args = entries.join(', ')
-  return `import PortfolioOptimizationKit as pok\npok.${targetFn}(${args})`
 }
 
 // Clear out console lines & chart JSON
@@ -693,8 +662,9 @@ async function renderWidget(stateJSON: string) {
       view.remove()
       return
     }
-    const existing = widgetContexts.get(props.id)
-    const context = existing ? { controls: existing.controls, lastCode: editor.state.doc.toString() } : { controls: {}, lastCode: editor.state.doc.toString() }
+    const context: WidgetContext = {
+      controls: {}, baseValues: { ...(model.get('_echarts_kwargs') || {}) }, lastCode: editor.state.doc.toString(),
+    }
     widgetContexts.set(props.id, context)
     attachOutputListeners(model, manager, context)
 
