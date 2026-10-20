@@ -13,6 +13,31 @@ let interruptBuffer = null;
 
 const filesToMount = [
   {
+    url: '/assets/data/brka_d_ret.csv',
+    path: '/assets/data/brka_d_ret.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/F-F_Research_Data_Factors_m.csv',
+    path: '/assets/data/F-F_Research_Data_Factors_m.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind49_m_vw_rets.csv',
+    path: '/assets/data/ind49_m_vw_rets.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind49_m_nfirms.csv',
+    path: '/assets/data/ind49_m_nfirms.csv',
+    type: 'text'
+  },
+  {
+    url: '/assets/data/ind49_m_size.csv',
+    path: '/assets/data/ind49_m_size.csv',
+    type: 'text'
+  },
+  {
     url: '/assets/PortfolioOptimizationKit.py',
     path: '/assets/PortfolioOptimizationKit.py',
     type: 'text'
