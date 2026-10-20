@@ -54,17 +54,24 @@ def get_stock_dynamic():
     return stocks
 
 def get_brka_rets(monthly=False):
+    """Load bundled daily BRKA decimal returns; optionally compound by month.
+
+    Require complete finite observations and unique ordered dates. Monthly
+    aggregation does not fill absent trading days or manufacture empty months.
+    The CSV alone does not document price-adjustment or publication history.
     """
-    Load and format Berkshire Hathaway's returns from 1990-01 to 2018-12.
-    Default data are daily returns.
-    If monthly=True, then monthly data are returned. Here, the method used
-    the .resample method which allows to run an aggregation function on each
-    group of returns of the daily time series.
-    """
-    filepath = path_to_data_folder() + "brka_d_ret.csv"
+    filepath = path_to_data_folder() + "/brka_d_ret.csv"
     rets = pd.read_csv(filepath, index_col=0, parse_dates=True)
+    if (rets.empty or not isinstance(rets.index, pd.DatetimeIndex)
+            or rets.index.hasnans or not rets.index.is_unique or not rets.index.is_monotonic_increasing):
+        raise ValueError("Expected a nonempty Berkshire history with unique ordered dates")
+    if not np.isfinite(rets.to_numpy()).all() or (rets < -1).any().any():
+        raise ValueError("Berkshire observations must be complete finite simple returns of at least -1")
     if monthly:
-        rets = rets.resample("M").apply(compound).to_period("M")
+        months = rets.index.to_period("M")
+        if not months.unique().equals(pd.period_range(months[0], months[-1], freq="M")):
+            raise ValueError("Cannot aggregate a history with missing calendar months")
+        rets = rets.groupby(months).agg(compound)
     return rets
 
 
@@ -77,9 +84,11 @@ def get_fff_returns():
     - High (B/P ratio) Minus Low (B/P ratio) HML,
     - and the Risk Free Rate
     """
-    filepath = path_to_data_folder() + "F-F_Research_Data_Factors_m.csv"
-    fff = pd.read_csv(filepath, index_col=0, parse_dates=True, na_values=-99.99) / 100
-    fff.index = pd.to_datetime(fff.index, format="%Y%m").to_period("M")
+    filepath = path_to_data_folder() + "/F-F_Research_Data_Factors_m.csv"
+    fff = pd.read_csv(filepath, index_col=0, na_values=[-99.99, -999]) / 100
+    fff.index = pd.to_datetime(fff.index.astype(str), format="%Y%m").to_period("M")
+    if fff.empty or not fff.index.is_unique or not fff.index.is_monotonic_increasing:
+        raise ValueError("Expected factors with unique ordered monthly dates")
     return fff
 
 
@@ -2805,26 +2814,49 @@ def show_historical_drawdown_echart(start_year=1990, end_year=2018, maxdd=0.2, c
 # ---------------------------------------------------------------------------------
 # Factor and Style analysis
 # ---------------------------------------------------------------------------------
+def _factor_inputs(dep_var, exp_vars):
+    """Validate one response and an explicitly aligned complete design matrix."""
+    if isinstance(dep_var, pd.DataFrame):
+        if dep_var.shape[1] != 1:
+            raise ValueError("Expected exactly one dependent return series")
+        dep_var = dep_var.iloc[:, 0]
+    if isinstance(dep_var, pd.Series) and isinstance(exp_vars, pd.DataFrame):
+        if not dep_var.index.equals(exp_vars.index):
+            raise ValueError("Dependent returns and explanatory returns must have identical ordered dates")
+    for obj in (dep_var, exp_vars):
+        if isinstance(obj, (pd.Series, pd.DataFrame)):
+            if not obj.index.is_unique or not obj.index.is_monotonic_increasing:
+                raise ValueError("Observation dates must be unique and ordered")
+    if isinstance(exp_vars, pd.DataFrame) and not exp_vars.columns.is_unique:
+        raise ValueError("Explanatory variable names must be unique")
+    y, x = np.asarray(dep_var, dtype=float), np.asarray(exp_vars, dtype=float)
+    if y.ndim != 1 or x.ndim != 2 or not len(y) or x.shape[0] != len(y) or x.shape[1] == 0:
+        raise ValueError("Expected one response and a nonempty matching two-dimensional design")
+    if not np.isfinite(y).all() or not np.isfinite(x).all():
+        raise ValueError("Regression observations must be complete and finite")
+    return dep_var, exp_vars
+
+
 def linear_regression(dep_var, exp_vars, alpha=True):
+    """Fit OLS to complete aligned observations, adding an 'Alpha' intercept.
+
+    Inputs share a horizon and units; excess-return conversion is the caller's
+    responsibility. Preserve labeled results. Require an identified design
+    and positive residual degrees of freedom. Default inference is classical
+    OLS; use get_robustcov_results explicitly for another covariance estimator.
     """
-    Runs a linear regression to decompose the dependent variable into the explanatory variables
-    using statsmodels OLS method.
-    It returns the object of type statsmodel's RegressionResults on which we can call on it:
-    - .summary() to print a full summary
-    - .params for the coefficients
-    - .tvalues and .pvalues for the significance levels
-    - .rsquared_adj and .rsquared for quality of fit
-    Note that exp.vars can be both a pd.DataFrame a np.array.
-    """
+    dep_var, exp_vars = _factor_inputs(dep_var, exp_vars)
     if alpha:
-        # the OLS methods assume a bias equal to 0, hence a specific variable for the bias has to be given
         if isinstance(exp_vars, pd.DataFrame):
+            if "Alpha" in exp_vars.columns:
+                raise ValueError("Alpha is reserved for the intercept; use alpha=False for an existing design")
             exp_vars = exp_vars.copy()
             exp_vars["Alpha"] = 1
         else:
-            exp_vars = np.concatenate(
-                (exp_vars, np.ones((exp_vars.shape[0], 1))), axis=1
-            )
+            exp_vars = np.column_stack([exp_vars, np.ones(len(dep_var))])
+    design = np.asarray(exp_vars, dtype=float)
+    if len(dep_var) <= design.shape[1] or np.linalg.matrix_rank(design) < design.shape[1]:
+        raise ValueError("OLS requires a full-rank design and positive residual degrees of freedom")
     return sm.OLS(dep_var, exp_vars).fit()
 
 
@@ -2845,12 +2877,19 @@ def capm_betas(ri, rm):
 
 
 def tracking_error(r_a, r_b):
+    """Legacy Euclidean fit distance sqrt(sum(active_return**2)).
+
+    This is not conventional tracking-error volatility (the sample standard
+    deviation of active returns). It includes mean bias and scales with sqrt(n).
     """
-    Returns the tracking error between two return series.
-    This method is used in Sharpe Analysis minimization problem.
-    See STYLE_ANALYSIS method.
-    """
-    return (((r_a - r_b) ** 2).sum()) ** (0.5)
+    if isinstance(r_a, pd.Series) and isinstance(r_b, pd.Series) and not r_a.index.equals(r_b.index):
+        raise ValueError("Return series must have identical ordered dates")
+    a, b = np.asarray(r_a, dtype=float), np.asarray(r_b, dtype=float)
+    if a.ndim != 1 or a.shape != b.shape or not a.size:
+        raise ValueError("Expected two matching nonempty one-dimensional return series")
+    if not np.isfinite(a).all() or not np.isfinite(b).all():
+        raise ValueError("Return series must be complete and finite")
+    return float(np.linalg.norm(a - b))
 
 
 def style_analysis_tracking_error(weights, ref_r, bb_r):
@@ -2863,28 +2902,36 @@ def style_analysis_tracking_error(weights, ref_r, bb_r):
 
 
 def style_analysis(dep_var, exp_vars):
-    """
-    Sharpe style analysis optimization problem.
-    Returns the optimal weights that minimizes the tracking error between a portfolio
-    of the explanatory (return) variables and the dependent (return) variable.
-    """
-    # dep_var is expected to be a pd.Series
-    if isinstance(dep_var, pd.DataFrame):
-        dep_var = dep_var[dep_var.columns[0]]
+    """Long-only fully invested least-squares return replication, no intercept.
 
-    n = exp_vars.shape[1]
+    Minimize mean squared active return, not demeaned tracking-error variance.
+    Require explicitly aligned complete pandas inputs. Correlated benchmarks
+    can yield nonunique weights; a successful fit does not identify holdings.
+    """
+    if not isinstance(dep_var, (pd.Series, pd.DataFrame)) or not isinstance(exp_vars, pd.DataFrame):
+        raise TypeError("Style analysis requires labeled pandas return inputs")
+    dep_var, exp_vars = _factor_inputs(dep_var, exp_vars)
+    y, x = dep_var.to_numpy(dtype=float), exp_vars.to_numpy(dtype=float)
+    n = x.shape[1]
     init_guess = np.repeat(1 / n, n)
+    # Scaling preserves the solution while keeping optimizer tolerances useful
+    # for decimal monthly returns. The squared objective has a smooth gradient.
+    scale = max(float(np.mean(y ** 2)), float(np.mean(x ** 2)), np.finfo(float).tiny)
+    def objective(weights):
+        return np.mean((x @ weights - y) ** 2) / scale
+    def gradient(weights):
+        return 2 * x.T @ (x @ weights - y) / (len(y) * scale)
     weights_const = {"type": "eq", "fun": lambda weights: 1 - np.sum(weights)}
     solution = minimize(
-        style_analysis_tracking_error,
+        objective,
         init_guess,
+        jac=gradient,
         method="SLSQP",
-        options={"disp": False},
-        args=(dep_var, exp_vars),
+        options={"disp": False, "ftol": 1e-12, "maxiter": 1000},
         constraints=(weights_const,),
         bounds=((0.0, 1.0),) * n,
     )
-    weights = pd.Series(solution.x, index=exp_vars.columns)
+    weights = pd.Series(_checked_long_only_weights(solution, n), index=exp_vars.columns)
     return weights
 
 
@@ -2932,35 +2979,62 @@ def shrinkage_cov(r, delta=0.5, **kwargs):
 # ---------------------------------------------------------------------------------
 # Back-test weigthing schemes
 # ---------------------------------------------------------------------------------
+def _capitalization_weights(r, cap_ws):
+    """End-of-training-window cap weights, for the following return period."""
+    if not isinstance(r, pd.DataFrame) or r.empty or not r.columns.is_unique:
+        raise ValueError("Expected a nonempty return window with unique asset names")
+    if (not isinstance(cap_ws, pd.DataFrame) or not cap_ws.index.is_unique
+            or not cap_ws.columns.is_unique or set(cap_ws.columns) != set(r.columns)
+            or r.index[-1] not in cap_ws.index):
+        raise ValueError("Capitalization weights must cover the last training date and the same assets")
+    cw = cap_ws.loc[r.index[-1], r.columns].astype(float)
+    if not np.isfinite(cw).all() or (cw < 0).any() or not np.isclose(cw.sum(), 1, atol=1e-10, rtol=0):
+        raise ValueError("Capitalization weights must be finite, nonnegative, and sum to one")
+    return cw
+
+
 def weight_ew(r, cap_ws=None, max_cw_mult=None, microcap_thr=None, **kwargs):
+    """Equal weights, optionally excluding small components and capping weights.
+
+    Use the last training row's capitalization. The legacy microcap_thr means
+    a component's cap fraction (an industry threshold for industry data).
+    Capped equal weights solve w_i=min(lambda, max_cw_mult*cw_i) on eligible
+    assets, with lambda chosen to sum to one; infeasible bounds raise an error.
     """
-    Returns the weights of the Equally-Weighted (EW) portfolio based on the asset returns "r" as a DataFrame.
-    If the set of cap_ws is given, the modified scheme is computed, i.e.,
-    microcaps are removed and a capweight tether applied.
-    """
+    if not isinstance(r, pd.DataFrame) or r.empty or not r.columns.is_unique:
+        raise ValueError("Expected a nonempty return window with unique asset names")
     ew = pd.Series(1 / len(r.columns), index=r.columns)
     if cap_ws is not None:
-        cw = cap_ws.loc[r.index[0]]  # starting cap weight
-        if microcap_thr is not None and microcap_thr > 0.0:
-            # exclude microcaps according to the threshold
-            ew[cw < microcap_thr] = 0
-            ew = ew / ew.sum()
-        if max_cw_mult is not None and max_cw_mult > 0:
-            # limit weight up to a multiple of capweight
-            ew = np.minimum(ew, cw * max_cw_mult)
-            ew = ew / ew.sum()
+        cw = _capitalization_weights(r, cap_ws)
+        threshold = 0 if microcap_thr is None else microcap_thr
+        if not np.isfinite(threshold) or not 0 <= threshold < 1:
+            raise ValueError("microcap_thr must be a finite fraction in [0, 1)")
+        eligible = cw >= threshold
+        if not eligible.any():
+            raise ValueError("No assets remain after the capitalization threshold")
+        ew = eligible.astype(float) / eligible.sum()
+        if max_cw_mult is not None:
+            if not np.isfinite(max_cw_mult) or max_cw_mult <= 0:
+                raise ValueError("max_cw_mult must be positive and finite")
+            caps = (cw * max_cw_mult).where(eligible, 0.0).clip(upper=1)
+            if caps.sum() < 1 - 1e-12:
+                raise ValueError("Capitalization caps are infeasible for a fully invested portfolio")
+            lower, upper = 0.0, 1.0
+            for _ in range(60):
+                level = (lower + upper) / 2
+                if np.minimum(level, caps).sum() < 1:
+                    lower = level
+                else:
+                    upper = level
+            ew = np.minimum(upper, caps)
+    elif max_cw_mult is not None or microcap_thr is not None:
+        raise ValueError("Capitalization weights are required for exclusions or caps")
     return ew
 
 
 def weight_cw(r, cap_ws, **kwargs):
-    """
-    Returns the weights of the Cap-Weigthed (CW) portfolio based on the time series of capweights
-    """
-    return cap_ws.loc[r.index[0]]
-    # which is equal to:
-    # w = cap_ws.loc[r.index[0]]
-    # return w / w.sum()
-    # since cap_ws are already normalized
+    """Use last training-date capitalization fractions for the next period."""
+    return _capitalization_weights(r, cap_ws)
 
 
 def weight_rp(r, cov_estimator=sample_cov, **kwargs):
@@ -2973,19 +3047,26 @@ def weight_rp(r, cov_estimator=sample_cov, **kwargs):
 
 
 def backtest_weight_scheme(r, window=36, weight_scheme=weight_ew, **kwargs):
+    """Apply each training-window allocation to the NEXT observed return row.
+
+    Preserve the index with NaN during warm-up. Require complete asset returns
+    and finite labeled weights summing to one. The callable is responsible for
+    using only information available by the training endpoint. Costs omitted.
     """
-    Backtests a given weighting scheme. Here:
-    - r: asset returns to use to build the portfolio
-    - window: the rolling window used
-    - weight_scheme: the weighting scheme to use, it must the name of a
-    method that takes "r", and a variable number of keyword-value arguments
-    """
+    r = _ldi_return_frame(r)
+    if not isinstance(window, (int, np.integer)) or isinstance(window, bool) or not 1 <= window < len(r):
+        raise ValueError("window must be an integer between one and the number of observations minus one")
     n_periods = r.shape[0]
     windows = [(start, start + window) for start in range(0, n_periods - window)]
     weights = [weight_scheme(r.iloc[win[0] : win[1]], **kwargs) for win in windows]
+    for w in weights:
+        if not isinstance(w, pd.Series) or not w.index.is_unique or set(w.index) != set(r.columns):
+            raise ValueError("Weight schemes must return a Series with exactly the asset labels")
+        if not np.isfinite(w).all() or not np.isclose(w.sum(), 1, atol=1e-7, rtol=0):
+            raise ValueError("Portfolio weights must be finite and sum to one")
     weights = pd.DataFrame(weights, index=r.iloc[window:].index, columns=r.columns)
     returns = (weights * r).sum(
-        axis=1, min_count=1
+        axis=1, min_count=r.shape[1]
     )  # mincount is to generate NAs if all inputs are NAs
     return returns
 

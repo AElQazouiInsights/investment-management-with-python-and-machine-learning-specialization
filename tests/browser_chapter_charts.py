@@ -1,7 +1,8 @@
 """Run every chapter cell and check chart layout at desktop and phone widths.
 
-Uses the running VitePress dev server so ECharts' measured axis/legend bounds
-can also be inspected. Optional screenshots are saved outside the repository.
+Use the dev server for measured ECharts axis/legend bounds. A production build
+also supports execution, MathJax, canvas, and page-layout checks with --site-dir.
+Optional screenshots are saved outside the repository.
 """
 
 import argparse
@@ -15,10 +16,11 @@ CHAPTERS = {
     "1.2-optimization": (20, 15),
     "1.3-diversification": (37, 26),
     "1.4-alm": (77, 33),
+    "2.1-style-factors": (18, 7),
 }
 
 
-def audit(base_url, chapter, screenshots=None):
+def audit(base_url, chapter, screenshots=None, inspect_axes=True):
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
@@ -35,7 +37,7 @@ def audit(base_url, chapter, screenshots=None):
                 }
             };
         """)
-        page.goto(f"{base_url.rstrip('/')}/{chapter}", wait_until="domcontentloaded", timeout=120000)
+        page.goto(f"{base_url.rstrip('/')}/{chapter}.html", wait_until="domcontentloaded", timeout=120000)
         expected = CHAPTERS[chapter]
         page.locator('.vp-doc h1').wait_for()
         if expected[0]:
@@ -54,7 +56,7 @@ def audit(base_url, chapter, screenshots=None):
         assert not page.get_by_text('[Incomplete chart JSON received]', exact=False).count()
         panels = page.locator(".chart-panel")
         assert panels.count() == expected[1], panels.count()
-        if chapter == "1.4-alm":
+        if chapter == "1.4-alm" and inspect_axes:
             selected = page.locator('[data-editor-output="coupon-widget"] .chart').evaluate_all("""els =>
                 els.map(el => el.__vueParentComponent.setupState.chart.getOption().series
                     .find(series => series.name.startsWith('Selected')))
@@ -72,6 +74,18 @@ def audit(base_url, chapter, screenshots=None):
             """)
             styles = {series['name']: series['lineStyle'].get('type') for series in floor_series}
             assert styles['Floor PV'] == 'dashed' and styles['Floor allocator'] != 'dashed', styles
+
+        if chapter == "2.1-style-factors" and inspect_axes:
+            drift = page.locator('[data-editor-output="rolling-style-drift"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            actual = next(series for series in drift['series'] if series['name'] == 'Actual')
+            estimated = next(series for series in drift['series'] if series['name'] == 'Prior-window estimate')
+            january = drift['xAxis'][0]['data'].index('2009-01')
+            assert actual['step'] == 'start' and actual['data'][january] == 20
+            assert abs(estimated['data'][january] - 80) < 1e-5
+            benchmark = page.locator('[data-editor-output="berkshire-factor-benchmark"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            assert benchmark['yAxis'][0]['type'] == 'log'
+            assert benchmark['xAxis'][0]['data'][0] == '1989-12'
+            assert all(series['data'][0] == 100 for series in benchmark['series'])
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -107,18 +121,20 @@ def audit(base_url, chapter, screenshots=None):
                 assert item["left"] >= -1 and item["right"] <= width + 1, label
                 assert item["width"] >= 260 and 320 <= item["height"] <= 400, label
                 assert abs(item["canvasWidth"] - item["width"]) <= 1, label
-                assert item["x"] is not None and item["y"] is not None, "Run against the dev server to inspect ECharts bounds"
-                for axis in (item["x"], item["y"]):
-                    assert axis["x"] >= -1 and axis["x"] + axis["width"] <= item["width"] + 1, (label, axis)
-                    assert axis["y"] >= -1 and axis["y"] + axis["height"] <= item["height"] + 1, (label, axis)
-                assert item["legendType"] == "scroll", label
-                assert item["legend"]["y"] >= item["x"]["y"] + item["x"]["height"], label
-                assert item["legend"]["y"] + item["legend"]["height"] <= item["height"] + 1, label
+                if inspect_axes:
+                    assert item["x"] is not None and item["y"] is not None, "Run against the dev server to inspect ECharts bounds"
+                    for axis in (item["x"], item["y"]):
+                        assert axis["x"] >= -1 and axis["x"] + axis["width"] <= item["width"] + 1, (label, axis)
+                        assert axis["y"] >= -1 and axis["y"] + axis["height"] <= item["height"] + 1, (label, axis)
+                    assert item["legendType"] == "scroll", label
+                    assert item["legend"]["y"] >= item["x"]["y"] + item["x"]["height"], label
+                    assert item["legend"]["y"] + item["legend"]["height"] <= item["height"] + 1, label
                 if screenshots:
                     screenshots.mkdir(parents=True, exist_ok=True)
                     panels.nth(index).screenshot(path=str(screenshots / f"{chapter}-{width}-{index:02d}.png"))
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
-            print(f"PASS: {chapter}, {len(measurements)} charts at {width}px: headers, axes, legends, canvas sizing, and page width.", flush=True)
+            checks = "headers, axes, legends, canvas sizing, and page width" if inspect_axes else "headers, canvas sizing, and page width"
+            print(f"PASS: {chapter}, {len(measurements)} charts at {width}px: {checks}.", flush=True)
 
         if chapter == "1.3-diversification":
             page.set_viewport_size({"width": 1440, "height": 1000})
@@ -139,8 +155,25 @@ def audit(base_url, chapter, screenshots=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", default="http://localhost:5173")
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument("--base-url", default=None)
+    target.add_argument("--site-dir", type=Path)
     parser.add_argument("--chapter", choices=CHAPTERS, default="1.3-diversification")
     parser.add_argument("--screenshots", type=Path)
     args = parser.parse_args()
-    audit(args.base_url, args.chapter, args.screenshots)
+    if args.site_dir:
+        import functools
+        import http.server
+        import threading
+        from browser_widget_regression import IsolatedSiteHandler
+        if not (args.site_dir / f"{args.chapter}.html").is_file():
+            parser.error("--site-dir must contain a fresh VitePress production build")
+        with http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(
+                IsolatedSiteHandler, directory=str(args.site_dir.resolve()))) as server:
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            try:
+                audit(f"http://127.0.0.1:{server.server_port}", args.chapter, args.screenshots, inspect_axes=False)
+            finally:
+                server.shutdown()
+    else:
+        audit(args.base_url or "http://localhost:5173", args.chapter, args.screenshots)
