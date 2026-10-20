@@ -2938,39 +2938,52 @@ def style_analysis(dep_var, exp_vars):
 # ---------------------------------------------------------------------------------
 # Covariance matrix estimators
 # ---------------------------------------------------------------------------------
-def sample_cov(r, **kwargs):
-    """
-    Returns the sample covariance of the supplied series of returns (a pd.DataFrame)
-    """
+def _covariance_returns(r):
+    """Require a common complete sample so covariance estimates remain PSD."""
     if not isinstance(r, pd.DataFrame):
-        raise ValueError("Expected r to be a pd.DataFrame of returns series")
-    return r.cov()
+        raise TypeError("Expected a DataFrame of common-period returns")
+    if len(r) < 2 or r.shape[1] == 0 or not r.columns.is_unique or not r.index.is_unique:
+        raise ValueError("Covariance requires at least two observations and unique row/asset labels")
+    if not np.isfinite(r.to_numpy(dtype=float)).all():
+        raise ValueError("Covariance observations must be complete and finite on a common sample")
+    return r.astype(float)
+
+
+def sample_cov(r, **kwargs):
+    """Sample covariance (ddof=1) at the input horizon; no pairwise deletion."""
+    return _covariance_returns(r).cov()
 
 
 def cc_cov(r, **kwargs):
+    """Constant-correlation target retaining sample variances (ddof=1).
+
+    Average distinct correlations among nonconstant assets. Constant assets
+    have zero covariance rows/columns, not a fabricated correlation. With
+    fewer than two variable assets the target is simply diagonal.
     """
-    Estimates a covariance matrix by using the Elton/Gruber Constant Correlation model
-    """
-    # correlation coefficents
-    rhos = r.corr()
-    n = rhos.shape[0]
-    # compute the mean correlation: since the matrix rhos is a symmetric with diagonals all 1,
-    # the mean correlation can be computed by:
-    mean_rho = (rhos.values.sum() - n) / (n**2 - n)
-    # create the constant correlation matrix containing 1 on the diagonal and the mean correlation outside
-    ccor = np.full_like(rhos, mean_rho)
-    np.fill_diagonal(ccor, 1.0)
-    # create the new covariance matrix by multiplying mean_rho*std_i*std_i
-    # the product of the stds is done via np.outer
-    ccov = ccor * np.outer(r.std(), r.std())
-    return pd.DataFrame(ccov, index=r.columns, columns=r.columns)
+    r = _covariance_returns(r)
+    std = r.std(ddof=1)
+    active = r.nunique() > 1
+    std = std.where(active, 0.0)
+    n = int(active.sum())
+    rho = 0.0
+    if n > 1:
+        correlations = r.loc[:, active].corr().to_numpy()
+        rho = correlations[np.triu_indices(n, k=1)].mean()
+        rho = float(np.clip(rho, -1 / (n - 1), 1))
+    covariance = rho * np.outer(std, std)
+    np.fill_diagonal(covariance, std.to_numpy() ** 2)
+    return pd.DataFrame(covariance, index=r.columns, columns=r.columns)
 
 
 def shrinkage_cov(r, delta=0.5, **kwargs):
+    """Convex blend delta*constant-correlation + (1-delta)*sample covariance.
+
+    delta is specified by the caller, not an estimated Ledoit-Wolf intensity.
+    Both estimates use the same complete sample and input return horizon.
     """
-    Statistical shrinkage: it returns a covariance matrix estimator that shrinks between
-    the constant correlation and standard sample covariance estimators
-    """
+    if not np.isscalar(delta) or not np.isfinite(delta) or not 0 <= delta <= 1:
+        raise ValueError("delta must be a finite fraction in [0, 1]")
     samp_cov = sample_cov(r, **kwargs)
     const_cov = cc_cov(r, **kwargs)
     return delta * const_cov + (1 - delta) * samp_cov
@@ -3072,31 +3085,54 @@ def backtest_weight_scheme(r, window=36, weight_scheme=weight_ew, **kwargs):
 
 
 def annualize_vol_ewa(r, decay=0.95, periods_per_year=12):
+    """Finite-history exponentially weighted dispersion about the sample mean.
+
+    Retain the legacy arithmetic-mean centering, normalized weights, and no
+    degrees-of-freedom correction. decay=1 equals std(ddof=0). This is not a
+    recursively estimated conditional variance or a weighted-mean estimator.
+    Series return a float; DataFrame columns return a labeled Series.
     """
-    Computes the annualized exponentially weighted average volatility of a
-    series of returns given a decay (smoothing) factor in input.
-    """
-    N = r.shape[0]
-    times = np.arange(1, N + 1, 1)
-    # Compute the square error returns
-    sq_errs = pd.DataFrame((r - r.mean()) ** 2)
-    # Exponential weights
-    weights = [decay ** (N - t) for t in times] / np.sum(decay ** (N - times))
-    weights = pd.DataFrame(weights, index=r.index)
-    # EWMA
-    vol_ewa = (weights * sq_errs).sum() ** (0.5)
-    # Annualize the computed volatility
-    ann_vol_ewa = vol_ewa[0] * np.sqrt(periods_per_year)
-    return ann_vol_ewa
+    if not np.isfinite(decay) or not 0 < decay <= 1:
+        raise ValueError("decay must be finite and in (0, 1]")
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
+    if not isinstance(r, (pd.Series, pd.DataFrame)):
+        raise TypeError("Expected an ordered Series or DataFrame of returns")
+    if r.empty or not r.index.is_unique or not r.index.is_monotonic_increasing or not np.isfinite(r.to_numpy(dtype=float)).all():
+        raise ValueError("EWA requires complete finite returns with unique ordered observations")
+    if isinstance(r, pd.DataFrame):
+        return r.apply(annualize_vol_ewa, decay=decay, periods_per_year=periods_per_year)
+    values = r.to_numpy(dtype=float)
+    weights = decay ** np.arange(len(values) - 1, -1, -1)
+    variance = np.average((values - values.mean()) ** 2, weights=weights)
+    return float(np.sqrt(variance * periods_per_year))
 
 
 def weight_minvar(r, cov_estimator=sample_cov, periods_per_year=12, **kwargs):
+    """Labeled fully invested long-only minimum-variance weights.
+
+    No expected-return estimate is needed. Common annualization changes the
+    risk report, not these weights. Minimize scaled variance with its analytic
+    gradient; validate covariance ordering/PSD and the solver allocation.
     """
-    Produces the weights of the Minimum Volatility Portfolio given a covariance matrix of the returns
-    """
+    r = _covariance_returns(r)
+    if not np.isfinite(periods_per_year) or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be positive and finite")
     est_cov = cov_estimator(r, **kwargs)
-    ann_ret = annualize_rets(r, periods_per_year=12)
-    return minimize_volatility(ann_ret, est_cov)
+    _, covariance = _optimization_inputs(pd.Series(0.0, index=r.columns), est_cov)
+    n = r.shape[1]
+    equal = np.repeat(1 / n, n)
+    scale = np.max(np.abs(covariance))
+    if scale == 0:
+        return pd.Series(equal, index=r.columns)
+    covariance = covariance / scale
+    solution = minimize(lambda w: w @ covariance @ w, equal,
+                        jac=lambda w: 2 * covariance @ w, method="SLSQP",
+                        bounds=((0.0, 1.0),) * n,
+                        constraints={"type": "eq", "fun": lambda w: w.sum() - 1,
+                                     "jac": lambda w: np.ones(n)},
+                        options={"ftol": 1e-12, "maxiter": 1000, "disp": False})
+    return pd.Series(_checked_long_only_weights(solution, n), index=r.columns)
 
 
 def weight_maxsharpe(

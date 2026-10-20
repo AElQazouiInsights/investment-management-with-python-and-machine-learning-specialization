@@ -17,6 +17,7 @@ CHAPTERS = {
     "1.3-diversification": (37, 26),
     "1.4-alm": (77, 33),
     "2.1-style-factors": (18, 7),
+    "2.2-covariance": (23, 9),
 }
 
 
@@ -86,6 +87,16 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True):
             assert benchmark['yAxis'][0]['type'] == 'log'
             assert benchmark['xAxis'][0]['data'][0] == '1989-12'
             assert all(series['data'][0] == 100 for series in benchmark['series'])
+
+        if chapter == "2.2-covariance" and inspect_axes:
+            rolling = page.locator('[data-editor-output="rolling-covariance-volatility"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            for series, warmup in zip(rolling['series'], (11, 59)):
+                assert series['data'][:warmup] == [None] * warmup
+                assert series['data'][warmup] is not None
+            wealth = page.locator('[data-editor-output="covariance-portfolio-evaluation"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            assert wealth['yAxis'][0]['type'] == 'log'
+            assert wealth['xAxis'][0]['data'][0] == '1977-12'
+            assert all(len(series['data']) == 493 and series['data'][0] == 100 for series in wealth['series'])
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
