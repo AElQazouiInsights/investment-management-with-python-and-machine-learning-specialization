@@ -3058,11 +3058,9 @@ def weight_cw(r, cap_ws, **kwargs):
 
 
 def weight_rp(r, cov_estimator=sample_cov, **kwargs):
-    """
-    Produces the weights of the risk parity portfolio given a covariance matrix of the returns.
-    The default coavariance estimator is the sample covariance matrix.
-    """
-    est_cov = cov_estimator(r, **kwargs)
+    """Labeled equal-risk-contribution weights from one complete training window."""
+    r = _covariance_returns(r)
+    est_cov = _bl_matrix(cov_estimator(r, **kwargs), r.columns, "Risk-parity covariance")
     return risk_parity_weigths(est_cov)
 
 
@@ -3343,87 +3341,178 @@ def show_black_litterman_echart(view_return=0.08, confidence=0.5, tau=0.05, delt
 # ---------------------------------------------------------------------------------
 # Risk contributions analysis
 # ---------------------------------------------------------------------------------
+def _unit_shares(values, name):
+    """Validate nonnegative finite shares summing to one without renormalizing."""
+    values = np.asarray(values, dtype=float)
+    if (values.ndim != 1 or not values.size or not np.isfinite(values).all()
+            or (values < 0).any() or not np.isclose(values.sum(), 1, atol=1e-8, rtol=0)):
+        raise ValueError(f"{name} must be finite nonnegative shares summing to one")
+    return values
+
+
 def enc(weigths):
+    """Inverse weight Herfindahl for a fully invested long-only allocation.
+
+    This measures capital concentration, not independent sources of risk.
+    Keep the historical 'weigths' keyword; do not apply to leveraged/signed weights.
     """
-    Computes the Effective Number of Constituents (ENC) given an input
-    vector of weights of a portfolio.
-    """
-    return (weigths**2).sum() ** (-1)
+    values = _unit_shares(weigths, "Portfolio weights")
+    return float(1 / (values @ values))
 
 
 def encb(risk_contrib):
+    """Legacy name: inverse concentration of NONNEGATIVE relative risk shares.
+
+    It is not a count of independent bets or factors. Signed hedge contributions
+    are valid risk attribution but do not have this effective-count interpretation.
     """
-    Computes the Effective Number of Correlated Bets (ENBC) given an input
-    vector of portfolio risk contributions.
+    values = _unit_shares(risk_contrib, "Relative risk contributions")
+    return float(1 / (values @ values))
+
+
+def risk_contribution_report(weights, matcov):
+    """Euler volatility attribution on the covariance horizon.
+
+    Return Weight, Marginal volatility, Component volatility, and Relative risk.
+    Labeled weights align by asset name; arrays are positional. Signed exposure
+    and negative hedge contributions are allowed. Zero-risk portfolios have
+    undefined marginal/relative volatility attribution and raise an error.
     """
-    return (risk_contrib**2).sum() ** (-1)
+    if not isinstance(matcov, pd.DataFrame) or matcov.empty:
+        raise ValueError("A nonempty labeled covariance matrix is required")
+    covariance = _bl_matrix(matcov, matcov.index, "Risk-contribution covariance")
+    if isinstance(weights, (pd.Series, pd.DataFrame)):
+        weights = _bl_vector(weights, covariance.index, "Portfolio weights").to_numpy()
+    else:
+        weights = np.asarray(weights, dtype=float)
+    if weights.shape != (len(covariance),) or not np.isfinite(weights).all():
+        raise ValueError("Weights must be finite and match the covariance assets")
+    matrix = covariance.to_numpy()
+    marginal_variance = matrix @ weights
+    variance = float(weights @ marginal_variance)
+    scale = float(np.abs(weights) @ np.abs(matrix) @ np.abs(weights))
+    if variance <= 64 * np.finfo(float).eps * scale:
+        raise ValueError("Risk contributions require positive portfolio variance")
+    volatility = np.sqrt(variance)
+    return pd.DataFrame({"Weight": weights, "Marginal volatility": marginal_variance / volatility,
+                         "Component volatility": weights * marginal_variance / volatility,
+                         "Relative risk": weights * marginal_variance / variance}, index=covariance.index)
 
 
 def portfolio_risk_contributions(weigths, matcov):
-    """
-    Compute the contributions to risk of the asset constituents of a portfolio,
-    given a set of portfolio weights and a covariance matrix.
-    The input weigths has to be either a np.array or a pd.Series
-    while matcov must be a pd.DataFrame.
-    """
-    portfolio_var = portfolio_volatility(weigths, matcov) ** 2
-    # marginal contribution of each constituent: the "@" operator is equal to np.dot but return a pd.Series
-    marginal_contrib = matcov @ weigths
-    # vector of risk contributions
-    risk_contrib = np.multiply(marginal_contrib, weigths.T) / portfolio_var
-    return risk_contrib
+    """Relative Euler risk shares w_i*(Sigma*w)_i/(w.T*Sigma*w); may be negative."""
+    return risk_contribution_report(weigths, matcov)["Relative risk"]
 
 
 def msd_risk_contrib(weights, target_risk, mat_cov):
-    """
-    Returns the Mean Squared Difference between the given target risk contribution vector and the
-    risk contributions due to current weigths.
-    This method implements the objective function to minimize which is called by the quadratic
-    minimizer PORTFOLIO_RISK_CONTRIB_OPTIMIZER.
-    """
+    """Legacy SUM of squared differences from target relative risk shares."""
     w_risk_contribs = portfolio_risk_contributions(weights, mat_cov)
+    if isinstance(target_risk, (pd.Series, pd.DataFrame)):
+        target_risk = _bl_vector(target_risk, w_risk_contribs.index, "Risk budgets").to_numpy()
+    target_risk = _unit_shares(target_risk, "Risk budgets")
+    if len(target_risk) != len(w_risk_contribs):
+        raise ValueError("Risk budgets must match the covariance assets")
     msd = (w_risk_contribs - target_risk) ** 2
-    return msd.sum()  # mean()
+    return float(msd.sum())
+
+
+def _risk_budget_solution(matrix, budgets):
+    """Damped Newton solve of the strictly convex positive risk-budget problem."""
+    x = np.sqrt(budgets / np.diag(matrix))
+    def objective(value):
+        return 0.5 * value @ matrix @ value - budgets @ np.log(value)
+    for _ in range(100):
+        marginal = matrix @ x
+        if np.max(np.abs(x * marginal - budgets)) <= 1e-10:
+            return x
+        gradient = marginal - budgets / x
+        hessian = matrix + np.diag(budgets / x ** 2)
+        direction = np.linalg.solve(hessian, -gradient)
+        falling = direction < 0
+        step = min(1.0, 0.99 * np.min(-x[falling] / direction[falling])) if falling.any() else 1.0
+        current = objective(x)
+        for _ in range(60):
+            candidate = x + step * direction
+            tolerance = 1e-14 * max(1, abs(current))
+            if objective(candidate) <= current + 1e-4 * step * (gradient @ direction) + tolerance:
+                x = candidate
+                break
+            step *= 0.5
+        else:
+            raise RuntimeError("Risk-budget Newton line search failed")
+    raise RuntimeError("Risk-budget optimization did not converge")
 
 
 def portfolio_risk_contrib_optimizer(target_risk_contrib, mat_cov):
-    """
-    Returns the weights of the portfolio whose asset risk contributions are
-    as close as possible to the input target_risk contribution vector.
-    The input target_risk must be either a pd.Series or np.array while
-    mat_cov must be a pd.DataFrame.
-    """
-    n = mat_cov.shape[0]
-    init_guess = np.repeat(1 / n, n)
+    """Positive long-only risk budgets via convex log-barrier optimization.
 
-    # constraint on weights
-    weights_sum_to_one = {"type": "eq", "fun": lambda weights: 1 - np.sum(weights)}
-
-    weights = minimize(
-        msd_risk_contrib,
-        init_guess,
-        args=(target_risk_contrib, mat_cov),
-        method="SLSQP",
-        options={"disp": False},
-        constraints=(weights_sum_to_one,),
-        bounds=((0.0, 1.0),) * n,
-    )
-    return weights.x
+    Require a numerically positive-definite covariance and strictly positive
+    budgets summing to one. Exclude zero-budget assets before calling. Solve
+    min_x .5*x.T*Sigma*x - sum(b_i*log(x_i)), then normalize positive x.
+    Return positional weights only after checking achieved relative budgets.
+    """
+    if not isinstance(mat_cov, pd.DataFrame) or mat_cov.empty:
+        raise ValueError("A nonempty labeled covariance matrix is required")
+    covariance = _bl_matrix(mat_cov, mat_cov.index, "Risk-budget covariance")
+    if isinstance(target_risk_contrib, (pd.Series, pd.DataFrame)):
+        target_risk_contrib = _bl_vector(target_risk_contrib, covariance.index, "Risk budgets").to_numpy()
+    budgets = _unit_shares(target_risk_contrib, "Risk budgets")
+    if len(budgets) != len(covariance) or (budgets <= 0).any():
+        raise ValueError("Risk budgets must be strictly positive and match the assets; exclude zero-budget assets")
+    matrix = covariance.to_numpy()
+    scale = float(np.max(np.abs(matrix)))
+    if scale == 0 or np.linalg.eigvalsh(matrix / scale).min() <= 1e-12:
+        raise ValueError("Risk budgeting requires positive-definite covariance; use shrinkage or remove redundant assets")
+    matrix = matrix / scale
+    x = np.asarray(_risk_budget_solution(matrix, budgets))
+    if x.shape != budgets.shape or not np.isfinite(x).all() or (x <= 0).any():
+        raise RuntimeError("Risk-budget optimizer returned invalid exposures")
+    weights = x / x.sum()
+    achieved = weights * (matrix @ weights) / (weights @ matrix @ weights)
+    if not np.allclose(achieved, budgets, atol=1e-7, rtol=0):
+        raise RuntimeError("Risk-budget optimizer did not meet the requested risk shares")
+    return weights
 
 
 def risk_parity_weigths(mat_cov):
-    """
-    Returns the weights of the portfolio that equalizes the asset risk contributions
-    of the constituents, that is, return the risk parity portfolio.
-    The method uses the quadratic optimizer PORTFOLIO_RISK_CONTRIB_OPTIMIZER with a target risk
-    vector of 1/N, where N is the number of asset since we know that this is the value for
-    which the ENCB=N.
-    """
+    """Equal positive relative risk budgets; retain the historical API spelling."""
+    if not isinstance(mat_cov, pd.DataFrame) or mat_cov.empty:
+        raise ValueError("A nonempty labeled covariance matrix is required")
     n = mat_cov.shape[0]
     weigths = portfolio_risk_contrib_optimizer(
         target_risk_contrib=np.repeat(1 / n, n), mat_cov=mat_cov
     )
     return pd.Series(weigths, index=mat_cov.index)
+
+
+def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, equity_budget=0.5):
+    """Compare capital and Euler risk allocations in a two-asset annual model."""
+    if not np.isfinite([vol_equity, vol_bond, correlation, equity_budget]).all():
+        raise ValueError("Risk experiment inputs must be finite")
+    if vol_equity <= 0 or vol_bond <= 0 or not -1 < correlation < 1 or not 0 < equity_budget < 1:
+        raise ValueError("Use positive volatilities, correlation in (-1, 1), and a risk budget in (0, 1)")
+    assets = pd.Index(["Equity", "Bonds"])
+    cross = correlation * vol_equity * vol_bond
+    covariance = pd.DataFrame([[vol_equity ** 2, cross], [cross, vol_bond ** 2]], index=assets, columns=assets)
+    gmv_equity = np.clip((vol_bond ** 2 - cross) / (vol_equity ** 2 + vol_bond ** 2 - 2 * cross), 0, 1)
+    budgets = pd.Series([equity_budget, 1 - equity_budget], index=assets)
+    weights = pd.DataFrame({"EW": [0.5, 0.5], "GMV": [gmv_equity, 1 - gmv_equity],
+                            "Risk budget": portfolio_risk_contrib_optimizer(budgets, covariance)}, index=assets)
+    shares = weights.apply(lambda w: portfolio_risk_contributions(w, covariance))
+    stats = pd.DataFrame({"Volatility (%)": weights.apply(lambda w: portfolio_volatility(w, covariance) * 100),
+                          "Effective holdings": weights.apply(enc)})
+    text = (f"Hypothetical annual covariance; requested Equity risk share: {equity_budget:.1%}.\n"
+            "Capital weights and relative risk shares answer different questions. Negative shares indicate hedging.\n"
+            + stats.to_string(float_format=lambda value: f"{value:.4f}"))
+    plots = {
+        "riskParityWeights": {"type": "bar", "title": "Capital Allocation",
+                              "xAxis": {"type": "category", "data": assets.tolist()}, "yAxisName": "Portfolio weight (%)",
+                              "series": {name: (weights[name] * 100).tolist() for name in weights}},
+        "riskParityShares": {"type": "bar", "title": "Euler Risk Allocation",
+                             "xAxis": {"type": "category", "data": assets.tolist()}, "yAxisName": "Relative volatility contribution (%)",
+                             "series": {name: (shares[name] * 100).tolist() for name in shares}},
+    }
+    _publish_echarts(plots, text)
 
 
 # ---------------------------------------------------------------------------------

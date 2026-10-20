@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { receiveInput } from '../src/editor-input.js'
 
 async function workerHarness() {
   const source = await readFile(new URL('../src/pyodide-worker.js', import.meta.url), 'utf8')
   const messages = []
-  const state = { widget: null, beforeExecution: [], executions: [], stdout: null, release: null }
+  const state = { widget: null, beforeExecution: [], executions: [], stdout: null, release: null, interruptBuffer: null, globals: {} }
   const pyodide = {
     FS: { mkdirTree() {}, writeFile() {} },
-    globals: { set() {} },
+    globals: { set(name, value) { state.globals[name] = value } },
     setStdout(handler) { state.stdout = handler }, setStderr() {}, setStdin() {},
+    setInterruptBuffer(buffer) { state.interruptBuffer = buffer },
     async loadPackage() {},
     runPython(code) {
       if (code.trim() === 'widget_instance = None') state.widget = null
@@ -18,6 +20,7 @@ async function workerHarness() {
     },
     async runPythonAsync(code) {
       if (code.includes('import micropip')) return
+      if (code.includes('await _editor_eval_code_async')) code = state.globals._editor_source
       state.executions.push(code)
       state.beforeExecution.push(state.widget)
       if (code === 'slow-code') await new Promise(resolve => { state.release = resolve })
@@ -33,10 +36,10 @@ async function workerHarness() {
   }
   // Execute the actual worker body with transport/runtime dependencies supplied.
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-  const initialize = new AsyncFunction('loadPyodide', 'fetch', 'postMessage', 'TextDecoder', 'setTimeout', 'clearTimeout',
-    `let onmessage;\n${source.replace(/^import .*?;\n/, '')}\nreturn onmessage;`)
+  const initialize = new AsyncFunction('loadPyodide', 'fetch', 'postMessage', 'TextDecoder', 'setTimeout', 'clearTimeout', 'receiveInput',
+    `let onmessage;\n${source.replace(/^import .*?;\n/gm, '')}\nreturn onmessage;`)
   const handler = await initialize(async () => pyodide, async () => ({ ok: true, text: async () => '' }),
-    message => messages.push(message), TextDecoder, setTimeout, clearTimeout)
+    message => messages.push(message), TextDecoder, setTimeout, clearTimeout, receiveInput)
   return { handler, messages, state }
 }
 
@@ -115,6 +118,8 @@ test('unknown helpers and empty supported controls do not generate widget reruns
     'import PortfolioOptimizationKit as pok\npok.show_historical_drawdown_echart(start_year=2000, end_year=2018, maxdd=0.2, cash_rate=0)')
   assert.equal(buildChartCode('pok.show_duration_echart()', { quote: 'continuous', ytm: 0, shift_bps: -10 }),
     'import PortfolioOptimizationKit as pok\npok.show_duration_echart(quote="continuous", ytm=0, shift_bps=-10)')
+  assert.equal(buildChartCode('pok.show_risk_parity_echart()', { correlation: 0, equity_budget: 0.1, seed: 42 }),
+    'import PortfolioOptimizationKit as pok\npok.show_risk_parity_echart(correlation=0, equity_budget=0.1)')
 })
 
 test('friendly widget labels route through their Python parameter metadata', async () => {
@@ -179,4 +184,17 @@ test('user progress text is preserved even when it resembles package-loader mess
   assert.equal(messages.filter(message => message.output).map(message => message.output).join(''),
     'Loading observations\nLoaded 492 months\nUser text: already loaded from default channel\n<ECHARTS_DATA>{"chart":{"series":{"A":[1,2]}}}\n')
   assert.ok(messages.filter(message => message.output).every(message => message.id === 'progress'))
+})
+
+test('the worker interrupt view shares the supplied buffer rather than copying its values', async () => {
+  const { handler, state } = await workerHarness()
+  const inputBuffer = new SharedArrayBuffer(1024)
+  const waitBuffer = new SharedArrayBuffer(8)
+  const interruptBuffer = new SharedArrayBuffer(1)
+  await handler({ data: { inputBuffer, waitBuffer, interruptBuffer } })
+  const mainThreadView = new Uint8Array(interruptBuffer)
+  Atomics.store(mainThreadView, 0, 2)
+  assert.equal(Atomics.load(state.interruptBuffer, 0), 2)
+  Atomics.store(state.interruptBuffer, 0, 0)
+  assert.equal(Atomics.load(mainThreadView, 0), 0)
 })

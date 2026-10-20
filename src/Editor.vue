@@ -8,7 +8,6 @@ let interruptBuffer: Uint8Array
 const ready = ref(false)
 const runtimeError = ref('')
 const activeEditorId = ref<string | null>(null)
-const encoder = new TextEncoder()
 const editorSources = new Map<string, string>()
 const storageUnavailable = ref(false)
 const draftStorage = createEditorStorage(() => window.localStorage, () => {
@@ -53,6 +52,7 @@ import { styling } from './codemirror-styling'
 import OutputDisplay from './OutputDisplay.vue'
 import { createEditorStorage, loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from './editor-storage.js'
 import { createOutputParser } from './editor-output.js'
+import { sendInput } from './editor-input.js'
 import { controlChangeEvent, controlValue, controlParameterName, chartHelperName, chartHelperParameters, buildChartCode } from './widget-controls.js'
 
 interface Props {
@@ -70,6 +70,7 @@ const storageKey = computed(() => `code-editor-${props.id}`)
 const mounted = ref(false)
 const running = ref(false)
 const waitingForInput = ref(false)
+const inputError = ref('')
 const chartOutput = ref('')
 const widgetError = ref('')
 let activeWidgetView: any = null
@@ -111,14 +112,14 @@ onMounted(() => {
     })
     const inputBuffer = new SharedArrayBuffer(1024)
     inputData = new Uint8Array(inputBuffer)
-    const waitBuffer = new SharedArrayBuffer(4)
+    const waitBuffer = new SharedArrayBuffer(8)
     waitFlag = new Int32Array(waitBuffer)
     interruptBuffer = new Uint8Array(new SharedArrayBuffer(1))
 
     const onReady = (event: MessageEvent) => {
       if (!event.data?.ready) return
       ready.value = true
-      worker.postMessage({ inputBuffer, waitBuffer, interruptBuffer })
+      worker.postMessage({ inputBuffer, waitBuffer, interruptBuffer: interruptBuffer.buffer })
       worker.removeEventListener('message', onReady)
     }
     worker.addEventListener('message', onReady)
@@ -167,6 +168,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (activeEditorId.value === props.id) interruptBuffer[0] = 2
+  worker.postMessage({ cancel: props.id })
   save(editor.state.doc.toString())
   mounted.value = false
   acceptOutput = false
@@ -196,6 +199,7 @@ async function handleMessage(e: MessageEvent) {
   if (e.data?.id !== props.id || !acceptOutput) return
 
   if (e.data.input) {
+    inputError.value = ''
     waitingForInput.value = true
     await nextTick()
     input.value?.focus()
@@ -219,6 +223,8 @@ async function handleMessage(e: MessageEvent) {
   if (e.data.done) {
     outputParser.finish()
     running.value = false
+    waitingForInput.value = false
+    inputError.value = ''
   }
 }
 
@@ -230,17 +236,14 @@ watchEffect(() => {
 })
 
 function handleInput() {
+  if (!waitingForInput.value) return
+  if (!sendInput(inputText.value, inputData, waitFlag)) {
+    inputError.value = `Input exceeds ${inputData.length} UTF-8 bytes. Shorten it and try again.`
+    return
+  }
   waitingForInput.value = false
-  const inputArry = encoder.encode(inputText.value ?? '')
   inputText.value = ''
-
-  Atomics.store(inputData, 0, inputArry.length)
-  for (let i = 0; i < inputArry.length; i++)
-    Atomics.store(inputData, i + 1, inputArry[i])
-
-  Atomics.store(waitFlag, 0, 1)
-  Atomics.notify(waitFlag, 0)
-  Atomics.store(waitFlag, 0, 0)
+  inputError.value = ''
 }
 
 // Button text changes depending on whether Pyodide is loaded/running
@@ -282,9 +285,7 @@ function reset() {
       worker.postMessage({ cancel: props.id })
       return
     }
-    // If the code is blocked for input, handle it first
-    if (waitingForInput.value) handleInput()
-    // Send a SIGINT (2)
+    // The worker's input wait also polls this signal, including oversized input.
     interruptBuffer[0] = 2
     return
   }
@@ -469,6 +470,9 @@ function queueEchartUpdate(context: WidgetContext) {
 // Clear out console lines & chart JSON
 function resetOutput() {
   outputParser.reset()
+  waitingForInput.value = false
+  inputText.value = ''
+  inputError.value = ''
   executionHint.value = ''
   prerequisiteEditor.value = ''
   output.value = [Array.from({ length: outputWidth })]
@@ -801,11 +805,13 @@ async function renderWidget(stateJSON: string) {
         ref="input"
         v-model="inputText"
         @keydown.enter="handleInput"
+        aria-label="Python input"
         type="text"
       />
     </div>
 
     <!-- Our ECharts-based OutputDisplay component to handle <ECHARTS_DATA> JSON -->
+    <div v-if="inputError" class="editor-source-notice" role="alert">{{ inputError }}</div>
     <OutputDisplay v-if="chartOutput" :output="chartOutput" class="mt-4" />
 
     <!-- ipywidgets container -->

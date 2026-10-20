@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createEditorStorage, loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from '../src/editor-storage.js'
 import { createOutputParser, parseChartOutput } from '../src/editor-output.js'
+import { sendInput, receiveInput } from '../src/editor-input.js'
 
 function storage() {
   const values = new Map()
@@ -144,4 +145,34 @@ test('invalid direct chart messages yield a displayable error and no stale chart
 test('plain text and cleared chart output remain plain text without a chart error', () => {
   assert.deepEqual(parseChartOutput('  Summary\n'), { text: 'Summary', chart: null, error: '' })
   assert.deepEqual(parseChartOutput(''), { text: '', chart: null, error: '' })
+})
+
+test('input responses preserve lengths beyond one byte, Unicode, and early readiness', () => {
+  const bytes = new Uint8Array(new SharedArrayBuffer(1024))
+  const state = new Int32Array(new SharedArrayBuffer(8))
+  for (const text of ['a'.repeat(256), 'é'.repeat(300), '🙂'.repeat(256), 'next', '']) {
+    assert.equal(sendInput(text, bytes, state), true)
+    assert.equal(Atomics.load(state, 0), 1)
+    assert.equal(Atomics.load(state, 1), new TextEncoder().encode(text).length)
+    assert.equal(receiveInput(bytes, state), text)
+    assert.equal(Atomics.load(state, 0), 0)
+  }
+})
+
+test('oversized input is rejected without a partial write and can be retried', () => {
+  const bytes = new Uint8Array(new SharedArrayBuffer(1024))
+  const state = new Int32Array(new SharedArrayBuffer(8))
+  assert.equal(sendInput('é'.repeat(513), bytes, state), false)
+  assert.equal(Atomics.load(state, 0), 0)
+  assert.ok(bytes.every(byte => byte === 0))
+  assert.equal(sendInput('shorter', bytes, state), true)
+  assert.equal(receiveInput(bytes, state), 'shorter')
+})
+
+test('interrupted input waits return without requiring an Enter key', () => {
+  const bytes = new Uint8Array(new SharedArrayBuffer(1024))
+  const state = new Int32Array(new SharedArrayBuffer(8))
+  const interrupt = new Uint8Array(new SharedArrayBuffer(1))
+  Atomics.store(interrupt, 0, 2)
+  assert.equal(receiveInput(bytes, state, interrupt), '')
 })
