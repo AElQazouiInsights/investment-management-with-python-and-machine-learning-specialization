@@ -9,7 +9,7 @@ const markerStyles = {
 }
 
 export function buildChartSeries(name, data, chartType, numericAxis, options = {}) {
-  const marker = markerStyles[name]
+  const marker = Object.hasOwn(markerStyles, name) ? markerStyles[name] : undefined
   const legacyType = marker || name === 'Portfolios' ? 'scatter'
     : ['Frontier', 'CML'].includes(name) ? 'line' : chartType
   const type = ['line', 'bar', 'scatter'].includes(options.type) ? options.type : legacyType

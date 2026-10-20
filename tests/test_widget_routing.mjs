@@ -22,6 +22,12 @@ async function workerHarness() {
       state.beforeExecution.push(state.widget)
       if (code === 'slow-code') await new Promise(resolve => { state.release = resolve })
       if (code === 'slow-code' || code === 'plain-code') state.stdout.write(new TextEncoder().encode(`${code}\n`))
+      if (code === 'user-progress') {
+        for (const text of ['Loading observations\n', 'Loaded 492 months\n',
+          'User text: already loaded from default channel\n<ECHARTS_DATA>{"chart":{"series":{"A":[1,2]}}}\n']) {
+          state.stdout.write(new TextEncoder().encode(text))
+        }
+      }
       if (code === 'create-widget') state.widget = { model_id: 'current-widget' }
     },
   }
@@ -151,4 +157,12 @@ test('cancelling a queued cell does not interrupt the cell that is running', asy
   await Promise.all([first, second])
   assert.deepEqual(state.executions, ['slow-code'])
   assert.ok(messages.some(message => message.id === 'second' && message.done))
+})
+
+test('user progress text is preserved even when it resembles package-loader messages', async () => {
+  const { handler, messages } = await workerHarness()
+  await handler({ data: { id: 'progress', code: 'user-progress' } })
+  assert.equal(messages.filter(message => message.output).map(message => message.output).join(''),
+    'Loading observations\nLoaded 492 months\nUser text: already loaded from default channel\n<ECHARTS_DATA>{"chart":{"series":{"A":[1,2]}}}\n')
+  assert.ok(messages.filter(message => message.output).every(message => message.id === 'progress'))
 })

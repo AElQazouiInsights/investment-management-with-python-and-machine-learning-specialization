@@ -75,6 +75,50 @@ def check_unavailable_storage(browser, base_url):
         print(f'PASS: {mode} storage does not break editor mounting, execution, or draft recovery.', flush=True)
 
 
+def check_chart_protocol(browser, base_url):
+    page = browser.new_page()
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.on('console', lambda message: errors.append(message.text) if message.type == 'error' else None)
+    page.goto(f"{base_url.rstrip('/')}/1.1-risks.html", wait_until='domcontentloaded', timeout=120000)
+    editor = page.locator('[data-editor-id="simple-and-total-returns"]')
+    output = page.locator('[data-editor-output="simple-and-total-returns"]')
+    page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+
+    def execute(code):
+        editor.locator('.cm-content').click()
+        page.keyboard.press('Control+a')
+        page.keyboard.insert_text(code)
+        editor.locator('button.run').click()
+        page.wait_for_function("!document.querySelector('[data-editor-id=\"simple-and-total-returns\"] button.run').disabled", timeout=180000)
+
+    execute('''import json
+print("Loading observations")
+print("Loaded 492 months")
+print("<ECHARTS_DATA>" + json.dumps({"plot": {"title": "Literal <ECHARTS_DATA> label",
+    "series": {"constructor": [1, 2]}, "xAxis": {"data": ["A", "B"]}}}))''')
+    output.locator('canvas').wait_for(timeout=30000)
+    assert 'Loading observations' in output.inner_text()
+    assert 'Loaded 492 months' in output.inner_text()
+    assert output.locator('.chart-title').inner_text() == 'Literal <ECHARTS_DATA> label'
+
+    execute('_emit_echarts("Summary\\n<ECHARTS_DATA>null")')
+    output.get_by_role('alert').get_by_text('Invalid chart data:', exact=False).wait_for()
+    assert output.locator('canvas').count() == 0
+    assert 'Summary' in output.inner_text()
+
+    execute('''_emit_echarts('<ECHARTS_DATA>{"plot":{"title":"Recovered chart","series":{"A":[1,2]}}}')''')
+    output.locator('canvas').wait_for(timeout=30000)
+    assert output.get_by_role('alert').count() == 0
+    assert output.locator('.chart-title').inner_text() == 'Recovered chart'
+    execute('print("Plain output after chart")')
+    assert output.locator('.chart-panel').count() == 0
+    assert output.get_by_role('alert').count() == 0
+    assert not errors, errors
+    page.close()
+    print('PASS: progress text, literal protocol-marker labels, visible chart errors, recovery, and plain reruns work.', flush=True)
+
+
 def run(site_dir=None, base_url=None):
     server = None
     if base_url is None:
@@ -170,6 +214,40 @@ def run(site_dir=None, base_url=None):
             assert output_for(editor_by_id('calculating-indexes-9')).locator('canvas').count() == 2
             assert 'NameError' not in missing_output.inner_text()
             print('PASS: missing prerequisites are identified; the queued rolling-correlation sequence renders both charts and its result.', flush=True)
+
+            # Hold the first widget's lazy JS imports while its Python run ends.
+            # A subsequent plain rerun must retire that pending view, too.
+            held_imports = []
+            hold_widget_imports = True
+            import_pattern = re.compile(r'\.js(?:\?|$)')
+            def hold_import(route):
+                if hold_widget_imports:
+                    held_imports.append(route)
+                else:
+                    route.continue_()
+            page.route(import_pattern, hold_import)
+            pending_widget = editor_by_id('gbm-4')
+            pending_output = output_for(pending_widget)
+            pending_widget.locator('button.run').click()
+            wait_for_done('gbm-4')
+            pending_widget.locator('.cm-content').click()
+            page.keyboard.press('Control+a')
+            page.keyboard.insert_text('print("Replacement while widget imports are pending")')
+            pending_widget.locator('button.run').click()
+            wait_for_done('gbm-4', 1)
+            assert held_imports, 'The widget import must actually be delayed to exercise the race'
+            hold_widget_imports = False
+            for route in tuple(held_imports):
+                route.continue_()
+            page.unroute(import_pattern, hold_import)
+            page.wait_for_function("Boolean(window.__widgetRequireCache?.['@jupyter-widgets/controls'])", timeout=60000)
+            page.wait_for_timeout(1000)
+            assert pending_output.get_by_role('slider').count() == 0
+            assert pending_output.locator('canvas').count() == 0
+            assert 'Replacement while widget imports are pending' in pending_output.inner_text()
+            pending_output.locator('button.reset').click()
+            page.evaluate("window.widgetMessages = window.widgetMessages.filter(message => message.id !== 'gbm-4')")
+            print('PASS: a delayed widget render cannot replace the output of a newer plain run.', flush=True)
 
             gbm_editor = editor_with("widget_instance = widgets.interactive").filter(has_text="pok.show_gbm_echart")
             gbm_output = output_for(gbm_editor)
@@ -787,6 +865,7 @@ widget_instance''')
             assert not errors, errors
             print('PASS: continuous/nominal duration controls, DV01 scaling, finite-shift errors, zero coupons, and separate instances of the shared helper are verified.', flush=True)
             check_unavailable_storage(browser, base_url)
+            check_chart_protocol(browser, base_url)
             browser.close()
     finally:
         if server is not None:
