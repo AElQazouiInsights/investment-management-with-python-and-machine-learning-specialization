@@ -134,6 +134,20 @@ test('friendly widget labels route through their Python parameter metadata', asy
   assert.equal(controlParameterName(model), 'seed')
 })
 
+test('serialized callback identity overrides misleading source references and supports aliases', async () => {
+  const { chartHelperName, buildChartCode } = await import('../src/widget-controls.js')
+  const source = '# Example copied from pok.show_black_litterman_echart\nwidgets.interactive(actual_callback)'
+  assert.equal(chartHelperName(source, 'show_duration_echart'), 'show_duration_echart')
+  assert.equal(buildChartCode(source, { quote: 'continuous', confidence: 0 }, 'show_duration_echart'),
+    'import PortfolioOptimizationKit as pok\npok.show_duration_echart(quote="continuous")')
+  assert.equal(buildChartCode('widgets.interactive(callback_alias)',
+    { confidence: 0, tau: 0.05, risk_model: 'predictive' }, 'show_black_litterman_echart'),
+    'import PortfolioOptimizationKit as pok\npok.show_black_litterman_echart(confidence=0, tau=0.05, risk_model="predictive")')
+  for (const callback of ['', 'constructor', '__proto__', 'unknown_callback', null]) {
+    assert.equal(buildChartCode(source, { confidence: 1 }, callback), '')
+  }
+})
+
 test('asynchronous cell runs are serialized and keep their own stdout routing', async () => {
   const { handler, messages, state } = await workerHarness()
   const first = handler({ data: { id: 'first', code: 'slow-code' } })

@@ -6,6 +6,7 @@ let waitFlag: Int32Array
 let interruptBuffer: Uint8Array
 
 const ready = ref(false)
+const runtimeError = ref('')
 const activeEditorId = ref<string | null>(null)
 const encoder = new TextEncoder()
 const editorSources = new Map<string, string>()
@@ -82,6 +83,7 @@ interface WidgetContext {
   controls: Record<string, any>
   baseValues: Record<string, any>
   lastCode: string
+  helperName?: string
 }
 
 const widgetContexts = new Map<string, WidgetContext>()
@@ -101,6 +103,11 @@ onMounted(() => {
   if (!worker) {
     worker = new Worker(new URL('./pyodide-worker.js', import.meta.url), {
       type: 'module'
+    })
+    worker.addEventListener('error', event => {
+      ready.value = false
+      runtimeError.value = event.message || 'The Python worker failed to load.'
+      event.preventDefault()
     })
     const inputBuffer = new SharedArrayBuffer(1024)
     inputData = new Uint8Array(inputBuffer)
@@ -427,7 +434,7 @@ function attachValueObservers(model: any, manager: any, context: WidgetContext) 
 function queueEchartUpdate(context: WidgetContext) {
   if (!mounted.value || widgetContexts.get(props.id) !== context) return
   const values: Record<string, any> = { ...context.baseValues }
-  const targetFn = chartHelperName(context.lastCode)
+  const targetFn = chartHelperName(context.lastCode, context.helperName)
   if (!targetFn) return
   const allowedParams = chartHelperParameters[targetFn]
 
@@ -449,7 +456,7 @@ function queueEchartUpdate(context: WidgetContext) {
     pendingEchartUpdates.delete(props.id)
     if (!mounted.value || widgetContexts.get(props.id) !== context) return
     const latestValues = latestControlValues.get(props.id) || {}
-    const code = buildChartCode(context.lastCode, latestValues)
+    const code = buildChartCode(context.lastCode, latestValues, context.helperName)
     if (!code) return
     worker.postMessage({ id: props.id, code, skipWidgetState: true })
     const ctx = widgetContexts.get(props.id)
@@ -677,6 +684,7 @@ async function renderWidget(stateJSON: string) {
       return
     }
     context.baseValues = { ...(model.get('_echarts_kwargs') || {}) }
+    context.helperName = model.get('_echarts_callback')
     attachOutputListeners(model, manager, context)
 
     if (widgetContainer.value) {
@@ -700,6 +708,9 @@ async function renderWidget(stateJSON: string) {
 
 <template>
   <div ref="anchor" class="wrapper" :id="`editor-${props.id}`" :data-editor-id="props.id">
+    <div v-if="runtimeError" class="editor-source-notice" role="alert">
+      Python runtime unavailable. Reload the page to retry. {{ runtimeError }}
+    </div>
     <div v-if="storageUnavailable" class="editor-source-notice" role="status">
       Browser storage is unavailable. You can still run and edit examples; copy your changes before reloading or closing this page.
     </div>

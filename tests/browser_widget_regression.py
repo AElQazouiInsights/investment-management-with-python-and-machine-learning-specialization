@@ -119,6 +119,19 @@ print("<ECHARTS_DATA>" + json.dumps({"plot": {"title": "Literal <ECHARTS_DATA> l
     print('PASS: progress text, literal protocol-marker labels, visible chart errors, recovery, and plain reruns work.', flush=True)
 
 
+def check_runtime_failure(browser, base_url):
+    context = browser.new_context()
+    context.route('https://cdn.jsdelivr.net/pyodide/**', lambda route: route.abort())
+    page = context.new_page()
+    page.goto(f"{base_url.rstrip('/')}/2.3-black-litterman.html", wait_until='domcontentloaded', timeout=120000)
+    editor = page.locator('[data-editor-id="black-litterman-setup"]')
+    editor.get_by_role('alert').get_by_text('Python runtime unavailable.', exact=False).wait_for(timeout=60000)
+    assert editor.locator('button.run').is_disabled()
+    assert editor.locator('.cm-content').count() == 1
+    context.close()
+    print('PASS: an unavailable Python runtime produces a visible reload message while code remains editable.', flush=True)
+
+
 def run(site_dir=None, base_url=None):
     server = None
     if base_url is None:
@@ -864,8 +877,88 @@ widget_instance''')
             assert len(chart_messages('duration-widget')) == nominal_duration_count
             assert not errors, errors
             print('PASS: continuous/nominal duration controls, DV01 scaling, finite-shift errors, zero coupons, and separate instances of the shared helper are verified.', flush=True)
+
+            page.goto(f"{base_url.rstrip('/')}/2.3-black-litterman.html", wait_until='domcontentloaded', timeout=120000)
+            page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+            bl_editor = editor_by_id('black-litterman-widget')
+            bl_output = output_for(bl_editor)
+            markdown = (Path(__file__).resolve().parents[1] / 'docs/2.3-black-litterman.md').read_text()
+            examples = {editor: code for code, editor in re.findall(
+                r'```python:line-numbers\n(.*?)\n```\s*<Editor id="([^"]+)"\s*/>', markdown, re.S)}
+            # Source scanning would choose the wrong helper here. The actual
+            # Python callback, exported by the worker, is the routing authority.
+            alias_code = '# pok.show_duration_echart is unrelated\n' + examples['black-litterman-widget'].replace(
+                'pok.show_black_litterman_echart,', 'getattr(pok, "show_" + "black_litterman_echart"),')
+            bl_editor.locator('.cm-content').click()
+            page.keyboard.press('Control+a')
+            page.keyboard.insert_text(alias_code)
+            bl_editor.locator('button.run').click()
+            bl_before = wait_for_chart('black-litterman-widget')
+            bl_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert bl_output.get_by_role('slider').count() == 4
+            assert bl_output.locator('select').count() == 1
+            assert bl_output.locator('canvas').count() == 2
+
+            def bl_control(label):
+                return bl_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..')
+
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('Confidence').get_by_role('slider').press('Home')
+            no_views = wait_for_chart('black-litterman-widget', count)
+            assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(no_views['blWeights']['series']['Updated'], [60, 40]))
+            assert no_views['blMeans']['series']['Posterior'] == no_views['blMeans']['series']['Prior']
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert 'pok.show_black_litterman_echart(' in request['code'] and 'confidence=0' in request['code']
+            assert 'show_duration_echart' not in request['code']
+
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('Confidence').get_by_role('slider').press('End')
+            exact = wait_for_chart('black-litterman-widget', count)
+            means = exact['blMeans']['series']['Posterior']
+            assert math.isclose(means[0] - means[1], 8, abs_tol=1e-9)
+            assert 'predictive spread volatility: 19.494%' in chart_messages('black-litterman-widget')[-1]
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('View spread').get_by_role('slider').press('End')
+            strong = wait_for_chart('black-litterman-widget', count)
+            assert math.isclose(strong['blWeights']['series']['Updated'][0], 100, abs_tol=1e-6)
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('View spread').get_by_role('slider').press('Home')
+            negative = wait_for_chart('black-litterman-widget', count)
+            assert math.isclose(negative['blWeights']['series']['Updated'][0], 0, abs_tol=1e-6)
+
+            bl_output.locator('button.reset').click()
+            count = len(chart_messages('black-litterman-widget'))
+            bl_editor.locator('button.run').click()
+            default = wait_for_chart('black-litterman-widget', count)
+            bl_output.get_by_role('slider').first.wait_for(timeout=30000)
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('Prior tau').get_by_role('slider').press('End')
+            high_tau = wait_for_chart('black-litterman-widget', count)
+            for key in ('blMeans', 'blWeights'):
+                assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(
+                    high_tau[key]['series'].get('Posterior', high_tau[key]['series'].get('Updated')),
+                    default[key]['series'].get('Posterior', default[key]['series'].get('Updated'))))
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('Risk matrix').locator('select').select_option(label='Predictive covariance')
+            predictive = wait_for_chart('black-litterman-widget', count)
+            assert predictive['blMeans'] == high_tau['blMeans']
+            assert predictive['blWeights']['series']['Updated'] != high_tau['blWeights']['series']['Updated']
+            count = len(chart_messages('black-litterman-widget'))
+            bl_control('Risk aversion').get_by_role('slider').press('ArrowRight')
+            changed_delta = wait_for_chart('black-litterman-widget', count)
+            assert all(math.isclose(a, 1.2 * b, abs_tol=1e-9) for a, b in zip(
+                changed_delta['blMeans']['series']['Prior'], bl_before['blMeans']['series']['Prior']))
+            assert 'delta=3' in page.evaluate('window.widgetRequests.at(-1).code')
+            count = len(chart_messages('black-litterman-widget'))
+            editor_by_id('black-litterman-setup').locator('button.run').click()
+            wait_for_done('black-litterman-setup')
+            assert len(chart_messages('black-litterman-widget')) == count
+            assert bl_output.locator('canvas').count() == 2
+            assert not errors, errors
+            print('PASS: Black–Litterman callback aliases, confidence endpoints, constrained weights, tau, risk-matrix choice, risk aversion, and editor isolation are verified.', flush=True)
             check_unavailable_storage(browser, base_url)
             check_chart_protocol(browser, base_url)
+            check_runtime_failure(browser, base_url)
             browser.close()
     finally:
         if server is not None:
