@@ -56,6 +56,16 @@ test('axis ticks stay compact without changing the chart data units', () => {
   assert.equal(formatChartTick(0.0001234), '0.0001234')
 })
 
+test('ordinary series names cannot inherit portfolio marker styles', () => {
+  for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    const series = buildChartSeries(name, [1, 2], 'line', false)
+    assert.equal(series.type, 'line')
+    assert.equal(series.showSymbol, false)
+    assert.equal(series.z, 1)
+    assert.deepEqual(series.itemStyle, {})
+  }
+})
+
 test('tooltips retain useful precision and display percentage units exactly once', () => {
   assert.equal(formatChartValue(3908.881947, 'Wealth ($)'), '3,908.8819')
   assert.equal(formatChartValue(60, 'Risky allocation (%)'), '60%')

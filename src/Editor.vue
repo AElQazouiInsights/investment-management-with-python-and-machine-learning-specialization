@@ -70,6 +70,8 @@ const mounted = ref(false)
 const running = ref(false)
 const waitingForInput = ref(false)
 const chartOutput = ref('')
+const widgetError = ref('')
+let activeWidgetView: any = null
 const recoveredCode = ref<string | null>(null)
 const usingSavedCode = ref(false)
 const executionHint = ref('')
@@ -178,6 +180,8 @@ function cancelWidgetUpdates() {
   pendingEchartUpdates.delete(props.id)
   latestControlValues.delete(props.id)
   widgetContexts.delete(props.id)
+  activeWidgetView?.remove()
+  activeWidgetView = null
 }
 
 // Worker message handler
@@ -203,7 +207,6 @@ async function handleMessage(e: MessageEvent) {
     }
   }
   if (e.data.widgetState) {
-    console.info('ipywidgets: widgetState received')
     await renderWidget(e.data.widgetState)
   }
   if (e.data.done) {
@@ -350,6 +353,7 @@ function attachOutputListeners(model: any, manager: any, context: WidgetContext)
   (model as any)._echartsAttached = true
 
   const handleOutputs = () => {
+    if (!mounted.value || widgetContexts.get(props.id) !== context) return
     const outputs = model.get('outputs')
     if (!Array.isArray(outputs)) return
     for (const item of outputs) {
@@ -464,10 +468,14 @@ function resetOutput() {
   outputRow = 0
   outputCol = 0
   chartOutput.value = ''
+  widgetError.value = ''
   if (widgetContainer.value) widgetContainer.value.innerHTML = ''
 }
 
 async function renderWidget(stateJSON: string) {
+  // Preserve the originating run across lazy imports and asynchronous view creation.
+  const context = widgetContexts.get(props.id)
+  if (!context) return
   try {
     
     // Fix for webpack public path issue in Vite environment
@@ -580,7 +588,7 @@ async function renderWidget(stateJSON: string) {
     
     const parsed = JSON.parse(stateJSON)
     
-    const { state, model_id } = parsed
+    const { model_id } = parsed
     
     // Try dynamic imports with fallback
     let htmlManagerModule, baseModule, controlsModule, outputModule
@@ -624,6 +632,7 @@ async function renderWidget(stateJSON: string) {
     widgetRequireCache['@jupyter-widgets/base'] = base
     widgetRequireCache['@jupyter-widgets/controls'] = controls
     widgetRequireCache['@jupyter-widgets/output'] = output
+    if (!mounted.value || !acceptOutput || widgetContexts.get(props.id) !== context) return
 
     const resolveModule = (name: string) => {
       // Handle both exact matches and module paths
@@ -661,37 +670,30 @@ async function renderWidget(stateJSON: string) {
       }
     }
     
+    if (!mounted.value || !acceptOutput || widgetContexts.get(props.id) !== context) return
     const view = await manager.create_view(model)
-    if (!mounted.value || !acceptOutput) {
+    if (!mounted.value || !acceptOutput || widgetContexts.get(props.id) !== context) {
       view.remove()
       return
     }
-    const context: WidgetContext = {
-      controls: {}, baseValues: { ...(model.get('_echarts_kwargs') || {}) }, lastCode: editor.state.doc.toString(),
-    }
-    widgetContexts.set(props.id, context)
+    context.baseValues = { ...(model.get('_echarts_kwargs') || {}) }
     attachOutputListeners(model, manager, context)
 
     if (widgetContainer.value) {
       widgetContainer.value.innerHTML = ''
+      activeWidgetView = view
       await manager.display_view(view, widgetContainer.value)
+      if (!mounted.value || widgetContexts.get(props.id) !== context) {
+        view.remove()
+        if (activeWidgetView === view) activeWidgetView = null
+      }
     } else {
       console.error('[DEBUG] Widget container not available')
     }
   } catch (err) {
+    if (!mounted.value || widgetContexts.get(props.id) !== context) return
     console.error('ipywidgets render error:', err)
-    console.error('Error stack:', (err as Error).stack)
-    
-    // Show error message to user
-    if (widgetContainer.value) {
-      widgetContainer.value.innerHTML = `
-        <div style="padding: 16px; background-color: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c66;">
-          <strong>Widget Rendering Error:</strong><br>
-          ${(err as Error).message}<br>
-          <small>Check the browser console for more details.</small>
-        </div>
-      `
-    }
+    widgetError.value = `Widget rendering failed: ${(err as Error).message}`
   }
 }
 </script>
@@ -796,6 +798,7 @@ async function renderWidget(stateJSON: string) {
     <OutputDisplay v-if="chartOutput" :output="chartOutput" class="mt-4" />
 
     <!-- ipywidgets container -->
+    <div v-if="widgetError" class="editor-source-notice" role="alert">{{ widgetError }}</div>
     <div ref="widgetContainer" class="mt-4" />
 
     <!-- Reset/Stop button -->

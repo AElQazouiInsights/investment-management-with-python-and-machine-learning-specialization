@@ -1,14 +1,12 @@
 <template>
   <div class="output-display">
-    <!-- 1) Plain Text Output -->
-    <div v-if="textOutput" class="text-output">
-      <pre class="whitespace-pre-wrap p-4 bg-gray-100 rounded-lg">
-        {{ textOutput }}
-      </pre>
+    <div v-if="parsedOutput.text" class="text-output">
+      <pre class="whitespace-pre-wrap p-4 bg-gray-100 rounded-lg">{{ parsedOutput.text }}</pre>
     </div>
+    <div v-if="parsedOutput.error" class="chart-error" role="alert">{{ parsedOutput.error }}</div>
 
     <!-- 2) Chart Output (if there's parsed JSON) -->
-    <div v-if="rawChartData" class="chart-output mt-4">
+    <div v-if="chartObjects.length" class="chart-output mt-4">
       <div class="chart-container">
         <!-- Loop over each "chart object" built in `chartObjects` -->
         <section v-for="chart in chartObjects" :key="chart.key" class="chart-panel">
@@ -25,8 +23,8 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
-import { defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
+import { parseChartOutput } from './editor-output.js'
 import { formatChartTick, formatChartValue } from './chart-format.js'
 import { buildChartSeries } from './chart-series.js'
 
@@ -37,7 +35,6 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart, ScatterChart } from 'echarts/charts'
 import {
-  TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
@@ -51,7 +48,6 @@ use([
   LineChart,
   BarChart,
   ScatterChart,
-  TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
@@ -67,41 +63,19 @@ const props = defineProps({
   }
 })
 
-const textOutput = ref('')
-const rawChartData = ref(null)
-
-watch(() => props.output, (newVal) => {
-  rawChartData.value = null
-  if (!newVal) {
-    textOutput.value = ''
-    return
-  }
-
-  // Split at <ECHARTS_DATA>
-  const parts = newVal.split('<ECHARTS_DATA>')
-  textOutput.value = parts[0].trim()
-
-  if (parts[1]) {
-    try {
-      rawChartData.value = JSON.parse(parts[1])
-    } catch (err) {
-      console.error('Failed to parse chart data:', err)
-    }
-  } else {
-    rawChartData.value = null
-  }
-}, { immediate: true })
+const parsedOutput = computed(() => parseChartOutput(props.output))
 
 // 4) Compute chart options based on parsed JSON data
 const chartObjects = computed(() => {
-  if (!rawChartData.value) return []
+  const rawChartData = parsedOutput.value.chart
+  if (!rawChartData) return []
 
   // Extract xData and crisis information if available
-  const xData = rawChartData.value.dates || rawChartData.value.x || []
-  const crisis = rawChartData.value.crisis || []
+  const xData = rawChartData.dates || rawChartData.x || []
+  const crisis = rawChartData.crisis || []
 
   // Exclude special keys from chartSets
-  const { x, dates, crisis: _, ...chartSets } = rawChartData.value
+  const { x, dates, crisis: _, ...chartSets } = rawChartData
   const result = []
 
   for (const key of Object.keys(chartSets)) {
@@ -142,7 +116,7 @@ const chartObjects = computed(() => {
       },
     }
 
-    // NEW: Support dual yAxis. If dataObj.yAxis exists and is not an array, wrap it in an array.
+    // Normalize single- and multi-axis metadata before building the unit caption.
     let yAxisOption = []
     if (dataObj.yAxis) {
       yAxisOption = Array.isArray(dataObj.yAxis) ? dataObj.yAxis : [dataObj.yAxis]
@@ -256,8 +230,9 @@ const chartObjects = computed(() => {
   font-family: inherit;
   white-space: pre-wrap;
 }
-h3 {
-  font-size: 1.2em;
-  margin-bottom: 1em;
+.chart-error {
+  margin-top: 8px;
+  color: var(--vp-c-danger-1);
+  overflow-wrap: anywhere;
 }
 </style>

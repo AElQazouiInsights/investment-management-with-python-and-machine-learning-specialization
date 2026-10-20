@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createEditorStorage, loadEditorCode, saveEditorCode, restoreEditorCode, useCurrentExample } from '../src/editor-storage.js'
-import { createOutputParser } from '../src/editor-output.js'
+import { createOutputParser, parseChartOutput } from '../src/editor-output.js'
 
 function storage() {
   const values = new Map()
@@ -115,4 +115,33 @@ test('malformed and incomplete chart messages report errors and recover', () => 
   assert.equal(errors.length, 2)
   assert.equal(text.join(''), 'Next line\n')
   assert.deepEqual(charts, ['<ECHARTS_DATA>{"good":true}'])
+})
+
+test('chart labels containing the protocol marker survive streamed and direct parsing', () => {
+  const payload = { chart: { title: 'Literal <ECHARTS_DATA> label', series: { Portfolio: [100, 110] } } }
+  const raw = '<ECHARTS_DATA>' + JSON.stringify(payload)
+  const { parser, text, charts, errors } = outputHarness()
+  for (const character of raw + '\n') parser.push(character)
+  parser.finish()
+  assert.deepEqual(charts, [raw])
+  assert.equal(text.join(''), '')
+  assert.deepEqual(errors, [])
+  assert.deepEqual(parseChartOutput('Summary\n' + charts[0]), { text: 'Summary', chart: payload, error: '' })
+})
+
+test('invalid direct chart messages yield a displayable error and no stale chart data', () => {
+  for (const json of ['{broken}', 'null', '[]', '42', '']) {
+    const parsed = parseChartOutput('Summary\n<ECHARTS_DATA>' + json)
+    assert.equal(parsed.text, 'Summary')
+    assert.equal(parsed.chart, null)
+    assert.match(parsed.error, /^Invalid chart data:/)
+  }
+  assert.deepEqual(parseChartOutput('<ECHARTS_DATA>{"valid":true}'), {
+    text: '', chart: { valid: true }, error: '',
+  })
+})
+
+test('plain text and cleared chart output remain plain text without a chart error', () => {
+  assert.deepEqual(parseChartOutput('  Summary\n'), { text: 'Summary', chart: null, error: '' })
+  assert.deepEqual(parseChartOutput(''), { text: '', chart: null, error: '' })
 })

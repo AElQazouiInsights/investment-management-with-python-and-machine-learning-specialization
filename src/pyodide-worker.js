@@ -165,8 +165,6 @@ async function execute({ id, code, skipWidgetState }) {
     write: (buf) => {
       const text = outputDecoder.decode(buf, { stream: true })
       if (!text) return buf.length
-      if (/^(Loading|Loaded)\s/.test(text)) return buf.length
-      if (text.includes('already loaded from default channel')) return buf.length
       postMessage({ id, output: text })
       return buf.length
     },
