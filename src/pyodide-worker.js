@@ -262,6 +262,12 @@ if w is not None:
     collect(w)
     # Python and JavaScript widget defaults can differ (e.g. FloatSlider.step).
     st = dependency_state(all_widgets, drop_defaults=False)
+    callback = getattr(w, 'f', None)
+    if callable(callback):
+        st[w._model_id]['state']['_echarts_callback'] = (
+            getattr(callback, '__name__', '')
+            if getattr(callback, '__module__', '') == 'PortfolioOptimizationKit' else ''
+        )
     if isinstance(getattr(w, 'kwargs', None), dict):
         st[w._model_id]['state']['_echarts_kwargs'] = {
             key: value for key, value in w.kwargs.items()

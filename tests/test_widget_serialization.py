@@ -10,6 +10,22 @@ from test_return_annualization import ROOT
 
 
 class WidgetSerializationTests(unittest.TestCase):
+    def test_actual_toolkit_callback_name_is_exported_independently_of_source_alias(self):
+        import PortfolioOptimizationKit as pok
+        source = (ROOT / "src/pyodide-worker.js").read_text()
+        export = next(block for block in re.findall(r"pyodide\.runPython\(`(.*?)`\)", source, re.DOTALL)
+                      if "from ipywidgets.embed import dependency_state" in block)
+        # A cheap pure toolkit callback verifies identity without rendering a chart.
+        callback_alias = pok.compounding_rate
+        box = widgets.interactive(callback_alias, r=widgets.fixed(0.03), periods_per_year=widgets.fixed(12))
+        try:
+            namespace = {"widget_instance": box}
+            exec(export, namespace)
+            state = json.loads(namespace["_widget_json_result"])["state"][box.model_id]["state"]
+            self.assertEqual(state["_echarts_callback"], "compounding_rate")
+        finally:
+            box.close()
+
     def test_interactive_keywords_survive_custom_display_labels(self):
         source = (ROOT / "src/pyodide-worker.js").read_text()
         blocks = re.findall(r"pyodide\.runPython\(`(.*?)`\)", source, re.DOTALL)
@@ -23,7 +39,8 @@ class WidgetSerializationTests(unittest.TestCase):
             exec(export, namespace)
             state = json.loads(namespace["_widget_json_result"])["state"]
             self.assertEqual(state[box.model_id]["state"]["_echarts_kwargs"],
-                             {"asset_value": 130000, "long_frequency": 4, "seed": 9})
+                              {"asset_value": 130000, "long_frequency": 4, "seed": 9})
+            self.assertEqual(state[box.model_id]["state"]["_echarts_callback"], '')
             self.assertEqual(state[amount.model_id]["state"]["description"], "Assets ($)")
             self.assertEqual(state[amount.model_id]["state"]["_echarts_parameter"], "asset_value")
             selection = state[frequency.model_id]["state"]

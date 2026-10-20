@@ -91,7 +91,7 @@ export default defineConfig({
     outline: 'deep', // This will ensure that the TOC includes deeper levels of headings, creating a nested structure
     siteTitle: 'Investment Management with Python',
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Crypto-Aggressor/Investment-Management-with-Python-and-Machine-Learning-Specializationhttps://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization' }
+      { icon: 'github', link: 'https://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization' }
     ],
     sidebar: {
       '/': [
@@ -112,7 +112,8 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/2.0-overview' },
             { text: 'Advanced Insights into Style & Factor Exposures for Portfolio Optimization', link: '/2.1-style-factors' },
-            { text: 'Strategies for Robust Covariance Matrix Estimation in Portfolio Management', link: '/2.2-covariance' }
+            { text: 'Strategies for Robust Covariance Matrix Estimation in Portfolio Management', link: '/2.2-covariance' },
+            { text: 'Black–Litterman: Reference Portfolios, Views, and Uncertainty', link: '/2.3-black-litterman' }
           ]
         }
       ]

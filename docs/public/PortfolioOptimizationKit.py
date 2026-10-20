@@ -3154,80 +3154,183 @@ def weight_maxsharpe(
 # ---------------------------------------------------------------------------------
 # Black-Litterman model
 # ---------------------------------------------------------------------------------
+def _bl_matrix(matrix, labels, name):
+    """Align a labeled symmetric PSD matrix without dropping or inventing labels."""
+    if not isinstance(matrix, pd.DataFrame):
+        raise TypeError(f"{name} must be a labeled DataFrame")
+    if (not labels.is_unique or not matrix.index.is_unique or not matrix.columns.is_unique
+            or set(matrix.index) != set(labels) or set(matrix.columns) != set(labels)):
+        raise ValueError(f"{name} must have exactly the required unique row and column labels")
+    result = matrix.reindex(index=labels, columns=labels).astype(float)
+    values = result.to_numpy()
+    if not np.isfinite(values).all():
+        raise ValueError(f"{name} must be finite")
+    if len(labels):
+        tolerance = 1e-10 * max(float(np.max(np.abs(values))), np.finfo(float).tiny)
+        if not np.allclose(values, values.T, rtol=0, atol=tolerance):
+            raise ValueError(f"{name} must be symmetric")
+        values = (values + values.T) / 2
+        if np.linalg.eigvalsh(values).min() < -tolerance:
+            raise ValueError(f"{name} must be positive semidefinite")
+        result = pd.DataFrame(values, index=labels, columns=labels)
+    return result
+
+
+def _bl_vector(vector, labels, name):
+    """Accept a labeled Series or one-column frame, including a one-asset case."""
+    if isinstance(vector, pd.DataFrame) and vector.shape[1] == 1:
+        vector = vector.iloc[:, 0]
+    if not isinstance(vector, pd.Series):
+        raise TypeError(f"{name} must be a Series or one-column DataFrame")
+    if not vector.index.is_unique or set(vector.index) != set(labels):
+        raise ValueError(f"{name} must have exactly the required unique labels")
+    result = vector.reindex(labels).astype(float)
+    if not np.isfinite(result).all():
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _bl_views(P, assets):
+    """Validate named view exposures; zero views are allowed, zero rows are not."""
+    if not isinstance(P, pd.DataFrame):
+        raise TypeError("P must be a labeled DataFrame")
+    if not P.index.is_unique or not P.columns.is_unique or set(P.columns) != set(assets):
+        raise ValueError("P must have unique view labels and exactly the covariance asset labels")
+    P = P.reindex(columns=assets).astype(float)
+    if not np.isfinite(P.to_numpy()).all() or (P.eq(0).all(axis=1)).any():
+        raise ValueError("Each view must have finite, nonzero exposures")
+    return P
+
+
 def implied_returns(covmat, weigths, delta=2.5):
-    r"""
-    Computes the implied expected returns \Pi by reverse engineering the weights according to
-    the Black-Litterman model:
-       \Pi = \delta \Sigma weigths
-    Here, the inputs are:
-    - delta, the risk aversion coefficient
-    - covmat: variance-covariance matrix (N x N) as pd.DataFrame (\Sigma)
-    - weigths: portfolio weights (N x 1) as pd.Series
-    The output is the \Pi returns pd.Series (N x 1)
+    """Reverse-optimize expected EXCESS returns Pi=delta*Sigma*w.
+
+    Keep the historical 'weigths' keyword. The reference weights sum to one;
+    signed reference weights are allowed. All inputs use the same horizon.
+    This is a model-implied prior, not a sample mean or a forecast guarantee.
     """
-    imp_rets = (
-        delta * covmat.dot(weigths).squeeze()
-    )  # to get a series from a 1-column dataframe
-    imp_rets.name = "Implied Returns"
-    return imp_rets
+    if not isinstance(covmat, pd.DataFrame) or covmat.empty:
+        raise ValueError("A nonempty labeled covariance matrix is required")
+    covmat = _bl_matrix(covmat, covmat.index, "Covariance")
+    weights = _bl_vector(weigths, covmat.index, "Reference weights")
+    if not np.isfinite(delta) or delta <= 0:
+        raise ValueError("delta must be positive and finite")
+    if not np.isclose(weights.sum(), 1, atol=1e-10, rtol=0):
+        raise ValueError("Reference weights must sum to one")
+    return (delta * covmat.dot(weights)).rename("Implied Returns")
 
 
 def omega_uncertain_prior(covmat, tau, P):
-    r"""
-    Returns the He-Litterman simplified Omega matrix in case the investor does not explicitly
-    quantify the uncertainty on the views. This matrix is going to be:
-       \Omega := diag( P(\tau\Sigma)P^T )
-    Inputs:
-    - covmat: N x N covariance Matrix as pd.DataFrame (\Sigma)
-    - tau: a scalar denoting the uncertainty of the CAPM prior
-    - P: the Projection K x N matrix as a pd.DataFrame.
-    The output is a P x P matrix as a pd.DataFrame, representing the Prior Uncertainties.
+    """Default diagonal view-error covariance diag(P*(tau*Sigma)*P.T).
+
+    This is a modeling heuristic, not an estimated probability of correctness.
+    Because Omega scales with tau, tau cancels from the posterior mean.
     """
-    he_lit_omega = P.dot(tau * covmat).dot(P.T)
-    # Make a diag matrix from the diag elements of Omega
-    return pd.DataFrame(
-        np.diag(np.diag(he_lit_omega.values)), index=P.index, columns=P.index
-    )
+    if not isinstance(covmat, pd.DataFrame) or covmat.empty:
+        raise ValueError("A nonempty labeled covariance matrix is required")
+    covmat = _bl_matrix(covmat, covmat.index, "Covariance")
+    if not np.isfinite(tau) or tau <= 0:
+        raise ValueError("tau must be positive and finite")
+    P = _bl_views(P, covmat.index)
+    return pd.DataFrame(np.diag(np.diag(P @ (tau * covmat) @ P.T)), index=P.index, columns=P.index)
 
 
 def black_litterman(w_prior, Sigma_prior, P, Q, Omega=None, delta=2.5, tau=0.02):
+    """Return (posterior excess mean, posterior PREDICTIVE return covariance).
+
+    Prior mean uncertainty is C=tau*Sigma. Q specifies P*mu in excess-return
+    units, and Omega is the view-error covariance, not return covariance.
+    The returned covariance is Sigma+M, where M is posterior mean uncertainty.
+    Match assets/views by labels. Support empty views and independent exact
+    views (Omega=0); reject singular conditioning systems rather than jittering
+    or silently using a pseudoinverse. All moments share a return horizon.
     """
-    Black-Litterman model.
-    Computes the posterior expected returns and covariaces based on the original Black-Litterman model
-    using the Master formulas, where:
-    - w_prior is the N x 1 pd.Series of prior weights
-    - Sigma_prior is the N x N covariance matrix as a pd.DataFrame
-    - P is the projection K x N matrix of weights portfolio views, a pd.DataFrame
-    - Q is the K x 1 pd.Series of views
-    - Omega is the K x K matrix as a pd.DataFrame (or None) representing the uncertainty of the views.
-      In particualar, if Omega=None, we assume that it is proportional to variance of the prior (see OMEGA_UNCERTAIN_PRIOR).
-    - delta is the risk aversion (scalar)
-    - tau represents the uncertainty of the CAPM prior (scalar)
-    """
-    if Omega is None:
-        Omega = omega_uncertain_prior(Sigma_prior, tau, P)
-    # Force w.prior and Q to be column vectors
-    # w_prior = as_colvec(w_prior)
-    # Q = as_colvec(Q)
-
-    # number of assets
-    N = w_prior.shape[0]
-
-    # number of views
-    K = Q.shape[0]
-
-    # First, reverse-engineer the weights to get \Pi = \delta\Sigma\w^{prior}
     Pi = implied_returns(Sigma_prior, w_prior, delta)
+    Sigma_prior = _bl_matrix(Sigma_prior, Pi.index, "Covariance")
+    if not np.isfinite(tau) or tau <= 0:
+        raise ValueError("tau must be positive and finite")
+    P = _bl_views(P, Pi.index)
+    Q = _bl_vector(Q, P.index, "View returns")
+    Omega = omega_uncertain_prior(Sigma_prior, tau, P) if Omega is None else _bl_matrix(Omega, P.index, "Omega")
+    covariance = Sigma_prior.to_numpy()
+    C = tau * covariance
+    exposures = P.to_numpy()
+    cross = C @ exposures.T
+    system = exposures @ cross + Omega.to_numpy()
+    if len(P):
+        try:
+            if np.linalg.matrix_rank(system) < len(P):
+                raise np.linalg.LinAlgError("Rank-deficient view system")
+            solved = np.linalg.solve(system, np.column_stack([Q.to_numpy() - exposures @ Pi.to_numpy(), cross.T]))
+        except np.linalg.LinAlgError as error:
+            raise ValueError("Singular view system: remove redundant exact views or specify positive view uncertainty") from error
+        mean = Pi.to_numpy() + cross @ solved[:, 0]
+        M = C - cross @ solved[:, 1:]
+    else:
+        mean, M = Pi.to_numpy(), C
+    predictive = covariance + (M + M.T) / 2
+    return (pd.Series(mean, index=Pi.index, name="Posterior excess returns"),
+            pd.DataFrame(predictive, index=Pi.index, columns=Pi.index))
 
-    # Black-Litterman posterior estimate (Master Formulas), using the versions that do not require Omega to be inverted
-    invmat = inv(P.dot(tau * Sigma_prior).dot(P.T) + Omega)
-    mu_bl = Pi + (tau * Sigma_prior).dot(P.T).dot(invmat.dot(Q - P.dot(Pi).values))
-    sigma_bl = (
-        Sigma_prior
-        + (tau * Sigma_prior)
-        - (tau * Sigma_prior).dot(P.T).dot(invmat).dot(P).dot(tau * Sigma_prior)
-    )
-    return (mu_bl, sigma_bl)
+
+def bl_portfolio_weights(mu, covmat, delta=2.5):
+    """Maximize mean-variance utility with long-only weights summing to one.
+
+    mu contains expected excess returns. Choose conditional or predictive
+    covariance explicitly; the function does not silently swap risk models.
+    """
+    if not isinstance(covmat, pd.DataFrame) or covmat.empty:
+        raise ValueError("A nonempty labeled covariance matrix is required")
+    covmat = _bl_matrix(covmat, covmat.index, "Allocation covariance")
+    mu = _bl_vector(mu, covmat.index, "Expected excess returns")
+    if not np.isfinite(delta) or delta <= 0:
+        raise ValueError("delta must be positive and finite")
+    means, covariance = mu.to_numpy(), covmat.to_numpy()
+    n = len(mu)
+    scale = max(float(np.max(np.abs(means))), float(delta * np.max(np.abs(covariance))), np.finfo(float).tiny)
+    solution = minimize(lambda w: (delta / 2 * w @ covariance @ w - w @ means) / scale,
+                        np.repeat(1 / n, n), jac=lambda w: (delta * covariance @ w - means) / scale,
+                        method="SLSQP", bounds=((0.0, 1.0),) * n,
+                        constraints={"type": "eq", "fun": lambda w: w.sum() - 1, "jac": lambda w: np.ones(n)},
+                        options={"ftol": 1e-12, "maxiter": 1000, "disp": False})
+    return pd.Series(_checked_long_only_weights(solution, n), index=mu.index, name="Weight")
+
+
+def show_black_litterman_echart(view_return=0.08, confidence=0.5, tau=0.05, delta=2.5, risk_model="prior"):
+    """Two-asset, one-relative-view experiment; confidence is a gain parameter."""
+    if not np.isfinite(view_return) or not np.isfinite(confidence) or not 0 <= confidence <= 1:
+        raise ValueError("View return must be finite and confidence must be in [0, 1]")
+    if risk_model not in ("prior", "predictive"):
+        raise ValueError("risk_model must be prior or predictive")
+    assets = pd.Index(["Equity", "Bonds"])
+    covariance = pd.DataFrame([[0.04, 0.006], [0.006, 0.01]], index=assets, columns=assets)
+    benchmark = pd.Series([0.6, 0.4], index=assets)
+    P = pd.DataFrame([[1.0, -1.0]], columns=assets, index=["Equity minus bonds"])
+    Q = pd.Series([view_return], index=P.index)
+    prior = implied_returns(covariance, benchmark, delta)
+    base_omega = omega_uncertain_prior(covariance, tau, P)
+    if confidence == 0:
+        mean, predictive = black_litterman(benchmark, covariance, P.iloc[:0], Q.iloc[:0], delta=delta, tau=tau)
+    else:
+        omega = base_omega * (1 - confidence) / confidence
+        mean, predictive = black_litterman(benchmark, covariance, P, Q, omega, delta=delta, tau=tau)
+    weights = bl_portfolio_weights(mean, covariance if risk_model == "prior" else predictive, delta)
+    spread = P.iloc[0].to_numpy()
+    mean_sd = np.sqrt(max(float(spread @ (predictive - covariance).to_numpy() @ spread), 0))
+    return_sd = np.sqrt(float(spread @ predictive.to_numpy() @ spread))
+    text = (f"One-year hypothetical inputs; confidence is a single-view update weight, not a probability.\n"
+            f"Prior spread: {float(spread @ prior):.3%}; stated view: {view_return:.3%}; posterior spread: {float(spread @ mean):.3%}.\n"
+            f"Posterior mean-spread uncertainty: {mean_sd:.3%}; predictive spread volatility: {return_sd:.3%}.\n"
+            f"Allocation covariance: {risk_model}; long-only, fully invested utility; delta={delta:g}, tau={tau:g}.")
+    plots = {
+        "blMeans": {"type": "bar", "title": "Black–Litterman: Expected Excess Returns",
+                    "xAxis": {"type": "category", "data": assets.tolist()}, "yAxisName": "Expected annual excess return (%)",
+                    "series": {"Prior": (prior * 100).tolist(), "Posterior": (mean * 100).tolist()}},
+        "blWeights": {"type": "bar", "title": "Black–Litterman: Constrained Allocation",
+                      "xAxis": {"type": "category", "data": assets.tolist()}, "yAxisName": "Portfolio weight (%)",
+                      "series": {"Reference": (benchmark * 100).tolist(), "Updated": (weights * 100).tolist()}},
+    }
+    _publish_echarts(plots, text)
 
 
 # ---------------------------------------------------------------------------------

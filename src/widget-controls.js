@@ -1,5 +1,6 @@
 // One registry drives both control filtering and generated Python calls.
 export const chartHelperParameters = {
+  show_black_litterman_echart: new Set(['view_return', 'confidence', 'tau', 'delta', 'risk_model']),
   show_historical_drawdown_echart: new Set(['start_year', 'end_year', 'maxdd', 'cash_rate']),
   show_drawdown_echart: new Set(['maxdd', 'hedge', 'n_years', 'n_scenarios', 'periods_per_year', 'sigma', 'scenario', 'seed']),
   show_floor_echart: new Set(['floor', 'm', 'n_years', 'n_scenarios', 'periods_per_year', 'sigma', 'scenario', 'seed']),
@@ -15,12 +16,17 @@ export const chartHelperParameters = {
     'm', 'floor', 'risk_free_rate', 'ymax', 'seed']),
 }
 
-export function chartHelperName(code = '') {
+export function chartHelperName(code = '', callback) {
+  // Serialized callback identity takes precedence over comments, strings, or aliases.
+  // An explicitly unsupported callback must never fall back to a source-code guess.
+  if (callback !== undefined) {
+    return typeof callback === 'string' && Object.hasOwn(chartHelperParameters, callback) ? callback : undefined
+  }
   return Object.keys(chartHelperParameters).find(name => code.includes(name))
 }
 
-export function buildChartCode(source, values) {
-  const name = chartHelperName(source)
+export function buildChartCode(source, values, callback) {
+  const name = chartHelperName(source, callback)
   if (!name) return ''
   const entries = Object.entries(values)
     .filter(([key, value]) => chartHelperParameters[name].has(key) && value !== undefined)

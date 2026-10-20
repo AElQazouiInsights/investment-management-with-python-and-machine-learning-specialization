@@ -18,6 +18,7 @@ CHAPTERS = {
     "1.4-alm": (77, 33),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
+    "2.3-black-litterman": (18, 8),
 }
 
 
@@ -57,6 +58,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True):
         assert not page.get_by_text('[Incomplete chart JSON received]', exact=False).count()
         panels = page.locator(".chart-panel")
         assert panels.count() == expected[1], panels.count()
+        if chapter == "2.3-black-litterman":
+            assert page.locator('a[href="/2.3-black-litterman"]').count() > 0
+            assert page.locator('a[href="https://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization"]').count() > 0
         if chapter == "1.4-alm" and inspect_axes:
             selected = page.locator('[data-editor-output="coupon-widget"] .chart').evaluate_all("""els =>
                 els.map(el => el.__vueParentComponent.setupState.chart.getOption().series
