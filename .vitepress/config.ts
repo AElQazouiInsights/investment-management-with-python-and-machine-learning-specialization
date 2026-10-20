@@ -113,7 +113,8 @@ export default defineConfig({
             { text: 'Overview', link: '/2.0-overview' },
             { text: 'Advanced Insights into Style & Factor Exposures for Portfolio Optimization', link: '/2.1-style-factors' },
             { text: 'Strategies for Robust Covariance Matrix Estimation in Portfolio Management', link: '/2.2-covariance' },
-            { text: 'Black–Litterman: Reference Portfolios, Views, and Uncertainty', link: '/2.3-black-litterman' }
+            { text: 'Black–Litterman: Reference Portfolios, Views, and Uncertainty', link: '/2.3-black-litterman' },
+            { text: 'Robust Portfolio Construction: Diversification and Risk Budgets', link: '/2.4-robust-portfolios' }
           ]
         }
       ]

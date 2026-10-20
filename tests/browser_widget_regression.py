@@ -132,6 +132,91 @@ def check_runtime_failure(browser, base_url):
     print('PASS: an unavailable Python runtime produces a visible reload message while code remains editable.', flush=True)
 
 
+def check_python_input(browser, base_url):
+    page = browser.new_page()
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.add_init_script("""
+        window.inputMessages = [];
+        const NativeWorker = window.Worker;
+        window.Worker = class extends NativeWorker {
+            constructor(...args) {
+                super(...args);
+                this.addEventListener('message', event => window.inputMessages.push(event.data));
+            }
+        };
+    """)
+    page.goto(f"{base_url.rstrip('/')}/2.4-robust-portfolios.html", wait_until='domcontentloaded', timeout=120000)
+    editor = page.locator('[data-editor-id="robust-portfolios-setup"]')
+    output = page.locator('[data-editor-output="robust-portfolios-setup"]')
+    page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+
+    def run_code(code):
+        editor.locator('.cm-content').click()
+        page.keyboard.press('Control+a')
+        page.keyboard.insert_text(code)
+        editor.locator('button.run').click()
+
+    def wait_for_prompt(count):
+        page.wait_for_function("count => window.inputMessages.filter(message => message.input).length >= count", arg=count, timeout=180000)
+        output.get_by_role('textbox', name='Python input').wait_for()
+
+    def wait_for_done(count):
+        page.wait_for_function("count => window.inputMessages.filter(message => message.id === 'robust-portfolios-setup' && message.done).length >= count", arg=count, timeout=30000)
+
+    run_code("first = input('First: ')\nsecond = input('Second: ')\nprint('Lengths:', len(first), len(second))\nprint('Unicode correct:', first == 'é' * 300)")
+    wait_for_prompt(1)
+    output.get_by_role('textbox', name='Python input').fill('é' * 300)
+    output.get_by_role('textbox', name='Python input').press('Enter')
+    wait_for_prompt(2)
+    output.get_by_role('textbox', name='Python input').press('Enter')
+    wait_for_done(1)
+    assert 'Lengths: 300 0' in output.inner_text()
+    assert 'Unicode correct: True' in output.inner_text()
+
+    run_code("response = input('Capacity: ')\nprint('Capacity length:', len(response))")
+    wait_for_prompt(3)
+    output.get_by_role('textbox', name='Python input').fill('🙂' * 257)
+    output.get_by_role('textbox', name='Python input').press('Enter')
+    output.get_by_role('alert').get_by_text('Input exceeds 1024 UTF-8 bytes.', exact=False).wait_for()
+    assert editor.locator('button.run').is_disabled()
+    output.get_by_role('textbox', name='Python input').fill('🙂' * 256)
+    output.get_by_role('textbox', name='Python input').press('Enter')
+    wait_for_done(2)
+    assert 'Capacity length: 256' in output.inner_text()
+    assert output.get_by_role('alert').count() == 0
+
+    run_code("input('Stop test: ')\nprint('Must not run after stop')")
+    wait_for_prompt(4)
+    output.get_by_role('textbox', name='Python input').fill('x' * 1025)
+    output.get_by_role('textbox', name='Python input').press('Enter')
+    output.get_by_role('alert').wait_for()
+    output.locator('button.reset').click()
+    wait_for_done(3)
+    assert output.get_by_role('textbox', name='Python input').count() == 0
+    assert 'Must not run after stop' not in output.inner_text()
+
+    run_code("from __future__ import annotations\nimport asyncio\nawait asyncio.sleep(0.01)\ndef identity(value: NotDefinedYet):\n    return value\nshared_input_result = identity(7)\nprint('Await and future:', shared_input_result)")
+    wait_for_done(4)
+    assert 'Await and future: 7' in output.inner_text()
+    run_code("print('Shared state:', shared_input_result)")
+    wait_for_done(5)
+    assert 'Shared state: 7' in output.inner_text()
+
+    run_code("input('Navigation test: ')")
+    wait_for_prompt(5)
+    page.evaluate('window.inputNavigationSentinel = true')
+    page.locator('a[href="/2.3-black-litterman"]').first.click()
+    replacement = page.locator('[data-editor-id="black-litterman-setup"]')
+    replacement.locator('button.run').wait_for()
+    assert page.evaluate('window.inputNavigationSentinel === true'), 'Exercise client-side navigation with the shared worker'
+    replacement.locator('button.run').click()
+    page.wait_for_function("window.inputMessages.some(message => message.id === 'black-litterman-setup' && message.done)", timeout=30000)
+    assert not errors, errors
+    page.close()
+    print('PASS: Unicode/1024-byte input, retry, Stop, top-level await/future imports, shared globals, and navigation are verified.', flush=True)
+
+
 def run(site_dir=None, base_url=None):
     server = None
     if base_url is None:
@@ -956,9 +1041,66 @@ widget_instance''')
             assert bl_output.locator('canvas').count() == 2
             assert not errors, errors
             print('PASS: Black–Litterman callback aliases, confidence endpoints, constrained weights, tau, risk-matrix choice, risk aversion, and editor isolation are verified.', flush=True)
+
+            page.goto(f"{base_url.rstrip('/')}/2.4-robust-portfolios.html", wait_until='domcontentloaded', timeout=120000)
+            page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
+            rp_editor = editor_by_id('risk-parity-widget')
+            rp_output = output_for(rp_editor)
+            rp_editor.locator('button.run').click()
+            rp_default = wait_for_chart('risk-parity-widget')
+            rp_output.get_by_role('slider').first.wait_for(timeout=30000)
+            assert rp_output.get_by_role('slider').count() == 4
+            assert rp_output.locator('canvas').count() == 2
+            assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(rp_default['riskParityWeights']['series']['GMV'], [12.5, 87.5]))
+            assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(rp_default['riskParityShares']['series']['Risk budget'], [50, 50]))
+
+            def rp_control(label):
+                return rp_output.locator('label.widget-label').filter(has_text=re.compile(f'^{re.escape(label)}$')).locator('..').get_by_role('slider')
+
+            count = len(chart_messages('risk-parity-widget'))
+            rp_control('Correlation').press('Home')
+            # Slider initialization can itself emit a rounded default value.
+            # Wait for the requested negative-correlation result, not that earlier update.
+            page.wait_for_function("""count => {
+                const messages = window.widgetMessages.filter(m => m.id === 'risk-parity-widget' && m.echart);
+                if (messages.length <= count) return false;
+                const payload = JSON.parse(messages.at(-1).echart.split('<ECHARTS_DATA>')[1]);
+                return payload.riskParityShares.series.EW[1] < 0;
+            }""", arg=count, timeout=30000)
+            negative_corr = wait_for_chart('risk-parity-widget', count)
+            assert negative_corr['riskParityShares']['series']['EW'][1] < 0
+            assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(
+                negative_corr['riskParityWeights']['series']['Risk budget'], rp_default['riskParityWeights']['series']['Risk budget']))
+            count = len(chart_messages('risk-parity-widget'))
+            rp_control('Equity risk share').press('Home')
+            unequal = wait_for_chart('risk-parity-widget', count)
+            assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(unequal['riskParityShares']['series']['Risk budget'], [10, 90]))
+            count = len(chart_messages('risk-parity-widget'))
+            rp_control('Correlation').press('End')
+            positive_corr = wait_for_chart('risk-parity-widget', count)
+            assert positive_corr['riskParityWeights']['series']['Risk budget'] != unequal['riskParityWeights']['series']['Risk budget']
+            for control in ('Equity vol', 'Bond vol'):
+                count = len(chart_messages('risk-parity-widget'))
+                rp_control(control).press('End')
+                changed = wait_for_chart('risk-parity-widget', count)
+                assert all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(changed['riskParityShares']['series']['Risk budget'], [10, 90]))
+                assert math.isclose(sum(changed['riskParityWeights']['series']['Risk budget']), 100, abs_tol=1e-6)
+            request = page.evaluate('window.widgetRequests.at(-1)')
+            assert request['id'] == 'risk-parity-widget' and 'pok.show_risk_parity_echart(' in request['code']
+            assert 'vol_equity=0.5' in request['code'] and 'vol_bond=0.3' in request['code'] and 'equity_budget=0.1' in request['code']
+            count = len(chart_messages('risk-parity-widget'))
+            editor_by_id('robust-portfolios-setup').locator('button.run').click()
+            wait_for_done('robust-portfolios-setup')
+            assert len(chart_messages('risk-parity-widget')) == count
+            rp_control('Equity risk share').press('End')
+            final = wait_for_chart('risk-parity-widget', count)
+            assert math.isclose(final['riskParityShares']['series']['Risk budget'][0], 90, abs_tol=1e-6)
+            assert not errors, errors
+            print('PASS: risk-budget controls distinguish capital/risk, retain signed hedge contributions, meet unequal budgets, and preserve editor isolation.', flush=True)
             check_unavailable_storage(browser, base_url)
             check_chart_protocol(browser, base_url)
             check_runtime_failure(browser, base_url)
+            check_python_input(browser, base_url)
             browser.close()
     finally:
         if server is not None:

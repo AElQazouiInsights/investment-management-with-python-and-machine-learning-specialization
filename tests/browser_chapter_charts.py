@@ -19,6 +19,7 @@ CHAPTERS = {
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (18, 8),
+    "2.4-robust-portfolios": (18, 8),
 }
 
 
@@ -101,6 +102,14 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True):
             assert wealth['yAxis'][0]['type'] == 'log'
             assert wealth['xAxis'][0]['data'][0] == '1977-12'
             assert all(len(series['data']) == 493 and series['data'][0] == 100 for series in wealth['series'])
+
+        if chapter == "2.4-robust-portfolios" and inspect_axes:
+            for editor in ('risk-parity-widget', 'robust-decision-attribution', 'robust-allocation-sensitivity'):
+                options = page.locator(f'[data-editor-output="{editor}"] .chart').evaluate_all("els => els.map(el => el.__vueParentComponent.setupState.chart.getOption())")
+                assert all(series['type'] == 'bar' for option in options for series in option['series'])
+            for editor in ('robust-gross-evaluation', 'robust-transaction-costs'):
+                option = page.locator(f'[data-editor-output="{editor}"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+                assert all(series['type'] == 'line' and len(series['data']) == 289 and series['data'][0] == 100 for series in option['series'])
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})

@@ -1,8 +1,8 @@
 import { loadPyodide } from 'pyodide';
+import { receiveInput } from './editor-input.js';
 
 // Load Pyodide with the specified indexURL
 const pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.2/full/" });
-const decoder = new TextDecoder();
 let initialized = false;
 let executionQueue = Promise.resolve();
 const pendingRequests = new Set();
@@ -180,12 +180,8 @@ async function execute({ id, code, skipWidgetState }) {
   pyodide.setStdin({
     stdin: () => {
       postMessage({ id, input: true });
-      Atomics.wait(waitFlag, 0, 0);
-      const inputArray = new Uint8Array(Atomics.load(inputData, 0));
-      for (let i = 0; i < inputArray.length; i++) {
-        inputArray[i] = Atomics.load(inputData, i + 1);
-      }
-      const inputText = decoder.decode(inputArray);
+      const inputText = receiveInput(inputData, waitFlag, interruptBuffer);
+      pyodide.checkInterrupt();
       postMessage({ id, output: `${inputText}\n` });
       return inputText;
     },
@@ -208,7 +204,8 @@ def _emit_echarts(payload):
     js.postMessage(to_js({"id": _current_run_id, "echart": payload}, dict_converter=js.Object.fromEntries))
     `);
 
-    // Execute the provided code with a timeout and interrupt fallback
+    // The timer handles yielding code; synchronous Python can still be stopped
+    // through the shared interrupt buffer written by the UI.
     const TIMEOUT_MS = 15000;
     let timer = null;
     try {
@@ -216,7 +213,17 @@ def _emit_echarts(payload):
         try { if (interruptBuffer) interruptBuffer[0] = 2; } catch {}
         postMessage({ id, output: "\n[Execution timed out]\n" });
       }, TIMEOUT_MS);
-      await pyodide.runPythonAsync(code);
+      // Catch cancellation before KeyboardInterrupt reaches asyncio's task boundary.
+      // Evaluate the original source separately to retain top-level await, globals,
+      // future imports, and its own line numbers without indenting user code.
+      pyodide.globals.set('_editor_source', code);
+      await pyodide.runPythonAsync(`
+from pyodide.code import eval_code_async as _editor_eval_code_async
+try:
+    await _editor_eval_code_async(_editor_source, globals(), filename="<editor>")
+except KeyboardInterrupt:
+    print("\\n[Execution interrupted]")
+      `);
     } finally {
       if (timer) clearTimeout(timer);
     }

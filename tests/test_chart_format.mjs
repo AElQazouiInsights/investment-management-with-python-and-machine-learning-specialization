@@ -66,6 +66,18 @@ test('ordinary series names cannot inherit portfolio marker styles', () => {
   }
 })
 
+test('portfolio names remain ordinary series in bar and categorical time charts', () => {
+  for (const name of ['GMV', 'MSR', 'EWP', 'Portfolios', 'Frontier', 'CML']) {
+    for (const numericAxis of [true, false]) {
+      const series = buildChartSeries(name, [20, 80], 'bar', numericAxis)
+      assert.equal(series.type, 'bar')
+      assert.deepEqual(series.itemStyle, {})
+    }
+    assert.equal(buildChartSeries(name, [100, 110], 'line', false).type, 'line')
+  }
+  assert.equal(buildChartSeries('GMV', [[10, 8]], 'line', true).type, 'scatter')
+})
+
 test('tooltips retain useful precision and display percentage units exactly once', () => {
   assert.equal(formatChartValue(3908.881947, 'Wealth ($)'), '3,908.8819')
   assert.equal(formatChartValue(60, 'Risky allocation (%)'), '60%')
