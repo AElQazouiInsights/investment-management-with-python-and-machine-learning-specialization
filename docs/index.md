@@ -77,6 +77,8 @@ Start with [Portfolio Management Fundamentals](./1.0-overview.md) if you are lea
 
 The advanced sequence ends with [Comparing Portfolio Decisions: A Capstone](./2.5-capstone.md), where you bring covariance estimation, Black–Litterman, risk attribution, and implementation costs into one comparison.
 
+**Prepare for the next courses:** the [Machine Learning](./3.0-overview.md) and [Alternative Data](./4.0-overview.md) overviews introduce prerequisites, planned topics, and preparation exercises. Their executable chapters are under development.
+
 ## Learn by Calculating and Explaining
 
 Each lesson connects a financial question to equations, worked examples, and editable Python cells. Run the cells in order, compare the output with the explanation, then change one assumption and explain what happens. Python executes in your browser; the interactive charts display the results of those calculations.

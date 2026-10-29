@@ -19,8 +19,10 @@ CHAPTERS = {
     "1.4-alm": (77, 33),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
-    "2.3-black-litterman": (18, 8),
+    "2.3-black-litterman": (20, 10),
     "2.4-robust-portfolios": (18, 8),
+    "3.0-overview": (0, 0),
+    "4.0-overview": (0, 0),
 }
 
 
@@ -75,6 +77,22 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "2.3-black-litterman":
             assert page.locator('a[href="/2.3-black-litterman"]').count() > 0
             assert page.locator('a[href="https://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization"]').count() > 0
+            if inspect_axes:
+                mean_chart, weight_chart = page.locator('[data-editor-output="expected-return-shrinkage"] .chart').evaluate_all(
+                    'els => els.map(el => el.__vueParentComponent.exposed.chart.getOption())')
+                for chart in (mean_chart, weight_chart):
+                    assert chart['xAxis'][0]['name'] == 'Weight on target'
+                    assert chart['xAxis'][0]['data'] == [f'{5 * i}%' for i in range(21)]
+                means = {s['name']: s['data'] for s in mean_chart['series']}
+                weights = {s['name']: s['data'] for s in weight_chart['series']}
+                for name, target in (('Equal return', (0.04, 0.04)), ('Equal Sharpe', (0.06, 0.03))):
+                    for i in range(21):
+                        equity = (1 - i / 20) * 0.12 + i / 20 * target[0]
+                        bonds = (1 - i / 20) * 0.02 + i / 20 * target[1]
+                        weight = min(1, max(0, (equity - bonds + 0.01) / 0.095))
+                        assert abs(means[f'{name}: Equity'][i] - 100 * equity) < 1e-8
+                        assert abs(means[f'{name}: Bonds'][i] - 100 * bonds) < 1e-8
+                        assert abs(weights[name][i] - 100 * weight) < 1e-6
         if chapter == "1.4-alm" and inspect_axes:
             selected = page.locator('[data-editor-output="coupon-widget"] .chart').evaluate_all("""els =>
                 els.map(el => el.__vueParentComponent.exposed.chart.getOption().series

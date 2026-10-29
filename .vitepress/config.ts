@@ -112,6 +112,20 @@ export default defineConfig({
             { text: 'Robust Portfolio Construction: Diversification and Risk Budgets', link: '/2.4-robust-portfolios' },
             { text: 'Comparing Portfolio Decisions: A Capstone', link: '/2.5-capstone' }
           ]
+        },
+        {
+          text: 'Machine Learning for Asset Management',
+          collapsed: true,
+          items: [
+            { text: 'Overview and Preparation', link: '/3.0-overview' }
+          ]
+        },
+        {
+          text: 'Alternative Data for Asset Management',
+          collapsed: true,
+          items: [
+            { text: 'Overview and Preparation', link: '/4.0-overview' }
+          ]
         }
       ]
     },
@@ -130,6 +144,10 @@ function nav() {
   return [
     { text: 'Home', link: '/' },
     { text: 'Portfolio Fundamentals', link: '/1.0-overview' },
-    { text: 'Advanced Portfolio Analysis', link: '/2.0-overview' }
+    { text: 'Advanced Portfolio Analysis', link: '/2.0-overview' },
+    { text: 'Next Courses', items: [
+      { text: 'Machine Learning: Overview and Preparation', link: '/3.0-overview' },
+      { text: 'Alternative Data: Overview and Preparation', link: '/4.0-overview' }
+    ] }
   ]
 }
