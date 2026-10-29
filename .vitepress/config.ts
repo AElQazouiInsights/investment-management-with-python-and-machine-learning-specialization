@@ -10,7 +10,7 @@ const base = '/'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Investment Management with Python",
-  description: "Portfolio management techniques with Python and Machine Learning",
+  description: "Portfolio construction and analysis with Python: returns, risk, optimization, factor exposures, covariance estimation, and risk budgeting.",
   base,
   head: [
     ['link', { rel: 'stylesheet', href: `${base}theme.css` }],
@@ -91,14 +91,14 @@ export default defineConfig({
     sidebar: {
       '/': [
         {
-          text: 'Introduction to Portfolio Construction & Analysis',
+          text: 'Portfolio Management Fundamentals',
           collapsed: true,
           items: [
             { text: 'Overview', link: '/1.0-overview' },
-            { text: 'Understanding Risks', link: '/1.1-risks' },
-            { text: 'Portfolio Optimization', link: '/1.2-optimization' },
-            { text: 'Diversification Strategies', link: '/1.3-diversification' },
-            { text: 'Asset Liability Management', link: '/1.4-alm' }
+            { text: 'Understanding Returns and Assessing Risks with Value at Risk', link: '/1.1-risks' },
+            { text: 'Fundamentals of Portfolio Optimization', link: '/1.2-optimization' },
+            { text: 'Strategies Beyond Diversification', link: '/1.3-diversification' },
+            { text: 'Fundamentals of Asset-Liability Management', link: '/1.4-alm' }
           ]
         },
         {
@@ -106,10 +106,11 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Overview', link: '/2.0-overview' },
-            { text: 'Advanced Insights into Style & Factor Exposures for Portfolio Optimization', link: '/2.1-style-factors' },
-            { text: 'Strategies for Robust Covariance Matrix Estimation in Portfolio Management', link: '/2.2-covariance' },
+            { text: 'Style and Factor Exposures', link: '/2.1-style-factors' },
+            { text: 'Covariance Matrix Estimation for Portfolio Construction', link: '/2.2-covariance' },
             { text: 'Black–Litterman: Reference Portfolios, Views, and Uncertainty', link: '/2.3-black-litterman' },
-            { text: 'Robust Portfolio Construction: Diversification and Risk Budgets', link: '/2.4-robust-portfolios' }
+            { text: 'Robust Portfolio Construction: Diversification and Risk Budgets', link: '/2.4-robust-portfolios' },
+            { text: 'Comparing Portfolio Decisions: A Capstone', link: '/2.5-capstone' }
           ]
         }
       ]
@@ -128,7 +129,7 @@ export default defineConfig({
 function nav() {
   return [
     { text: 'Home', link: '/' },
-    { text: 'Intro to Portfolio Construction', link: '/1.0-overview' },
+    { text: 'Portfolio Fundamentals', link: '/1.0-overview' },
     { text: 'Advanced Portfolio Analysis', link: '/2.0-overview' }
   ]
 }
