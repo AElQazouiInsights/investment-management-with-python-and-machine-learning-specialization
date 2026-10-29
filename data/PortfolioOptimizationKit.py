@@ -957,7 +957,8 @@ def maximize_sharpe_ratio(
     # Include the vertices even without a risk target: when all excess means
     # are negative, equal weights can be a stationary Sharpe MINIMUM.
     initial_guesses = [init_guess, *np.eye(n_assets)]
-    weights_constraint = {"type": "eq", "fun": lambda w: 1.0 - np.sum(w)}
+    weights_constraint = {"type": "eq", "fun": lambda w: 1.0 - np.sum(w),
+                          "jac": lambda w: -np.ones_like(w)}
     if target_volatility is not None:
         if not np.isfinite(target_volatility) or target_volatility <= 0:
             raise ValueError("target_volatility must be positive and finite; Sharpe is undefined at zero volatility")
@@ -972,9 +973,8 @@ def maximize_sharpe_ratio(
             )
         volatility_constraint = {
             "type": "eq",
-            "args": (covmatrix, periods_per_year),
-            "fun": lambda w, cov, p: target_volatility
-            - annualize_vol(portfolio_volatility(w, cov), p),
+            "fun": lambda w: target_volatility ** 2 - w @ annual_covariance @ w,
+            "jac": lambda w: -2 * annual_covariance @ w,
         }
         constr = (volatility_constraint, weights_constraint)
         # Exact-risk surfaces can have disconnected branches. Start from each
@@ -1012,6 +1012,7 @@ def maximize_sharpe_ratio(
             neg_portfolio_sharpe_ratio,
             guess,
             args=(rets, covmatrix, risk_free_rate, periods_per_year),
+            jac=(lambda w, *args: -rets / target_volatility) if target_volatility is not None else None,
             method="SLSQP",
             options={"disp": False, "ftol": 1e-12, "maxiter": 1000},
             constraints=constr,

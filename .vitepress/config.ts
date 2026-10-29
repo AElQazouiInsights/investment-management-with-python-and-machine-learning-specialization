@@ -14,16 +14,7 @@ export default defineConfig({
   base,
   head: [
     ['link', { rel: 'stylesheet', href: `${base}theme.css` }],
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}pi.svg` }],
-    // Cross Origin Isolation headers
-    ['meta', { 'http-equiv': 'Cross-Origin-Embedder-Policy', content: 'require-corp' }],
-    ['meta', { 'http-equiv': 'Cross-Origin-Opener-Policy', content: 'same-origin' }],
-    ['meta', { 'http-equiv': 'Cross-Origin-Resource-Policy', content: 'same-origin' }],
-    // Origin Trial token for SharedArrayBuffer
-    ['meta', { 
-      'http-equiv': 'origin-trial', 
-      content: 'AuatyxizBLUuF1Bg0Cd24qcSR6cTo9XGlyhT2cUPXpwFAPJWWDYn90ih56m2l4bCoY+Z6ZxbBBsyziFbtR+EugUAAABgeyJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjQxNzMiLCJmZWF0dXJlIjoiVW5yZXN0cmljdGVkU2hhcmVkQXJyYXlCdWZmZXIiLCJleHBpcnkiOjE3NTMxNDI0MDB9' 
-    }]
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}pi.svg` }]
   ],
 
   cleanUrls: true,
@@ -69,7 +60,7 @@ export default defineConfig({
       'Buffer': 'undefined'
     },
     ssr: {
-      noExternal: ['vue-echarts', 'echarts', '@jupyter-widgets/html-manager', '@jupyter-widgets/base', '@jupyter-widgets/controls', '@jupyter-widgets/schema'] // Ensure these packages are bundled for SSR
+      noExternal: ['vue-echarts', 'echarts', 'zrender', '@jupyter-widgets/html-manager', '@jupyter-widgets/base', '@jupyter-widgets/controls', '@jupyter-widgets/schema'] // Ensure these packages are bundled for SSR
     },
     server: {
       headers: {

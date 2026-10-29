@@ -25,41 +25,42 @@
     "./vite-plugin": "src/vite-plugin.js"
   },
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "vitepress build",
+    "runtime:prepare": "node scripts/prepare-pyodide.mjs",
+    "runtime:update": "node scripts/prepare-pyodide.mjs --update-lock",
+    "dev": "pnpm runtime:prepare && vitepress dev",
+    "build": "pnpm runtime:prepare && vitepress build",
     "preview": "vitepress preview",
     "deploy": "gh-pages -d .vitepress/dist",
     "jlite:build": "bash scripts/build-jlite.sh"
   },
   "dependencies": {
-    "@codemirror/commands": "^6.8.1",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/language": "^6.11.3",
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.38.2",
-    "@jupyter-widgets/base": "^6.0.11",
-    "@jupyter-widgets/controls": "^5.0.12",
-    "@jupyter-widgets/html-manager": "^1.0.14",
-    "@jupyter-widgets/output": "^6.0.11",
-    "@jupyter-widgets/schema": "^0.5.6",
-    "@lezer/common": "^1.2.3",
-    "@lezer/highlight": "^1.2.1",
-    "connect-history-api-fallback": "^2.0.0",
-    "echarts": "^5.5.1",
-    "express": "^5.1.0",
-    "markdown-it-mathjax3": "^4.3.2",
-    "recharts": "^3.1.2",
-    "vue": "^3.5.21",
-    "vue-echarts": "^7.0.3"
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-python": "6.2.1",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@jupyter-widgets/base": "6.0.12",
+    "@jupyter-widgets/controls": "5.0.13",
+    "@jupyter-widgets/html-manager": "1.0.15",
+    "@jupyter-widgets/output": "6.0.12",
+    "@jupyter-widgets/schema": "0.5.6",
+    "@lezer/common": "1.5.4",
+    "@lezer/highlight": "1.2.5",
+    "connect-history-api-fallback": "2.0.0",
+    "echarts": "6.1.0",
+    "express": "5.3.0",
+    "markdown-it-mathjax3": "4.3.2",
+    "vue": "3.5.44",
+    "vue-echarts": "8.3.2"
   },
   "peerDependencies": {
-    "pyodide": "^0.28.2"
+    "pyodide": "314.0.7"
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.13",
-    "vitepress": "^1.6.4"
+    "autoprefixer": "10.6.2",
+    "postcss": "8.5.32",
+    "tailwindcss": "4.3.3",
+    "vitepress": "1.6.4"
   },
   "packageManager": "pnpm@10.15.1",
   "pnpm": {

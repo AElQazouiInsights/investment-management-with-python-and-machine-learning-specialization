@@ -7,6 +7,7 @@ Optional screenshots are saved outside the repository.
 
 import argparse
 from pathlib import Path
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 
 
@@ -23,10 +24,21 @@ CHAPTERS = {
 }
 
 
-def audit(base_url, chapter, screenshots=None, inspect_axes=True):
+def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='chromium'):
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page(viewport={"width": 1440, "height": 1000})
+        browser = getattr(playwright, browser_name).launch()
+        context = browser.new_context(viewport={"width": 1440, "height": 1000}, service_workers='block')
+        external = []
+
+        def same_origin_only(route):
+            if urlsplit(route.request.url)[:2] != urlsplit(base_url)[:2]:
+                external.append(route.request.url)
+                route.abort()
+            else:
+                route.continue_()
+
+        context.route('**/*', same_origin_only)
+        page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
@@ -59,6 +71,7 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True):
         assert not page.get_by_text('[Incomplete chart JSON received]', exact=False).count()
         panels = page.locator(".chart-panel")
         assert panels.count() == expected[1], panels.count()
+        assert not external, f'Unexpected off-site requests: {external}'
         if chapter == "2.3-black-litterman":
             assert page.locator('a[href="/2.3-black-litterman"]').count() > 0
             assert page.locator('a[href="https://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization"]').count() > 0
@@ -173,6 +186,7 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True):
                 assert ("%" in text) == percent, (editor, text)
             print("PASS: axis tooltips show readable correlation and percentage values.", flush=True)
         assert not errors, errors
+        assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)
         browser.close()
 
@@ -184,6 +198,7 @@ if __name__ == "__main__":
     target.add_argument("--site-dir", type=Path)
     parser.add_argument("--chapter", choices=CHAPTERS, default="1.3-diversification")
     parser.add_argument("--screenshots", type=Path)
+    parser.add_argument("--browser", choices=['chromium', 'firefox'], default='chromium')
     args = parser.parse_args()
     if args.site_dir:
         import functools
@@ -196,8 +211,8 @@ if __name__ == "__main__":
                 IsolatedSiteHandler, directory=str(args.site_dir.resolve()))) as server:
             threading.Thread(target=server.serve_forever, daemon=True).start()
             try:
-                audit(f"http://127.0.0.1:{server.server_port}", args.chapter, args.screenshots, inspect_axes=False)
+                audit(f"http://127.0.0.1:{server.server_port}", args.chapter, args.screenshots, inspect_axes=False, browser_name=args.browser)
             finally:
                 server.shutdown()
     else:
-        audit(args.base_url or "http://localhost:5173", args.chapter, args.screenshots)
+        audit(args.base_url or "http://localhost:5173", args.chapter, args.screenshots, browser_name=args.browser)
