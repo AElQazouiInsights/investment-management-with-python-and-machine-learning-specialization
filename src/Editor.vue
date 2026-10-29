@@ -528,16 +528,6 @@ async function renderWidget(stateJSON: string) {
       return rawId
     }
 
-    const ensureStylesheet = (href: string) => {
-      if (typeof document === 'undefined') return
-      if (document.querySelector(`link[data-widget-css="${href}"]`)) return
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = href
-      link.setAttribute('data-widget-css', href)
-      document.head.appendChild(link)
-    }
-
     ;(window as any).require = (id: string) => {
       const canonical = canonicalId(id)
       if (widgetRequireCache[canonical]) return widgetRequireCache[canonical]
@@ -573,11 +563,9 @@ async function renderWidget(stateJSON: string) {
         return widgetRequireCache[canonical] ?? {}
       }
       if (id.endsWith('widgets-base.css')) {
-        ensureStylesheet('https://cdn.jsdelivr.net/npm/@jupyter-widgets/controls/css/widgets-base.css')
         return {}
       }
       if (id.endsWith('labvariables.css')) {
-        ensureStylesheet('https://cdn.jsdelivr.net/npm/@jupyter-widgets/controls/css/labvariables.css')
         return {}
       }
       if (canonical === '@jupyter-widgets/schema') {
@@ -605,6 +593,10 @@ async function renderWidget(stateJSON: string) {
     let htmlManagerModule, baseModule, controlsModule, outputModule
     
     try {
+      await Promise.all([
+        import('@jupyter-widgets/controls/css/widgets-base.css'),
+        import('@jupyter-widgets/controls/css/labvariables.css'),
+      ])
       // Ensure sanitize-html shim exposes the helper expected by html-manager
       try {
         const sanitizeMod = await import('sanitize-html')

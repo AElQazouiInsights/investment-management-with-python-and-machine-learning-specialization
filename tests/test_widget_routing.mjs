@@ -19,7 +19,6 @@ async function workerHarness() {
       if (code === '_widget_json_result') return state.widget ? JSON.stringify(state.widget) : ''
     },
     async runPythonAsync(code) {
-      if (code.includes('import micropip')) return
       if (code.includes('await _editor_eval_code_async')) code = state.globals._editor_source
       state.executions.push(code)
       state.beforeExecution.push(state.widget)
@@ -35,11 +34,14 @@ async function workerHarness() {
     },
   }
   // Execute the actual worker body with transport/runtime dependencies supplied.
+  const lock = JSON.parse(await readFile(new URL('../runtime/pyodide-lock.json', import.meta.url)))
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-  const initialize = new AsyncFunction('loadPyodide', 'fetch', 'postMessage', 'TextDecoder', 'setTimeout', 'clearTimeout', 'receiveInput',
-    `let onmessage;\n${source.replace(/^import .*?;\n/gm, '')}\nreturn onmessage;`)
+  const initialize = new AsyncFunction('loadPyodide', 'fetch', 'postMessage', 'TextDecoder', 'setTimeout', 'clearTimeout', 'receiveInput', 'runtime', 'self', 'revision', 'packages',
+    `let onmessage;\n${source.replace(/^import .*?;\n/gm, '').replace('import.meta.env.BASE_URL', JSON.stringify('/'))}\nreturn onmessage;`)
   const handler = await initialize(async () => pyodide, async () => ({ ok: true, text: async () => '' }),
-    message => messages.push(message), TextDecoder, setTimeout, clearTimeout, receiveInput)
+    message => messages.push(message), TextDecoder, setTimeout, clearTimeout, receiveInput,
+    JSON.parse(await readFile(new URL('../runtime/config.json', import.meta.url))), { location: { origin: 'https://site.test' } },
+    lock.revision, lock.packages)
   return { handler, messages, state }
 }
 

@@ -1,7 +1,7 @@
 """Exercise the built site with Chromium, real Pyodide, and real widget controls.
 
 Run explicitly with --site-dir pointing to a fresh VitePress production build.
-Requires Playwright, its Chromium browser, and network access for Pyodide packages.
+Requires Playwright, its Chromium browser, and a prepared local runtime.
 """
 
 import argparse
@@ -121,7 +121,7 @@ print("<ECHARTS_DATA>" + json.dumps({"plot": {"title": "Literal <ECHARTS_DATA> l
 
 def check_runtime_failure(browser, base_url):
     context = browser.new_context()
-    context.route('https://cdn.jsdelivr.net/pyodide/**', lambda route: route.abort())
+    context.route('**/pyodide/**', lambda route: route.abort())
     page = context.new_page()
     page.goto(f"{base_url.rstrip('/')}/2.3-black-litterman.html", wait_until='domcontentloaded', timeout=120000)
     editor = page.locator('[data-editor-id="black-litterman-setup"]')
@@ -130,6 +130,30 @@ def check_runtime_failure(browser, base_url):
     assert editor.locator('.cm-content').count() == 1
     context.close()
     print('PASS: an unavailable Python runtime produces a visible reload message while code remains editable.', flush=True)
+
+
+def check_dependency_failure(browser, base_url):
+    context = browser.new_context(service_workers='block')
+    context.route('**/numpy-*.whl', lambda route: route.fulfill(status=503, body='Unavailable'))
+    page = context.new_page()
+    page.goto(f"{base_url.rstrip('/')}/1.2-optimization.html", wait_until='domcontentloaded')
+    editor = page.locator('[data-editor-id="portfolio-optimization-python-modules"]')
+    output = page.locator('[data-editor-output="portfolio-optimization-python-modules"]')
+    editor.locator('button.run:not(:disabled)').wait_for(timeout=120000)
+    editor.locator('button.run').click()
+    output.get_by_text('Python dependencies could not load', exact=False).wait_for(timeout=180000)
+    assert 'numpy-' in output.inner_text()
+    assert '503' in output.inner_text()
+    editor.locator('button.run:not(:disabled)').wait_for()
+    context.unroute('**/numpy-*.whl')
+    editor.locator('.cm-content').click()
+    page.keyboard.press('Control+a')
+    page.keyboard.insert_text('import PortfolioOptimizationKit, numpy, ipywidgets\nprint("DEPENDENCIES_RECOVERED")')
+    editor.locator('button.run').click()
+    output.get_by_text('DEPENDENCIES_RECOVERED', exact=False).wait_for(timeout=180000)
+    assert 'Traceback' not in output.inner_text()
+    context.close()
+    print('PASS: a missing wheel reports its URL/status and a retry recovers initialization.', flush=True)
 
 
 def check_python_input(browser, base_url):
@@ -1100,6 +1124,7 @@ widget_instance''')
             check_unavailable_storage(browser, base_url)
             check_chart_protocol(browser, base_url)
             check_runtime_failure(browser, base_url)
+            check_dependency_failure(browser, base_url)
             check_python_input(browser, base_url)
             browser.close()
     finally:

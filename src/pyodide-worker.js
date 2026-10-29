@@ -1,8 +1,16 @@
 import { loadPyodide } from 'pyodide';
 import { receiveInput } from './editor-input.js';
+import runtime from '../runtime/config.json';
+import { revision, packages } from '../runtime/pyodide-lock.json';
 
-// Load Pyodide with the specified indexURL
-const pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.2/full/" });
+const siteURL = new URL(import.meta.env.BASE_URL, self.location.origin);
+const indexURL = new URL(`pyodide/${runtime.version}/${revision.slice(0, 12)}/`, siteURL).href;
+let pyodide;
+try {
+  pyodide = await loadPyodide({ indexURL });
+} catch (error) {
+  throw new Error(`Python runtime could not load from ${indexURL}. Reload the page; if it persists, report this URL and check that WebAssembly is allowed. ${error.message}`);
+}
 let initialized = false;
 let executionQueue = Promise.resolve();
 const pendingRequests = new Set();
@@ -86,8 +94,11 @@ const filesToMount = [
 
 try {
   await Promise.all(filesToMount.map(async file => {
-    const response = await fetch(file.url);
-    if (!response.ok) throw new Error(`Failed to fetch ${file.url}`);
+    const url = new URL(file.url.slice(1), siteURL);
+    const response = await fetch(url, { signal: AbortSignal.timeout(60000) }).catch(error => {
+      throw new Error(`Failed to fetch ${url}: ${error.message}`);
+    });
+    if (!response.ok) throw new Error(`Failed to fetch ${url} (HTTP ${response.status})`);
     const content = await response.text();
     
     const dir = file.path.split('/').slice(0, -1).join('/');
@@ -96,29 +107,40 @@ try {
     pyodide.FS.writeFile(file.path, content);
   }));
 } catch (error) {
-  console.error("Error mounting files:", error);
+  throw new Error(`Python lesson files could not load. Reload the page; if it persists, report the failed URL. ${error.message}`);
 }
 
 async function ensureInitialized() {
   if (initialized) return;
-  await pyodide.loadPackage([
-    "pandas",
-    "numpy",
-    "scipy",
-    "statsmodels",
-    "matplotlib",
-    "micropip",
-  ]);
-  await pyodide.runPythonAsync(`
-import micropip
-await micropip.install(['tabulate','ipywidgets'], keep_going=True)
-await micropip.install(['traitlets'])
-  `);
-  pyodide.runPython(`
+  try {
+    const failures = [];
+    await pyodide.loadPackage(runtime.packages, {
+      errorCallback: message => failures.push(message),
+      checkIntegrity: true,
+    });
+    if (failures.length) {
+      const missing = Object.entries(packages).filter(([name]) => !pyodide.loadedPackages[name]);
+      // Fetch integrity failures hide the HTTP status; inspect only failed assets.
+      const details = await Promise.all(missing.map(async ([, pkg]) => {
+        const url = new URL(pkg.file_name, indexURL).href;
+        try {
+          const response = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+          return `${url} (HEAD HTTP ${response.status}; package download or integrity check failed)`;
+        } catch (error) {
+          return `${url}: ${error.message}`;
+        }
+      }));
+      throw new Error([...failures, ...details].join('\n'));
+    }
+    pyodide.runPython(`
 import sys
 if '/assets' not in sys.path:
     sys.path.append('/assets')
-  `);
+import numpy, pandas, scipy, statsmodels, matplotlib, ipywidgets, PortfolioOptimizationKit
+    `);
+  } catch (error) {
+    throw new Error(`Python dependencies could not load from ${indexURL}. Retry the cell or reload the page. If it persists, report the failed URL and status to the site administrator. ${error.message}`);
+  }
   initialized = true;
 }
 

@@ -1,12 +1,16 @@
 // src/vite-plugin.js
-import { copyFile, mkdir, readFile, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { mkdir, readFile, writeFile } from 'fs/promises'
+import { join, resolve } from 'path'
 
 export function vitepressPythonEditor(
- { assetsDir } = { assetsDir: '.vitepress/dist/assets' }
+ { assetsDir } = {}
 ) {
+ let outputAssets
  return {
-   name: 'vite-plugin-vitepress-python-editor',
+    name: 'vite-plugin-vitepress-python-editor',
+    configResolved(config) {
+      outputAssets = assetsDir ?? resolve(config.root, config.build.outDir, 'assets')
+    },
    config: () => ({
      build: {
        target: 'esnext',
@@ -59,8 +63,8 @@ export function vitepressPythonEditor(
   generateBundle: async () => {
     try {
       // Create directories
-      await mkdir(assetsDir, { recursive: true })
-      await mkdir(join(assetsDir, 'data'), { recursive: true })
+      await mkdir(outputAssets, { recursive: true })
+      await mkdir(join(outputAssets, 'data'), { recursive: true })
 
       // Copy and update PortfolioOptimizationKit
       const kitContent = await readFile('PortfolioOptimizationKit.py', 'utf-8')
@@ -69,13 +73,13 @@ export function vitepressPythonEditor(
         'return "/assets/data"'
       )
       await writeFile(
-        join(assetsDir, 'PortfolioOptimizationKit.py'), 
+        join(outputAssets, 'PortfolioOptimizationKit.py'),
         updatedContent
       )
 
       // Data files are served from public/assets/data at runtime; no copy needed
      } catch (error) {
-       console.error('Error in generateBundle:', error)
+       throw new Error(`Could not publish PortfolioOptimizationKit.py: ${error.message}`)
      }
    },
  }
