@@ -14,6 +14,7 @@ async function workerHarness() {
     setInterruptBuffer(buffer) { state.interruptBuffer = buffer },
     async loadPackage() {},
     runPython(code) {
+      if (state.interruptBuffer?.[0]) throw new Error('KeyboardInterrupt during metadata serialization')
       if (code.trim() === 'widget_instance = None') state.widget = null
       if (code.includes("globals().get('widget_instance', None)") && !code.includes('dependency_state')) return state.widget
       if (code === '_widget_json_result') return state.widget ? JSON.stringify(state.widget) : ''
@@ -31,6 +32,7 @@ async function workerHarness() {
         }
       }
       if (code === 'create-widget') state.widget = { model_id: 'current-widget' }
+      if (code === 'late-interrupt') state.interruptBuffer[0] = 2
     },
   }
   // Execute the actual worker body with transport/runtime dependencies supplied.
@@ -199,4 +201,15 @@ test('the worker interrupt view shares the supplied buffer rather than copying i
   assert.equal(Atomics.load(state.interruptBuffer, 0), 2)
   Atomics.store(state.interruptBuffer, 0, 0)
   assert.equal(Atomics.load(mainThreadView, 0), 0)
+})
+
+test('an interrupt at the execution boundary cannot leak into metadata cleanup or the next cell', async () => {
+  const { handler, messages, state } = await workerHarness()
+  await handler({ data: { inputBuffer: new SharedArrayBuffer(1024), waitBuffer: new SharedArrayBuffer(8),
+    interruptBuffer: new SharedArrayBuffer(1) } })
+  await handler({ data: { id: 'long', code: 'late-interrupt' } })
+  assert.equal(state.interruptBuffer[0], 0)
+  assert.equal(messages.some(message => message.error), false)
+  await handler({ data: { id: 'next', code: 'create-widget' } })
+  assert.ok(messages.some(message => message.id === 'next' && message.widgetState))
 })

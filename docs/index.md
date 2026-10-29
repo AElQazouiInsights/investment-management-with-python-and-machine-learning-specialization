@@ -2,34 +2,44 @@
 layout: home
 
 title: "Investment Management with Python"
-titleTemplate: "Empower Your Financial Strategy"
+titleTemplate: "Portfolio Construction and Analysis"
+description: "Study returns, risk, portfolio optimization, factor exposures, covariance estimation, Black–Litterman, and risk budgeting with worked Python examples."
 
 hero:
   name: "Investment Management with Python"
-  text: "Master Financial Models & Portfolio Strategies"
-  tagline: "Discover advanced portfolio management techniques and financial analytics powered by Python and Machine Learning."
+  text: "Understand Risk. Build and Evaluate Portfolios."
+  tagline: "Work through financial reasoning, Python calculations, and interactive experiments—from measuring returns to allocating risk."
   image:
     src: "/cppi.jpg"
     alt: "Financial Models and Strategies"
     class: "hero-image"
   actions:
     - theme: brand
-      text: "Explore Courses →"
+      text: "Start with the Fundamentals"
       link: "/1.0-overview"
+    - theme: alt
+      text: "Explore Advanced Portfolio Analysis"
+      link: "/2.0-overview"
 
 features:
   - icon:
       src: "/math-integral.svg"
     title: "Portfolio Management Fundamentals"
-    details: "Dive deep into portfolio management fundamentals, exploring asset risks, returns, and optimization strategies."
+    details: "Measure compounded returns and downside risk, construct efficient portfolios, and examine diversification and dynamic allocation."
+    link: "/1.0-overview"
+    linkText: "View the fundamental lessons"
   - icon:
       src: "/bell-shaped-graph.svg"
     title: "Advanced Portfolio Analysis"
-    details: "Leverage Python for advanced portfolio construction techniques, including robust covariance estimation and the Black-Litterman model."
+    details: "Interpret factor exposures, estimate covariance, combine reference portfolios with views, and construct risk-budget allocations."
+    link: "/2.0-overview"
+    linkText: "View the advanced lessons"
   - icon:
       src: "/cosine-graph.svg"
     title: "Asset-Liability Management"
-    details: "Understand the intricacies of managing assets and liabilities to align with investment goals and risk tolerance."
+    details: "Value liabilities, measure bond sensitivity, and compare investment policies against funding goals."
+    link: "/1.4-alm"
+    linkText: "Study asset-liability management"
 ---
 
 <style>
@@ -52,15 +62,6 @@ features:
   }
 }
 
-.custom-block.info {
-  background-color: #3eaf7c;
-  color: white;
-  border-left: 5px solid darken(#3eaf7c, 10%);
-  padding: 10px 20px;
-  font-size: 20px;
-  line-height: 1.5;
-}
-
 .hero-image {
   width: 200%;
   height: auto;
@@ -70,17 +71,20 @@ features:
 }
 </style>
 
-::: info Project Goals & Scope
-After earning a specialization in **Investment Management with Python and Machine Learning** from EDHEC Business School ([**`Credential ID: WUTZABL42PW8`**](https://www.coursera.org/account/accomplishments/specialization/WUTZABL42PW8)), I compiled key financial and mathematical concepts into a Python module. This project is documented in Jupyter notebooks and here on Vitepress.
+## Choose Your Starting Point
 
-The main goal of this project is to provide an accessible, structured, and practical approach to modern investment strategies and portfolio management techniques. It aims to bridge the gap between academic theory and real-world application, enabling users—from students to professional investors—to implement and test various investment strategies using Python.
+Start with [Portfolio Management Fundamentals](./1.0-overview.md) if you are learning how returns, covariance, portfolio constraints, and liabilities enter an investment decision. Continue with [Advanced Portfolio Construction and Analysis](./2.0-overview.md) to examine the estimates and assumptions behind those decisions.
 
-The content spans several core areas:
+The advanced sequence ends with [Comparing Portfolio Decisions: A Capstone](./2.5-capstone.md), where you bring covariance estimation, Black–Litterman, risk attribution, and implementation costs into one comparison.
 
-- **Fundamental Analysis**: Introducing basic concepts such as returns calculations and risk assessments.
-- **Quantitative Methods**: Covering advanced statistical and mathematical techniques to optimize portfolios and manage risks effectively.
-- **Machine Learning Applications**: Demonstrating how machine learning can be applied to enhance predictive accuracy in investment decisions.
-- **Interactive Learning**: Each module includes interactive Jupyter notebooks that allow users to experiment with real data, tweak parameters, and observe the outcomes in real-time.
+**Prepare for the next courses:** the [Machine Learning](./3.0-overview.md) and [Alternative Data](./4.0-overview.md) overviews introduce prerequisites, planned topics, and preparation exercises. Their executable chapters are under development.
 
-This educational toolkit is not just a passive learning resource but an active framework for engaging with and mastering the complexities of financial markets through technology.
-:::
+## Learn by Calculating and Explaining
+
+Each lesson connects a financial question to equations, worked examples, and editable Python cells. Run the cells in order, compare the output with the explanation, then change one assumption and explain what happens. Python executes in your browser; the interactive charts display the results of those calculations.
+
+The emphasis is on interpreting evidence: distinguish model assumptions from historical observations, estimated risk from realized outcomes, and portfolio objectives from performance rankings.
+
+## About This Resource
+
+After completing EDHEC Business School's **Investment Management with Python and Machine Learning** specialization ([credential WUTZABL42PW8](https://www.coursera.org/account/accomplishments/specialization/WUTZABL42PW8)), I developed this collection of Python tools and teaching notes. The published lessons focus on portfolio construction and analysis: returns and risk, optimization, asset-liability management, factor models, covariance estimation, Black–Litterman, and risk budgeting.

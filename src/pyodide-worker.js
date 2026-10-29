@@ -226,28 +226,36 @@ def _emit_echarts(payload):
     js.postMessage(to_js({"id": _current_run_id, "echart": payload}, dict_converter=js.Object.fromEntries))
     `);
 
-    // The timer handles yielding code; synchronous Python can still be stopped
-    // through the shared interrupt buffer written by the UI.
+    // Cancel yielding code through asyncio, leaving the shared interrupt buffer
+    // for UI Stop requests that must also interrupt synchronous Python.
     const TIMEOUT_MS = 15000;
     let timer = null;
     try {
       timer = setTimeout(() => {
-        try { if (interruptBuffer) interruptBuffer[0] = 2; } catch {}
+        pyodide.runPython('_editor_task.cancel()');
         postMessage({ id, output: "\n[Execution timed out]\n" });
       }, TIMEOUT_MS);
       // Catch cancellation before KeyboardInterrupt reaches asyncio's task boundary.
       // Evaluate the original source separately to retain top-level await, globals,
       // future imports, and its own line numbers without indenting user code.
       pyodide.globals.set('_editor_source', code);
+      pyodide.globals.set('_editor_timeout_id', timer);
       await pyodide.runPythonAsync(`
 from pyodide.code import eval_code_async as _editor_eval_code_async
+import asyncio as _editor_asyncio
+_editor_task = _editor_asyncio.current_task()
 try:
     await _editor_eval_code_async(_editor_source, globals(), filename="<editor>")
-except KeyboardInterrupt:
+except (KeyboardInterrupt, _editor_asyncio.CancelledError):
     print("\\n[Execution interrupted]")
+finally:
+    # Cancel before yielding to JS, where an overdue timer could interrupt cleanup.
+    js.clearTimeout(_editor_timeout_id)
+    _editor_task = None
       `);
     } finally {
       if (timer) clearTimeout(timer);
+      if (interruptBuffer) interruptBuffer[0] = 0;
     }
     
     // Serialize a widget instance (if provided by user code) and post its state

@@ -81,6 +81,8 @@ test('portfolio names remain ordinary series in bar and categorical time charts'
 test('tooltips retain useful precision and display percentage units exactly once', () => {
   assert.equal(formatChartValue(3908.881947, 'Wealth ($)'), '3,908.8819')
   assert.equal(formatChartValue(60, 'Risky allocation (%)'), '60%')
+  assert.equal(formatChartValue(-5.194805, 'Relative volatility contribution (%)'), '-5.1948%')
+  assert.equal(formatChartValue(2.123456, 'Weight standard deviation (percentage points)'), '2.1235 pp')
   assert.equal(formatChartValue(0.6305901, 'Correlation'), '0.6306')
   assert.equal(formatChartValue([0.5, 104.937747], 'Price'), '104.9377')
   assert.equal(formatChartValue(null, 'Return (%)'), '—')
