@@ -9,5 +9,6 @@ export function formatChartValue(value, unit = '') {
   // Numeric-axis line data is [x, y]; the axis tooltip already identifies x.
   const y = Array.isArray(value) ? value[1] : value
   if (y === null || y === undefined || !Number.isFinite(y)) return '—'
-  return valueFormat.format(y) + (unit.includes('%') ? '%' : '')
+  const suffix = unit.includes('percentage points') ? ' pp' : unit.includes('%') ? '%' : ''
+  return valueFormat.format(y) + suffix
 }

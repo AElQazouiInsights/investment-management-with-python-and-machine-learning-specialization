@@ -49,6 +49,45 @@ class RobustExampleTests(unittest.TestCase):
                                    [1.7/4.8, 1.8/4.8, 1.3/4.8])
         np.testing.assert_allclose(pok.portfolio_risk_contributions(v["three_erc"], v["three_covariance"]), [1/3] * 3, atol=1e-8)
 
+    def test_historical_chart_values_match_tables_in_asset_and_date_order(self):
+        v = self.values
+        charts = {key: value for payload in self.payloads for key, value in payload.items()
+                  if isinstance(value, dict) and "series" in value}
+        for key, frame in (("robustGrossWealth", v["gross_wealth"]), ("robustNetWealth", v["net_wealth"])):
+            payload = next(payload for payload in self.payloads if key in payload)
+            self.assertEqual(payload["dates"], frame.index.astype(str).tolist())
+            self.assertEqual(payload["dates"][0], "1994-12")
+            self.assertEqual(payload["dates"][-1], "2018-12")
+            self.assertEqual(charts[key]["yAxis"]["type"], "log")
+            self.assertEqual(list(charts[key]["series"]), list(frame))
+            for name in frame:
+                np.testing.assert_allclose(charts[key]["series"][name], frame[name])
+                self.assertEqual(charts[key]["series"][name][0], 100)
+        selected = v["decision_weights"].max(axis=1).sort_values(ascending=False).index[:8]
+        for key, frame in (("snapshotWeights", v["decision_weights"]), ("snapshotRisk", v["decision_shares"])):
+            self.assertEqual(charts[key]["xAxis"]["data"], selected.tolist())
+            self.assertEqual(list(charts[key]["series"]), list(frame))
+            for name in frame:
+                np.testing.assert_allclose(charts[key]["series"][name], frame.loc[selected, name] * 100)
+        # ERC has 30 equal risk shares: eight bars total 8/30, not 100%.
+        self.assertAlmostEqual(sum(charts["snapshotRisk"]["series"]["ERC"]), 100 * 8/30, places=5)
+        sensitivity = charts["allocationSensitivity"]
+        selected = v["allocation_sensitivity"].max(axis=1).sort_values(ascending=False).index[:8]
+        self.assertEqual(sensitivity["xAxis"]["data"], selected.tolist())
+        self.assertIn("percentage points", sensitivity["yAxisName"])
+        for name in ("GMV", "ERC"):
+            np.testing.assert_allclose(sensitivity["series"][name], v["allocation_sensitivity"].loc[selected, name])
+        turnover = charts["turnoverComparison"]
+        self.assertEqual(turnover["xAxis"]["data"], list(v["turnover"]))
+        np.testing.assert_allclose(turnover["series"]["Turnover"], v["turnover"].mean() * 100)
+
+    def test_quoted_historical_results_agree_with_computed_statistics(self):
+        np.testing.assert_allclose(self.values["gross_statistics"]["Annualized volatility (%)"],
+                                   [15.47, 14.92, 11.63, 14.07, 14.25], atol=0.005, rtol=0)
+        self.assertAlmostEqual(self.values["gross_statistics"].loc["ERC", "CAGR (%)"], 10.12, delta=0.005)
+        np.testing.assert_allclose(self.values["turnover"].mean() * 100,
+                                   [1.58, 2.10, 7.32, 1.80, 1.63], atol=0.005, rtol=0)
+
     def test_every_strategy_has_common_complete_evaluation_dates(self):
         v = self.values
         self.assertEqual(v["gross_returns"].shape, (288, 5))
@@ -149,6 +188,25 @@ class RobustExampleTests(unittest.TestCase):
         self.assertLess(v["cash_weight"], 0)
         self.assertAlmostEqual(v["scaled_exposures"].sum() + v["cash_weight"], 1)
         np.testing.assert_allclose(pok.portfolio_risk_contributions(v["scaled_exposures"], v["annual_covariance"]), [0.5, 0.5])
+
+    def test_fee_iteration_checks_convergence_and_rejects_invalid_rates(self):
+        dates = pd.period_range("2024-01", periods=2, freq="M")
+        targets = pd.DataFrame([[1, 0], [0, 1]], index=dates, columns=["A", "B"])
+        overrides = {
+            "evaluation_dates": dates, "weight_history": {"Case": targets},
+            "pretrade_weights": {"Case": pd.DataFrame([[1, 0], [1, 0]], index=dates, columns=targets.columns)},
+            "gross_returns": pd.DataFrame({"Case": [0, 0]}, index=dates),
+            "turnover": pd.DataFrame({"Case": [0, 1]}, index=dates),
+        }
+        result = self.run_cost_cell(5000.0, overrides)
+        # A complete switch trades 1+a, so a=(1-k)/(1+k).
+        self.assertAlmostEqual(result["after_cost_fractions"]["Case"].iloc[1], 1/3, delta=1e-12)
+        with self.assertRaisesRegex(RuntimeError, "did not converge"):
+            self.run_cost_cell(9900.0, overrides)
+        for cost in (-1.0, 10000.0, 'float("nan")', 'float("inf")'):
+            with self.subTest(cost=cost), self.assertRaises(ValueError):
+                code = self.examples["robust-transaction-costs"].replace("cost_bps = 10.0", f"cost_bps = {cost}")
+                exec(code, dict(self.values))
 
 
 if __name__ == "__main__":

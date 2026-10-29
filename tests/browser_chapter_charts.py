@@ -77,59 +77,55 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
             assert page.locator('a[href="https://github.com/AElQazouiInsights/investment-management-with-python-and-machine-learning-specialization"]').count() > 0
         if chapter == "1.4-alm" and inspect_axes:
             selected = page.locator('[data-editor-output="coupon-widget"] .chart').evaluate_all("""els =>
-                els.map(el => el.__vueParentComponent.setupState.chart.getOption().series
+                els.map(el => el.__vueParentComponent.exposed.chart.getOption().series
                     .find(series => series.name.startsWith('Selected')))
             """)
             assert len(selected) == 2
             assert all(series['type'] == 'scatter' and series['showSymbol'] and series['symbol'] == 'diamond'
                        for series in selected), selected
             step_series = page.locator('[data-editor-output="glide-widget"] .chart').first.evaluate("""el =>
-                el.__vueParentComponent.setupState.chart.getOption().series.find(series => series.name === 'Glide path')
+                el.__vueParentComponent.exposed.chart.getOption().series.find(series => series.name === 'Glide path')
             """)
             assert step_series['step'] == 'end'
             assert step_series['data'][-2:] == [[9.5, 20], [10, 20]]
             floor_series = page.locator('[data-editor-output="floor-widget"] .chart').first.evaluate("""el =>
-                el.__vueParentComponent.setupState.chart.getOption().series
+                el.__vueParentComponent.exposed.chart.getOption().series
             """)
             styles = {series['name']: series['lineStyle'].get('type') for series in floor_series}
             assert styles['Floor PV'] == 'dashed' and styles['Floor allocator'] != 'dashed', styles
 
         if chapter == "2.1-style-factors" and inspect_axes:
-            drift = page.locator('[data-editor-output="rolling-style-drift"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            drift = page.locator('[data-editor-output="rolling-style-drift"] .chart').evaluate("el => el.__vueParentComponent.exposed.chart.getOption()")
             actual = next(series for series in drift['series'] if series['name'] == 'Actual')
             estimated = next(series for series in drift['series'] if series['name'] == 'Prior-window estimate')
             january = drift['xAxis'][0]['data'].index('2009-01')
             assert actual['step'] == 'start' and actual['data'][january] == 20
             assert abs(estimated['data'][january] - 80) < 1e-5
-            benchmark = page.locator('[data-editor-output="berkshire-factor-benchmark"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            benchmark = page.locator('[data-editor-output="berkshire-factor-benchmark"] .chart').evaluate("el => el.__vueParentComponent.exposed.chart.getOption()")
             assert benchmark['yAxis'][0]['type'] == 'log'
             assert benchmark['xAxis'][0]['data'][0] == '1989-12'
             assert all(series['data'][0] == 100 for series in benchmark['series'])
 
         if chapter == "2.2-covariance" and inspect_axes:
-            rolling = page.locator('[data-editor-output="rolling-covariance-volatility"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            rolling = page.locator('[data-editor-output="rolling-covariance-volatility"] .chart').evaluate("el => el.__vueParentComponent.exposed.chart.getOption()")
             for series, warmup in zip(rolling['series'], (11, 59)):
                 assert series['data'][:warmup] == [None] * warmup
                 assert series['data'][warmup] is not None
-            wealth = page.locator('[data-editor-output="covariance-portfolio-evaluation"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
+            wealth = page.locator('[data-editor-output="covariance-portfolio-evaluation"] .chart').evaluate("el => el.__vueParentComponent.exposed.chart.getOption()")
             assert wealth['yAxis'][0]['type'] == 'log'
             assert wealth['xAxis'][0]['data'][0] == '1977-12'
             assert all(len(series['data']) == 493 and series['data'][0] == 100 for series in wealth['series'])
 
-        if chapter == "2.4-robust-portfolios" and inspect_axes:
-            for editor in ('risk-parity-widget', 'robust-decision-attribution', 'robust-allocation-sensitivity'):
-                options = page.locator(f'[data-editor-output="{editor}"] .chart').evaluate_all("els => els.map(el => el.__vueParentComponent.setupState.chart.getOption())")
-                assert all(series['type'] == 'bar' for option in options for series in option['series'])
-            for editor in ('robust-gross-evaluation', 'robust-transaction-costs'):
-                option = page.locator(f'[data-editor-output="{editor}"] .chart').evaluate("el => el.__vueParentComponent.setupState.chart.getOption()")
-                assert all(series['type'] == 'line' and len(series['data']) == 289 and series['data'][0] == 100 for series in option['series'])
+        if chapter == "2.4-robust-portfolios":
+            from browser_robust_charts import check_defaults, check_controls, check_execution_cleanup
+            check_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
             page.wait_for_timeout(1200)
             measurements = panels.evaluate_all("""panels => panels.map(panel => {
                 const el = panel.querySelector('.chart');
-                const chart = el.__vueParentComponent?.setupState?.chart;
+                const chart = el.__vueParentComponent?.exposed?.chart;
                 const box = el.getBoundingClientRect();
                 const title = panel.querySelector('.chart-title');
                 const caption = panel.querySelector('.chart-axis-caption');
@@ -185,6 +181,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
                 text = chart.inner_text()
                 assert ("%" in text) == percent, (editor, text)
             print("PASS: axis tooltips show readable correlation and percentage values.", flush=True)
+        if chapter == "2.4-robust-portfolios":
+            check_controls(page, inspect_axes)
+            check_execution_cleanup(page)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)
