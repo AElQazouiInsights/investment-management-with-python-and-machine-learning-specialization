@@ -36,9 +36,12 @@
 
 /* Home sections have separate fixed-width containers in the default theme. */
 .VPHome .VPHero > .container,
-.VPHome .VPFeatures > .container,
-.VPHome > .vp-doc.container {
+.VPHome .VPFeatures > .container {
   max-width: none;
+}
+
+.VPHome > .vp-doc.container {
+  max-width: 880px;
 }
 
 /* The long site title must yield space to navigation on narrow screens. */
