@@ -9,7 +9,8 @@ hero:
   name: "Investment Management with Python"
   tagline: "Study portfolio construction through worked calculations, editable Python, and interactive charts. Python runs in your browser."
   image:
-    src: "/cppi.jpg"
+    light: "/investment-hero-light.webp"
+    dark: "/investment-hero-dark.webp"
     alt: ""
   actions:
     - theme: brand
