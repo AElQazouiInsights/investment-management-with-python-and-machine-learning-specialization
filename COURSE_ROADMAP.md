@@ -24,7 +24,7 @@ The topic mapping follows the official [Course 3](https://www.coursera.org/learn
 
 ## Lesson construction contract
 
-Follow the reviewed Course 2 presentation: financial question → concepts and assumptions → hand calculation → editable Python → ECharts → interpretation → focused experiment → student exercise. Explain units, horizons, indexes, baseline, and information timing beside the example. Use existing typography, layout, Editor and OutputDisplay components.
+Follow the [teaching standard for all chapters](TEACHING_GUIDE.md): financial question → small numerical example → worked calculation → explained graph → Python → focused experiment → exercise with feedback. Introduce each term and symbol before use, and explain units, horizons, indexes, baseline, and information timing beside the example. Use existing typography, layout, Editor and OutputDisplay components.
 
 - Use a unique, descriptive Editor ID for each Python cell. Run a chapter from a fresh worker in document order; make independent widgets self-contained.
 - Keep financial logic in visible cells when it is short. Extract a toolkit helper only when reuse or a widget callback justifies it. Changes to `PortfolioOptimizationKit.py` must be synchronized with its five distributed copies and checked by the existing parity tests.

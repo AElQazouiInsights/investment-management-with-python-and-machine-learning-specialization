@@ -4,6 +4,8 @@ After earning a specialization in **Investment Management with Python and Machin
 
 The published lessons connect financial reasoning to equations, worked examples, and editable Python calculations. Students can examine assumptions, compare portfolio decisions, and interpret the resulting tables and charts.
 
+Follow the [teaching standard for all chapters](TEACHING_GUIDE.md) when writing or reviewing lessons: a concrete question, a small numerical example, a worked calculation, an explained graph, Python, and a guided experiment with feedback.
+
 ## Learning Path
 
 - [Portfolio Management Fundamentals](docs/1.0-overview.md): returns and risk, portfolio optimization, diversification and dynamic allocation, and asset-liability management.
