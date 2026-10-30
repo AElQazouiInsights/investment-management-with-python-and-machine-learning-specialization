@@ -8,6 +8,9 @@ description: "Study returns, risk, portfolio optimization, factor exposures, cov
 hero:
   name: "Investment Management with Python"
   tagline: "Study portfolio construction through worked calculations, editable Python, and interactive charts. Python runs in your browser."
+  image:
+    src: "/cppi.jpg"
+    alt: ""
   actions:
     - theme: brand
       text: "Start Course 1"
@@ -17,19 +20,27 @@ hero:
       link: "/2.0-overview"
 
 features:
-  - title: "1. Portfolio Management Fundamentals"
+  - icon:
+      src: "/math-integral.svg"
+    title: "1. Portfolio Management Fundamentals"
     details: "Returns, risk, optimization, dynamic allocation, and asset-liability management. Four chapters available."
     link: "/1.0-overview"
     linkText: "Course overview"
-  - title: "2. Advanced Portfolio Construction and Analysis"
+  - icon:
+      src: "/bell-shaped-graph.svg"
+    title: "2. Advanced Portfolio Construction and Analysis"
     details: "Factor exposures, covariance and expected-return estimates, Black–Litterman, and risk budgets. Four chapters and a capstone available."
     link: "/2.0-overview"
     linkText: "Course overview"
-  - title: "3. Machine Learning for Asset Management"
+  - icon:
+      src: "/market-prediction.svg"
+    title: "3. Machine Learning for Asset Management"
     details: "Overview and preparation available. Five chapters planned on learning methods, factor models, diversification, and regimes."
     link: "/3.0-overview"
     linkText: "Overview and preparation"
-  - title: "4. Alternative Data for Asset Management"
+  - icon:
+      src: "/cosine-graph.svg"
+    title: "4. Alternative Data for Asset Management"
     details: "Overview and preparation available. Four chapters planned on consumption, text, corporate filings, and media."
     link: "/4.0-overview"
     linkText: "Overview and preparation"
