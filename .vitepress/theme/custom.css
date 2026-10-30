@@ -35,10 +35,47 @@
 }
 
 /* Home sections have separate fixed-width containers in the default theme. */
+.VPHome {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #bd34fe 30%, #41d1ff);
+}
+
+.VPHome .VPHero .image-src {
+  max-width: 224px;
+  max-height: 224px;
+}
+
+@media (min-width: 640px) {
+  .VPHome .VPHero .image-src {
+    max-width: 288px;
+    max-height: 288px;
+  }
+}
+
+@media (max-width: 959px) {
+  .VPHome .VPHero .image {
+    margin-bottom: -24px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHome .VPHero .image-container {
+    transform: none;
+  }
+
+  .VPHome .VPHero .image-src {
+    max-width: min(384px, 100%);
+    max-height: 384px;
+  }
+}
+
 .VPHome .VPHero > .container,
-.VPHome .VPFeatures > .container,
-.VPHome > .vp-doc.container {
+.VPHome .VPFeatures > .container {
   max-width: none;
+}
+
+.VPHome > .vp-doc.container {
+  max-width: 880px;
 }
 
 /* The long site title must yield space to navigation on narrow screens. */

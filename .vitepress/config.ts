@@ -130,7 +130,7 @@ export default defineConfig({
       ]
     },
     footer: {
-      message: 'After earning certification from EDHEC Business School, I translated complex financial theories into practical Python modules, openly shared under the MIT License.',
+      message: 'Independent study notes and Python examples by Amine El Qazoui.',
       copyright: 'Copyright © 2024-present, Amine El Qazoui.'
     },
     nav: nav()
