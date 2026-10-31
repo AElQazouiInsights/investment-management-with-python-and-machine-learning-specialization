@@ -106,7 +106,8 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'Overview and Learning Sequence', link: '/d.0-overview' },
-            { text: 'Forward Contracts', link: '/d.1-forwards' }
+            { text: 'Forward Contracts', link: '/d.1-forwards' },
+            { text: 'Futures and Forwards Compared', link: '/d.2-futures' }
           ]
         },
         {

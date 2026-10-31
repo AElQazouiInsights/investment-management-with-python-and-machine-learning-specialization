@@ -353,4 +353,4 @@ print(f"Maturity payoff at a 120 GBP spot: {exercise_payoff:.2f} GBP")
 - The existing delivery price stays fixed while the contract's value changes. Value it using the current spot, current financing conditions, and remaining term.
 - A matching forward can fix a future purchase cost. It exchanges price uncertainty for a binding obligation and also removes the benefit of a favorable price move.
 
-Next is [D.2 — Futures and Forwards Compared](./d.0-overview.md#futures), currently planned. We will keep the same purchase question and investigate what changes when gains and losses are settled daily.
+Continue with [D.2 — Futures and Forwards Compared](./d.2-futures.md). Keep the same purchase question and investigate what changes when gains and losses are settled daily.

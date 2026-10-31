@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [D.1 — Forward Contracts](./d.1-forwards.md) is available. D.2–D.10 below are planned and will be developed in order. This is an additional learning track, positioned after Course 1; **D** stands for derivatives.
+**Track status:** [D.1 — Forward Contracts](./d.1-forwards.md) and [D.2 — Futures and Forwards Compared](./d.2-futures.md) are available. D.3–D.10 below are planned and will be developed in order. This is an additional learning track, positioned after Course 1; **D** stands for derivatives.
 
 ## Where to Begin
 
@@ -39,11 +39,13 @@ Agree today on a price for a purchase next year. Define spot price, delivery pri
 
 ### D.2 — Futures and Forwards Compared {#futures}
 
-**Planned.** Reuse the forward example to introduce futures, exchanges, clearing, initial margin, and daily variation margin. Follow the cash paid or received each day and compare that timing with a forward settled at maturity. Distinguish collateral from an option premium and a quoted futures price from a forecast.
+**Available:** [study futures and daily settlement](./d.2-futures.md).
+
+Reuse the forward example to introduce futures, exchanges, clearing, initial margin, and daily variation margin. Follow the cash paid or received each day and compare that timing with a forward settled at maturity. Distinguish collateral from an option premium and a quoted futures price from a forecast.
 
 **Experiment:** compare two price paths with the same endpoint. Examine cumulative settlement and the cash required along the way. Explain the assumptions under which forward and futures quotes coincide, and why uncertain interest rates can make them differ.
 
-### D.3 — Options and Replication
+### D.3 — Options and Replication {#options}
 
 **Planned.** Introduce calls and puts as rights rather than obligations. Build payoff tables before plotting them. Separate premium, maturity payoff, and financed profit. Establish put–call parity and solve a two-outcome example using an asset holding and cash.
 

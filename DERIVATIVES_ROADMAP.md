@@ -12,8 +12,8 @@ This track is the immediate development priority. Resume Course 3.2 after the de
 | --- | --- | --- |
 | D.0 — Overview | Delivered | Prerequisites, reading order, and explicit status of each planned chapter |
 | D.1 — Forward Contracts | Delivered | Zero-initial-value delivery price, long/short payoffs, both arbitrage directions, existing-contract valuation, and purchase hedge; one current-spot slider |
-| D.2 — Futures and Forwards Compared | Next | Same underlying/quantity/maturity as D.1; daily settlement ledger, margin collateral, cash requirements, and forward/futures pricing assumptions |
-| D.3 — Options and Replication | Planned | Calls/puts, premiums, payoff versus financed profit, put–call parity, and two-state replication |
+| D.2 — Futures and Forwards Compared | Delivered | Same underlying/quantity/maturity as D.1; daily settlement ledger, margin collateral, cash requirements, funding, and deterministic-rate replication |
+| D.3 — Options and Replication | Next | Calls/puts, premiums, payoff versus financed profit, put–call parity, and two-state replication |
 | D.4 — Random Motion and Itô's Lemma | Planned | Small curvature example, derivatives and Taylor expansion, Brownian increments/quadratic variation, Itô derivation, and log-price application |
 | D.5 — Deriving and Using Black–Scholes | Planned | Self-financing hedge, PDE, pricing-distribution expectation, normal integrals, call/put prices, parity, and dynamic futures hedging |
 | D.6 — The Greeks and Hedging | Planned | Finite-difference intuition followed by delta/gamma/theta/vega/rho formulas; units and discrete hedging with a reconciled cash account |
@@ -22,7 +22,7 @@ This track is the immediate development priority. Resume Course 3.2 after the de
 | D.9 — Building Structured Products | Planned | Funding plus option budget, participation rates, caps, income enhancement with downside exposure, and issuer/early-sale implications |
 | D.10 — Design, Price, and Explain a Product | Planned | Reconciled initial budget, dated cash flows, payoff table, graphs, Greeks, scenarios, and plain-language investor explanation |
 
-Only delivered chapters receive sidebar links. Planned descriptions live in `docs/d.0-overview.md`. D.1 ends at its stable `#futures` anchor until D.2 has its own page.
+Only delivered chapters receive sidebar links. Planned descriptions live in `docs/d.0-overview.md`. D.1 links directly to D.2; D.2 ends at the stable `#options` overview anchor until D.3 is delivered. Retain the overview's `#futures` anchor for earlier links.
 
 ## Financial and teaching conventions
 
@@ -38,7 +38,7 @@ Only delivered chapters receive sidebar links. Planned descriptions live in `doc
 
 ## Implementation and acceptance
 
-Use the existing VitePress presentation, browser-run Pyodide, ECharts, and selective ipywidgets. Keep small calculations visible in lesson cells. Helpers are for justified reuse or allowlisted callbacks and must match all six toolkit copies. No new runtime packages are needed for D.1.
+Use the existing VitePress presentation, browser-run Pyodide, ECharts, and selective ipywidgets. Keep small calculations visible in lesson cells. Helpers are for justified reuse or allowlisted callbacks and must match all six toolkit copies. D.1 and D.2 use the existing runtime packages.
 
 For each delivered chapter:
 
@@ -54,3 +54,9 @@ For each delivered chapter:
 - Chromium 156.0.8078.4 and Firefox 157.0 executed all eight D.1 cells and displayed all six charts with off-site requests blocked. The independent widget ran before setup and passed spot-price endpoint/intermediate updates without changing other outputs.
 - Both browsers passed measured dev-server axis/legend bounds, mixed-series reconciliation, money tooltip checks, and fixed-contract-term checks. Chapter chart layouts passed at 1920, 1440, 390, and 320 pixels; D.0 also passed both browsers' page-layout audits.
 - Homepage and navigation checks covered widths from 320 to 1920 pixels, including intermediate desktop/tablet widths. Desktop/light and mobile/dark screenshots were inspected. All 255 internal links on the homepage, Course 1 overview, ALM chapter, and two new pages resolved, including the next-topic anchor.
+
+## D.2 validation
+
+- Production build passed. Twelve futures tests, ten forward-example regression tests, three widget-serialization tests, and all 36 JavaScript tests passed. Checks include exact maintenance boundaries, long/short cash conservation, negative final close-out transfers, losses exceeding initial margin, all 16 slider settings, dated funding, ideal tailing, and six-copy helper parity.
+- Chromium 156.0.8078.4 and Firefox 157.0 each ran all nine cells and rendered eight charts with off-origin requests blocked. The widget ran independently before setup, then passed repeated zero/intermediate/deep-drop updates while preserving other outputs.
+- Separate dev-server audits passed axis/legend bounds, rendered series, step timing, cash units, and widget updates at 1920, 1440, 390, and 320 pixels in both browsers. Desktop/light, mobile/dark, and chart screenshots were inspected. All 155 internal links on the homepage and derivatives pages resolved; the D.3 `#options` transition and overview-to-D.2 navigation were checked in the browser.

@@ -30,7 +30,7 @@ features:
   - icon:
       src: "/market-forecast.svg"
     title: "D. Derivatives, Options, and Structured Products"
-    details: "Forward contracts available: delivery prices, valuation, and hedging. Futures, options, Black–Scholes, the Greeks, and structured products follow."
+    details: "Forwards and futures available: pricing, hedging, daily settlement, and margin. Options, Black–Scholes, the Greeks, and structured products follow."
     link: "/d.0-overview"
     linkText: "Track overview"
   - icon:

@@ -3509,6 +3509,72 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def futures_margin_ledger(prices, quantity=10, initial_margin=100., maintenance_margin=75.):
+    """D.2's zero-interest retained-margin account, closed after the last settlement."""
+    prices = np.asarray(prices, dtype=float)
+    if prices.ndim != 1 or len(prices) < 2 or not np.isfinite(prices).all():
+        raise ValueError("Provide at least two finite settlement prices in a one-dimensional sequence")
+    parameters = (quantity, initial_margin, maintenance_margin)
+    if not all(isinstance(x, (int, float, np.integer, np.floating)) and not isinstance(x, (bool, np.bool_)) and np.isfinite(x) for x in parameters):
+        raise ValueError("Quantity and margin levels must be finite numbers")
+    if quantity == 0 or not 0 < maintenance_margin <= initial_margin:
+        raise ValueError("Use a nonzero signed quantity and 0 < maintenance margin <= initial margin")
+    balance = 0.0
+    records = []
+    for day, price in enumerate(prices):
+        variation = 0.0 if day == 0 else quantity * (price - prices[day - 1])
+        before = balance + variation
+        if day == 0:
+            deposit = initial_margin
+        elif day < len(prices) - 1 and before < maintenance_margin:
+            deposit = initial_margin - before
+        else:
+            deposit = 0.0
+        transfer = before + deposit if day == len(prices) - 1 else 0.0
+        balance = before + deposit - transfer
+        records.append([price, variation, before, deposit, transfer, balance, transfer - deposit])
+    frame = pd.DataFrame(records, columns=[
+        "Quote (GBP/unit)", "Variation (GBP)", "Before funding/close (GBP)",
+        "Deposit (GBP)", "Close-out transfer (GBP)", "Closing balance (GBP)", "Outside cash flow (GBP)",
+    ], index=pd.Index(range(len(prices)), name="Day"))
+    frame["Cumulative deposits (GBP)"] = frame["Deposit (GBP)"].cumsum()
+    return frame
+
+
+def show_futures_liquidity_echart(dip=5):
+    """Change two early quotes while retaining D.2's endpoint and margin rules."""
+    if isinstance(dip, (bool, np.bool_)) or not isinstance(dip, (int, np.integer)) or not 0 <= dip <= 15:
+        raise ValueError("Drop must be an integer from 0 to 15")
+    selected = np.full(366, 105.)
+    selected[-4:] = [105 - dip, 105 - 1.4 * dip, 112, 120]
+    steady = np.full(366, 105.)
+    steady[-4:] = [110, 115, 118, 120]
+    ledger = futures_margin_ledger(selected)
+    reference = futures_margin_ledger(steady)
+    days = np.arange(361, 366)
+    axis = {"type": "category", "name": "Day", "data": [str(d) for d in days]}
+    plots = {
+        "futuresPathExperiment": {
+            "type": "line", "title": "Change the Early Fall, Keep the Final Price",
+            "xAxis": axis, "yAxisName": "Futures settlement price (GBP/unit)",
+            "series": {"Selected path": selected[days].tolist(), "Steady rise": steady[days].tolist()},
+        },
+        "futuresDepositExperiment": {
+            "type": "line", "title": "Cash Supplied Includes the Initial 100 GBP",
+            "xAxis": axis, "yAxisName": "Cumulative deposits by the owner (GBP)",
+            "series": {"Selected path": ledger.loc[days, "Cumulative deposits (GBP)"].tolist(),
+                       "Steady rise": reference.loc[days, "Cumulative deposits (GBP)"].tolist()},
+            "seriesOptions": {"Selected path": {"step": "end"}, "Steady rise": {"step": "end"}},
+        },
+    }
+    _publish_echarts(plots, f"Day 362 drop: {dip} GBP/unit\nFinal quote: 120.00 GBP/unit\n"
+                    "Initial margin: 100.00 GBP; maintenance: 75.00 GBP; quantity: 10 units\n"
+                    f"Additional deposits: {ledger['Deposit (GBP)'].iloc[1:].sum():.2f} GBP\n"
+                    f"Total deposits: {ledger['Deposit (GBP)'].sum():.2f} GBP\n"
+                    f"Close-out receipt: {ledger['Close-out transfer (GBP)'].iloc[-1]:.2f} GBP\n"
+                    f"Net cash before interest: {ledger['Outside cash flow (GBP)'].sum():.2f} GBP")
+
+
 def show_forward_value_echart(spot=110):
     """Revalue D.1's existing ten-unit forward at its fixed six-month review."""
     if isinstance(spot, (bool, np.bool_)) or not isinstance(spot, (int, float, np.integer, np.floating)) or not np.isfinite(spot) or spot <= 0:
