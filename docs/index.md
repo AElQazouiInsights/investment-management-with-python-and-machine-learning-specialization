@@ -3,7 +3,7 @@ layout: home
 
 title: "Investment Management with Python"
 titleTemplate: "Portfolio Construction and Analysis"
-description: "Study returns, risk, portfolio optimization, factor exposures, covariance estimation, Black–Litterman, and risk budgeting with worked Python examples."
+description: "Study portfolio construction, forward contracts, and machine-learning fundamentals through worked calculations, editable Python, and interactive charts."
 
 hero:
   name: "Investment Management with Python"
@@ -28,6 +28,12 @@ features:
     link: "/1.0-overview"
     linkText: "Course overview"
   - icon:
+      src: "/market-forecast.svg"
+    title: "D. Derivatives, Options, and Structured Products"
+    details: "Forward contracts available: delivery prices, valuation, and hedging. Futures, options, Black–Scholes, the Greeks, and structured products follow."
+    link: "/d.0-overview"
+    linkText: "Track overview"
+  - icon:
       src: "/bell-shaped-graph.svg"
     title: "2. Advanced Portfolio Construction and Analysis"
     details: "Factor exposures, covariance and expected-return estimates, Black–Litterman, and risk budgets. Four chapters and a capstone available."
@@ -49,7 +55,7 @@ features:
 
 ## How to Study
 
-Basic Python and familiarity with percentages and averages are useful. Start with Course 1 if portfolio construction is new to you; Course 2 examines the estimates behind portfolio decisions.
+Basic Python and familiarity with percentages and averages are useful. Start with Course 1 if portfolio construction is new to you. Then explore contracts and hedging in the derivatives track, or continue to Course 2 to examine the estimates behind portfolio decisions.
 
 Read the worked calculation, run the Python cells in order, then change one assumption and explain the result. The charts display your calculations. Use the course overviews to choose where to begin.
 

@@ -74,6 +74,17 @@
   max-width: none;
 }
 
+/* Five learning paths form a three-card row and a two-card row. */
+@media (min-width: 960px) {
+  .VPHome .VPFeatures .items:has(> .item:nth-child(5):last-child) > .item {
+    width: calc(100% / 3);
+  }
+
+  .VPHome .VPFeatures .items:has(> .item:nth-child(5):last-child) > .item:nth-child(n + 4) {
+    width: 50%;
+  }
+}
+
 .VPHome > .vp-doc.container {
   max-width: 880px;
 }

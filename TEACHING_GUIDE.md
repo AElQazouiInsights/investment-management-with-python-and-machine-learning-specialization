@@ -1,6 +1,6 @@
 # Teaching standard for all chapters
 
-Apply this standard when writing new chapters and reviewing existing ones across all four courses. Students should be able to follow the reasoning before running the code. When an explanation is difficult to follow, improve its example, definitions, or pacing rather than assume the student should already understand it.
+Apply this standard when writing new chapters and reviewing existing ones across all four courses and the derivatives track. Students should be able to follow the reasoning before running the code. When an explanation is difficult to follow, improve its example, definitions, or pacing rather than assume the student should already understand it.
 
 ## Teach one idea at a time
 

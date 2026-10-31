@@ -3509,6 +3509,37 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_forward_value_echart(spot=110):
+    """Revalue D.1's existing ten-unit forward at its fixed six-month review."""
+    if isinstance(spot, (bool, np.bool_)) or not isinstance(spot, (int, float, np.integer, np.floating)) or not np.isfinite(spot) or spot <= 0:
+        raise ValueError("Spot must be a finite positive number")
+    spot = float(spot)
+    quantity, delivery, rate, remaining = 10, 105.0, 0.05, 0.5
+    discount = (1 + rate) ** (-remaining)
+    new_quote = spot / discount
+    value = quantity * (spot - delivery * discount)
+    grid = np.linspace(min(60, spot), max(150, spot), 91)
+    plots = {"forwardValueExperiment": {
+        "type": "line", "title": "Change the Spot Price, Keep the Agreement Fixed",
+        "xAxis": {"type": "value", "name": "Current spot (GBP/unit)", "scale": True},
+        "yAxisName": "Ten-unit long forward value today (GBP)",
+        "series": {
+            "Existing long": np.column_stack([grid, quantity * (grid - delivery * discount)]).tolist(),
+            "Selected spot": [[spot, value]],
+            "Zero value": [[float(grid[0]), 0], [float(grid[-1]), 0]],
+        },
+        "seriesOptions": {
+            "Selected spot": {"type": "scatter", "symbol": "diamond"},
+            "Zero value": {"lineStyle": {"type": "dashed"}},
+        },
+    }}
+    _publish_echarts(plots, f"Current spot: {spot:.2f} GBP/unit\n"
+                    "Existing delivery price: 105.00 GBP/unit\n"
+                    "Remaining term: 0.50 years; effective annual rate: 5.00%\n"
+                    f"New forward delivery price: {new_quote:.4f} GBP/unit\n"
+                    f"Existing ten-unit long value: {value:.4f} GBP")
+
+
 def show_ml_complexity_echart(degree=1):
     """Fit the chapter 3.1 training sample; display validation, never test outcomes."""
     from sklearn.linear_model import LinearRegression

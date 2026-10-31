@@ -8,6 +8,8 @@ Courses 1 and 2 have developed lessons. Chapter 2.3 now introduces mean uncertai
 
 ## Delivery sequence
 
+The [derivatives track](DERIVATIVES_ROADMAP.md), placed after Course 1, is the immediate development priority. Complete its sequence through the structured-product capstone before resuming Chapter 3.2. Chapter 3.1 is available; the Course 3–4 syllabus below remains the subsequent plan.
+
 The topic mapping follows the official [Course 3](https://www.coursera.org/learn/python-machine-learning-for-investment-management) and [Course 4](https://www.coursera.org/learn/machine-learning-asset-management-alternative-data) syllabi checked on 2026-10-29. Filenames and experiments below are this website's implementation plan.
 
 | File in `docs/` (3.1 delivered; others planned) | Core teaching question | Data / computational foundation | Chart and interaction |
