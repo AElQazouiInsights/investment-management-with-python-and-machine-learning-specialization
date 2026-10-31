@@ -3516,6 +3516,53 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_ml_complexity_echart(degree=1):
+    """Fit the chapter 3.1 training sample; display validation, never test outcomes."""
+    from sklearn.linear_model import LinearRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import PolynomialFeatures
+
+    if isinstance(degree, (bool, np.bool_)) or not isinstance(degree, (int, np.integer)) or degree not in (1, 2, 3):
+        raise ValueError("Degree must be an integer from 1 to 3")
+    # Fixed, deliberately small teaching observations, in percentage-number units.
+    train_x = np.array([-1.0, 0.0, 1.0, 2.0]).reshape(-1, 1)
+    train_y = np.array([-1.0, 1.0, 1.0, 3.0])
+    validation_x = np.array([-0.5, 0.5, 1.5, 1.0]).reshape(-1, 1)
+    validation_y = np.array([0.1, 0.9, 2.1, 1.4])
+    model = make_pipeline(PolynomialFeatures(degree, include_bias=False), LinearRegression())
+    model.fit(train_x, train_y)
+    train_mse = float(np.mean((train_y - model.predict(train_x)) ** 2))
+    validation_mse = float(np.mean((validation_y - model.predict(validation_x)) ** 2))
+    grid = np.linspace(-1, 2, 121).reshape(-1, 1)
+    plots = {
+        "mlComplexityFit": {
+            "type": "line", "title": "One Training Sample, Different Curve Flexibility",
+            "xAxis": {"type": "value", "name": "Feature (%)"},
+            "yAxisName": "Next-month asset return (%)",
+            "series": {
+                "Training": np.column_stack([train_x[:, 0], train_y]).tolist(),
+                "Validation": np.column_stack([validation_x[:, 0], validation_y]).tolist(),
+                "Fitted curve": np.column_stack([grid[:, 0], model.predict(grid)]).tolist(),
+                "Training mean": [[-1, 1], [2, 1]],
+            },
+            "seriesOptions": {
+                "Training": {"type": "scatter"},
+                "Validation": {"type": "scatter", "symbol": "diamond"},
+                "Training mean": {"lineStyle": {"type": "dashed"}},
+            },
+        },
+        "mlComplexityError": {
+            "type": "bar", "title": "Training Error and Validation Error",
+            "xAxis": {"type": "category", "data": ["Training", "Validation"]},
+            "yAxisName": "Mean squared error (pp²)",
+            "series": {"Selected curve": [train_mse, validation_mse], "Training mean": [2.0, 0.5475]},
+        },
+    }
+    _publish_echarts(plots, f"Polynomial degree: {degree}\nTraining MSE: {train_mse:.4f} pp²\n"
+                    f"Validation MSE: {validation_mse:.4f} pp²\n"
+                    "Fitted on January–April pairs only. Final test observations are excluded.")
+
+
 # ---------------------------------------------------------------------------------
 # Auxiliary methods
 # ---------------------------------------------------------------------------------

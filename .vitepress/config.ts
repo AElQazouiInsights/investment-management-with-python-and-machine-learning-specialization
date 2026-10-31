@@ -117,7 +117,8 @@ export default defineConfig({
           text: 'Machine Learning for Asset Management',
           collapsed: true,
           items: [
-            { text: 'Overview and Preparation', link: '/3.0-overview' }
+            { text: 'Overview and Preparation', link: '/3.0-overview' },
+            { text: 'Fundamentals of Machine Learning', link: '/3.1-ml-fundamentals' }
           ]
         },
         {

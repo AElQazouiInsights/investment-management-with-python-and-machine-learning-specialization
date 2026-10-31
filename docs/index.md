@@ -36,9 +36,9 @@ features:
   - icon:
       src: "/market-prediction.svg"
     title: "3. Machine Learning for Asset Management"
-    details: "Overview and preparation available. Five chapters planned on learning methods, factor models, diversification, and regimes."
+    details: "Machine-learning fundamentals available: predictions, errors, and chronological validation. Four further chapters planned."
     link: "/3.0-overview"
-    linkText: "Overview and preparation"
+    linkText: "Course overview"
   - icon:
       src: "/cosine-graph.svg"
     title: "4. Alternative Data for Asset Management"

@@ -18,7 +18,9 @@ pnpm preview
 
 `pnpm dev` and `pnpm build` run `scripts/prepare-pyodide.mjs` first. It copies the runtime from the exactly pinned npm package and downloads only the dependency closure in `runtime/pyodide-lock.json`. Every wheel is checked against its committed SHA-256; an invalid download fails preparation. Existing local assets are verified before reuse. Source wheel URLs are recorded in the committed lockfile, but stripped from the published lockfile.
 
-Generated binaries live in `docs/public/pyodide/<version>/<lock-revision>/` and are ignored by Git. A content-derived revision changes the URL whenever the locked dependency set changes, preventing old browser/CDN manifests from being mixed with a new build. VitePress includes these assets in the deployment output. The current runtime payload is approximately 56 MiB, with no single runtime file above 14 MiB. The build machine needs upstream access on first preparation; visitors need access only to the website. Building from a clean checkout does not require previously cached wheels.
+Generated binaries live in `docs/public/pyodide/<version>/<lock-revision>/` and are ignored by Git. A content-derived revision changes the URL whenever the locked dependency set changes, preventing old browser/CDN manifests from being mixed with a new build. VitePress includes these assets in the deployment output. The current runtime directory contains 62,936,285 bytes (60.02 MiB), with no single runtime file above 14 MiB. The build machine needs upstream access on first preparation; visitors need access only to the website. Building from a clean checkout does not require previously cached wheels.
+
+Chapter 3.1 adds three wheels: scikit-learn 1.8.0 (4,449,204 bytes), joblib 1.5.3 (180,317 bytes), and threadpoolctl 3.6.0 (18,638 bytes). Their combined 4,648,159 bytes (4.43 MiB) are loaded eagerly on first Python initialization in every chapter. These are stored file sizes, not measured compressed HTTP transfer sizes or load-time estimates. Existing package pins are unchanged; the closure now contains 34 packages at revision `3a7f296139b6`.
 
 There is no runtime package resolution, CDN fallback, or installation via micropip. `loadPackage()` uses the same-origin manifest and verifies wheel integrity. Lesson-file and dependency failures are surfaced instead of silently allowing partial initialization.
 
@@ -29,7 +31,7 @@ There is no runtime package resolution, CDN fallback, or installation via microp
 3. Run `pnpm install`, then `pnpm runtime:update`. This deliberately refreshes the runtime lockfile from the installed Pyodide distribution and the pinned PyPI wheel metadata.
 4. Review both lockfile diffs and run the numerical, browser, and JavaScript checks before deployment. Commit source/configuration and lockfiles; publish the generated build output.
 
-The standard preparation/build command never selects newer versions or rewrites the committed runtime lockfile. Replacing a Python minor version requires matching WebAssembly wheels. The current scientific versions are NumPy 2.4.6, pandas 3.0.2, SciPy 1.18.0, statsmodels 0.14.6, and Matplotlib 3.10.8; ipywidgets is 8.1.9.
+The standard preparation/build command never selects newer versions or rewrites the committed runtime lockfile. Replacing a Python minor version requires matching WebAssembly wheels. The current scientific versions are NumPy 2.4.6, pandas 3.0.2, SciPy 1.18.0, statsmodels 0.14.6, Matplotlib 3.10.8, and scikit-learn 1.8.0; ipywidgets is 8.1.9.
 
 ## Deployment
 
@@ -50,6 +52,8 @@ python -m playwright install chromium firefox
 python tests/browser_runtime_loading.py --site-dir .vitepress/dist
 python tests/browser_chapter_charts.py --site-dir .vitepress/dist --chapter 1.2-optimization
 python tests/browser_chapter_charts.py --site-dir .vitepress/dist --chapter 1.2-optimization --browser firefox
+python tests/browser_chapter_charts.py --site-dir .vitepress/dist --chapter 3.1-ml-fundamentals
+python tests/browser_chapter_charts.py --site-dir .vitepress/dist --chapter 3.1-ml-fundamentals --browser firefox
 python tests/browser_widget_regression.py --site-dir .vitepress/dist
 ```
 
@@ -67,4 +71,11 @@ The runtime check verifies the running Python/Pyodide/package versions, observes
 
 The SciPy upgrade exposed a finite-difference SLSQP failure on one branch of a two-asset exact-volatility problem. The toolkit now supplies analytical gradients and expresses that positive-volatility constraint as the equivalent variance equality. Existing closed-form tests and a real WebAssembly check verify that the higher-return feasible branch is retained; failed solver results are still rejected.
 
-These are local validation results. The updated build has not been deployed or tested on the user's corporate laptop. Public-origin response headers were checked, but they do not establish that the new assets are deployed or that every corporate policy permits the site.
+These upgrade results describe the local validation at that date; they do not establish compatibility with every corporate network policy.
+
+### Machine-learning chapter validation — 2026-10-31
+
+- Production build passed with all 34 locked packages verified. Cold runtime checks passed in Chromium 156.0.8078.4 and Firefox 157.0 with Python 3.14.2, Pyodide 314.0.7, and the exact browser package pins, including scikit-learn fit/predict, polynomial preprocessing, and MSE. Off-site requests were blocked.
+- All 449 native Python tests passed, including 11 new chapter tests; all 36 JavaScript tests passed. Native Python 3.12 used the scientific versions above, with joblib 1.6.0 and threadpoolctl 3.7.0; the browser tests exercised the locked 1.5.3/3.6.0 versions.
+- Chromium and Firefox each executed the chapter's 10 cells, rendered 7 charts at 1920, 1440, 390, and 320 pixels, and exercised degree 1/2/3/1 updates. The widget also ran before setup in a fresh worker. Analytical curves, validation errors, final predictions, and decision/target month labels matched the worked examples.
+- Separate dev-server audits passed measured axis/legend bounds and reconciled mixed scatter/line series, symbols, captions, and slider updates with worker payloads in both browsers. Desktop/light and mobile/dark screenshots were inspected, and the next-topic anchor was checked through client-side navigation.

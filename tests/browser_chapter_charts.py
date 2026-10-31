@@ -22,6 +22,7 @@ CHAPTERS = {
     "2.3-black-litterman": (20, 10),
     "2.4-robust-portfolios": (18, 8),
     "3.0-overview": (0, 0),
+    "3.1-ml-fundamentals": (10, 7),
     "4.0-overview": (0, 0),
 }
 
@@ -60,6 +61,12 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if expected[0]:
             page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
         ids = page.locator("[data-editor-id]").evaluate_all("els => els.map(el => el.dataset.editorId)")
+        if chapter == "3.1-ml-fundamentals":
+            # Prove the experiment needs no variables from preceding lesson cells.
+            page.locator('[data-editor-id="ml-complexity-widget"] button.run').click()
+            page.wait_for_function("window.chapterMessages.some(m => m.id === 'ml-complexity-widget' && m.done)", timeout=180000)
+            assert not page.evaluate("window.chapterMessages.some(m => m.error)")
+            page.evaluate("window.chapterMessages = []")
         for editor_id in ids:
             page.locator(f'[data-editor-id="{editor_id}"] button.run').click()
             page.wait_for_function("id => window.chapterMessages.some(m => m.id === id && m.done)",
@@ -137,6 +144,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "2.4-robust-portfolios":
             from browser_robust_charts import check_defaults, check_controls, check_execution_cleanup
             check_defaults(page, inspect_axes)
+        if chapter == "3.1-ml-fundamentals":
+            from browser_ml_charts import check_defaults as check_ml_defaults, check_controls as check_ml_controls
+            check_ml_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -202,6 +212,8 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "2.4-robust-portfolios":
             check_controls(page, inspect_axes)
             check_execution_cleanup(page)
+        if chapter == "3.1-ml-fundamentals":
+            check_ml_controls(page, inspect_axes)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)
