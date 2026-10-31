@@ -27,8 +27,8 @@ def check_rendered(page, editor):
             assert series['data'] == expected['series'][series['name']]
             if 'symbol' in settings:
                 assert series['symbol'] == settings['symbol']
-            if 'lineStyle' in settings:
-                assert series['lineStyle']['type'] == settings['lineStyle']['type']
+            for key, value in settings.get('lineStyle', {}).items():
+                assert series['lineStyle'][key] == value
 
 
 def close(actual, expected):

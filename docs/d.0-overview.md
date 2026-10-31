@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [D.1 — Forward Contracts](./d.1-forwards.md) and [D.2 — Futures and Forwards Compared](./d.2-futures.md) are available. D.3–D.10 below are planned and will be developed in order. This is an additional learning track, positioned after Course 1; **D** stands for derivatives.
+**Track status:** [D.1 — Forward Contracts](./d.1-forwards.md), [D.2 — Futures and Forwards Compared](./d.2-futures.md), and [D.3 — Options and Replication](./d.3-options.md) are available. D.4–D.10 below are planned and will be developed in order. This is an additional learning track, positioned after Course 1; **D** stands for derivatives.
 
 ## Where to Begin
 
@@ -47,11 +47,13 @@ Reuse the forward example to introduce futures, exchanges, clearing, initial mar
 
 ### D.3 — Options and Replication {#options}
 
-**Planned.** Introduce calls and puts as rights rather than obligations. Build payoff tables before plotting them. Separate premium, maturity payoff, and financed profit. Establish put–call parity and solve a two-outcome example using an asset holding and cash.
+**Available:** [study options and replication](./d.3-options.md).
+
+Introduce calls and puts as rights rather than obligations. Build payoff tables before plotting them. Separate premium, maturity payoff, and financed profit. Establish put–call parity and solve a two-outcome example using an asset holding and cash.
 
 **Experiment:** change the final asset price and identify which right is exercised. Reconcile the replicated payment in both outcomes before introducing a continuous-time model.
 
-### D.4 — Random Motion and Itô's Lemma
+### D.4 — Random Motion and Itô's Lemma {#ito}
 
 **Planned.** Begin with rates of change and curvature. Show why an unchanged average input can produce a changed average curved output. Introduce Brownian increments and quadratic variation, derive Itô's lemma from a second-order expansion, and apply it to a log price.
 

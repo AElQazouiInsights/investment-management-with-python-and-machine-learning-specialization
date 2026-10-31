@@ -30,7 +30,7 @@ features:
   - icon:
       src: "/market-forecast.svg"
     title: "D. Derivatives, Options, and Structured Products"
-    details: "Forwards and futures available: pricing, hedging, daily settlement, and margin. Options, Black–Scholes, the Greeks, and structured products follow."
+    details: "Forwards, futures, and options: pricing, settlement, payoff, and replication. Continue toward Itô, Black–Scholes, the Greeks, and structured products."
     link: "/d.0-overview"
     linkText: "Track overview"
   - icon:

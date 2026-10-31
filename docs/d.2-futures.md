@@ -383,7 +383,7 @@ print(f"Net purchase cost before funding: {10 * exercise_prices[-1] - exercise_g
 - Compare dated cash flows at a common date before comparing funded outcomes. State how collateral and variation are treated.
 - Deterministic-rate replication explains matching forward and futures quotes in the ideal benchmark. Real account costs and uncertain rates require additional analysis.
 
-Next is [D.3 — Options and Replication](./d.0-overview.md#options), currently planned. We will replace the obligation to buy with the right to choose, then calculate what that right is worth in a two-outcome example.
+Continue with [D.3 — Options and Replication](./d.3-options.md). Replace the obligation to buy with the right to choose, then calculate what that right is worth in a two-outcome example.
 
 ## References for Contract Mechanics
 
