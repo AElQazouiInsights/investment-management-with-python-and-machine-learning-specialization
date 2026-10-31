@@ -55,6 +55,10 @@ import sys, json, pyodide, importlib.metadata
 import PortfolioOptimizationKit as pok
 import ipywidgets as widgets
 import numpy as np
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 assert pyodide.__version__ == {CONFIG['version']!r}
 assert sys.version.split()[0] == {LOCK['info']['python']!r}
 expected = {expected!r}
@@ -65,6 +69,12 @@ covariance = np.array([[0.01, 0.005], [0.005, 0.04]])
 roots = np.roots([0.04, -0.07, 0.04 - 0.099 ** 2])
 weights = pok.maximize_sharpe_ratio(np.array([0.12, 0.08]), covariance, 0.0, 1, 0.099)
 np.testing.assert_allclose(weights, [roots.max(), 1 - roots.max()], atol=1e-6)
+X = np.array([-1., 0., 1., 2.]).reshape(-1, 1)
+y = np.array([-1., 1., 1., 3.])
+model = make_pipeline(PolynomialFeatures(1, include_bias=False), LinearRegression())
+model.fit(X, y)
+np.testing.assert_allclose(model.predict(X), [-0.8, 0.4, 1.6, 2.8], atol=1e-12)
+assert abs(mean_squared_error(y, model.predict(X)) - 0.2) < 1e-12
 widget_instance = widgets.IntSlider(value=7)
 print('RUNTIME_VERIFIED', json.dumps(actual, sort_keys=True))
 '''
@@ -80,7 +90,7 @@ print('RUNTIME_VERIFIED', json.dumps(actual, sort_keys=True))
         assert not external, external
         assert not errors, errors
         print(f'PASS: {browser_name} {browser.version}: Python {LOCK["info"]["python"]}, Pyodide {CONFIG["version"]}, '
-              f'{len(LOCK["packages"])} cold wheel requests, toolkit calculation, widget serialization, no off-site requests.', flush=True)
+              f'{len(LOCK["packages"])} cold wheel requests, toolkit and scikit-learn calculations, widget serialization, no off-site requests.', flush=True)
         browser.close()
 
 

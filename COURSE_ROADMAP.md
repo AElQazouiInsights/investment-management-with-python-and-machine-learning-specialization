@@ -4,15 +4,15 @@
 
 Courses 1 and 2 have developed lessons. Chapter 2.3 now introduces mean uncertainty, equal-return and equal-Sharpe shrinkage targets, and factor-based expected returns before Black–Litterman. Chapter 2.5 is an original portfolio capstone.
 
-`docs/3.0-overview.md` and `docs/4.0-overview.md` provide student-facing preparation and the planned learning sequences. The nine lessons below are not implemented yet. Add navigation links when their pages are ready, rather than publishing empty chapter pages.
+`docs/3.0-overview.md` and `docs/4.0-overview.md` provide student-facing preparation and the learning sequences. Chapter 3.1 is implemented with 10 runnable cells, 7 charts, and a degree 1–3 experiment. The remaining eight lessons (3.2–3.5 and 4.1–4.4) are planned. Add navigation links when their pages are ready.
 
 ## Delivery sequence
 
 The topic mapping follows the official [Course 3](https://www.coursera.org/learn/python-machine-learning-for-investment-management) and [Course 4](https://www.coursera.org/learn/machine-learning-asset-management-alternative-data) syllabi checked on 2026-10-29. Filenames and experiments below are this website's implementation plan.
 
-| Planned file in `docs/` | Core teaching question | Data / computational foundation | Chart and interaction |
+| File in `docs/` (3.1 delivered; others planned) | Core teaching question | Data / computational foundation | Chart and interaction |
 | --- | --- | --- | --- |
-| `3.1-ml-fundamentals.md` | Does a fitted relationship generalize? | Seeded small synthetic example, explicit baseline and chronological splits; validate scikit-learn in Pyodide before use | Fit and error curves; model-complexity control |
+| `3.1-ml-fundamentals.md` | Does a fitted relationship generalize? | Twelve explicitly chosen synthetic observations; hand-fitted mean and line; chronological training/validation/test splits; browser-verified scikit-learn | Fit and error charts; polynomial-degree control excluding final-test observations |
 | `3.2-regularized-factors.md` | How does regularization stabilize factor estimates? | Reuse documented factor/industry data where appropriate; distinguish contemporaneous explanation from forecasting; training-only scaling and tuning | Coefficient paths and validation error; LASSO/Elastic Net penalty |
 | `3.3-learned-diversification.md` | What dependence structure supports diversification? | Common-date return panel; clustering, precision matrices and graphical lasso | Correlation heatmap and sparse graph; sparsity control |
 | `3.4-regime-analysis.md` | What changes when risk and return depend on regimes? | Clearly labeled synthetic scenarios followed by a dated historical example; separate retrospective smoothing from causal estimation | Regime overlays and scenario paths; filtering/scenario controls |
@@ -24,7 +24,7 @@ The topic mapping follows the official [Course 3](https://www.coursera.org/learn
 
 ## Lesson construction contract
 
-Follow the reviewed Course 2 presentation: financial question → concepts and assumptions → hand calculation → editable Python → ECharts → interpretation → focused experiment → student exercise. Explain units, horizons, indexes, baseline, and information timing beside the example. Use existing typography, layout, Editor and OutputDisplay components.
+Follow the [teaching standard for all chapters](TEACHING_GUIDE.md): financial question → small numerical example → worked calculation → explained graph → Python → focused experiment → exercise with feedback. Introduce each term and symbol before use, and explain units, horizons, indexes, baseline, and information timing beside the example. Use existing typography, layout, Editor and OutputDisplay components.
 
 - Use a unique, descriptive Editor ID for each Python cell. Run a chapter from a fresh worker in document order; make independent widgets self-contained.
 - Keep financial logic in visible cells when it is short. Extract a toolkit helper only when reuse or a widget callback justifies it. Changes to `PortfolioOptimizationKit.py` must be synchronized with its five distributed copies and checked by the existing parity tests.
@@ -35,7 +35,7 @@ Follow the reviewed Course 2 presentation: financial question → concepts and a
 
 ## Runtime and chart dependencies
 
-The current pinned runtime requests NumPy, pandas, SciPy, statsmodels, Matplotlib and ipywidgets. It does not yet request scikit-learn. When implementing 3.1, validate a compatible scikit-learn package and its dependency closure using `runtime/config.json`, `scripts/prepare-pyodide.mjs`, and the process in `runtime/README.md`. Exercise fit/predict and the intended preprocessing in the actual browser worker, then self-host checksum-verified assets. Document cold-load impact. Keep execution client-side.
+The pinned runtime requests NumPy, pandas, SciPy, statsmodels, Matplotlib, ipywidgets, and scikit-learn. Chapter 3.1 adds scikit-learn 1.8.0, joblib 1.5.3, and threadpoolctl 3.6.0 (4.43 MiB of additional wheel files) to the eager package list. Fit/predict, polynomial preprocessing, and MSE have been verified in Chromium and Firefox using the actual Python 3.14 WebAssembly worker. All 34 packages are checksum-verified and self-hosted. Follow `runtime/README.md` when changing this dependency closure; execution remains client-side.
 
 Reference notebooks import desktop libraries including CVXPY, XGBoost and Folium. For each lesson, verify package support and cost before selecting an implementation. Use browser-compatible formulations where appropriate and explain any change in mathematical objective or model family. A simpler model is not an equivalent implementation merely because it produces a similar chart.
 

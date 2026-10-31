@@ -1,6 +1,6 @@
 {
   "version": "314.0.7",
-  "packages": ["numpy", "pandas", "scipy", "statsmodels", "matplotlib", "ipywidgets"],
+  "packages": ["numpy", "pandas", "scipy", "statsmodels", "matplotlib", "ipywidgets", "scikit-learn"],
   "wheels": {
     "comm": { "version": "0.2.3", "depends": [] },
     "jupyterlab-widgets": { "version": "3.0.17", "depends": [] },

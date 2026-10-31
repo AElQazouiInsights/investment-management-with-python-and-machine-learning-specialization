@@ -1,6 +1,6 @@
 {
-  "revision": "2d208aee400d28de9bccd6566550ea8bbd6d6a699ee3750774f27be9d90e35b9",
-  "configSha256": "58edb36ce99d76c100580f41ab2a27192fbd1feff3623f100c2a8c0c8ac42313",
+  "revision": "3a7f296139b6c09420e51098669e7b325a733ea9267abf11ad6845d1eec3e126",
+  "configSha256": "1fbf7d54e926808cc89d5a07341f5f61df5a8743dc63accafc3414606796da3b",
   "info": {
     "abi_version": "2026_0",
     "arch": "wasm32",
@@ -499,6 +499,52 @@
       ],
       "install_dir": "site",
       "package_type": "package"
+    },
+    "scikit-learn": {
+      "depends": [
+        "scipy",
+        "joblib",
+        "threadpoolctl"
+      ],
+      "file_name": "scikit_learn-1.8.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
+      "imports": [
+        "sklearn"
+      ],
+      "install_dir": "site",
+      "name": "scikit-learn",
+      "package_type": "package",
+      "sha256": "432f560f54c5283d13e9d7c11dddc8bdf2f15aec326cc1d7314f600786154181",
+      "tool": {},
+      "unvendored_tests": true,
+      "version": "1.8.0"
+    },
+    "joblib": {
+      "depends": [],
+      "file_name": "joblib-1.5.3-py3-none-any.whl",
+      "imports": [
+        "joblib"
+      ],
+      "install_dir": "site",
+      "name": "joblib",
+      "package_type": "package",
+      "sha256": "fb2860ff70d0b6b43a3df5e3ce52d3a938ad2fcacd80a3f2f3f37e930843e607",
+      "tool": {},
+      "unvendored_tests": true,
+      "version": "1.5.3"
+    },
+    "threadpoolctl": {
+      "depends": [],
+      "file_name": "threadpoolctl-3.6.0-py3-none-any.whl",
+      "imports": [
+        "threadpoolctl"
+      ],
+      "install_dir": "site",
+      "name": "threadpoolctl",
+      "package_type": "package",
+      "sha256": "3521783ffb6bf212e03fb67ec1955af206d6ba7ea09ac21f200875077bbbe7c2",
+      "tool": {},
+      "unvendored_tests": false,
+      "version": "3.6.0"
     }
   }
 }
