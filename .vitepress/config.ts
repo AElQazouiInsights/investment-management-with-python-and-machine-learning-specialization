@@ -10,7 +10,7 @@ const base = '/'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Investment Management with Python",
-  description: "Portfolio construction and analysis with Python: returns, risk, optimization, factor exposures, covariance estimation, and risk budgeting.",
+  description: "Portfolio construction and derivatives with Python: returns, risk, optimization, forwards, factor exposures, covariance estimation, and risk budgeting.",
   base,
   head: [
     ['link', { rel: 'stylesheet', href: `${base}theme.css` }],
@@ -102,6 +102,16 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Derivatives, Options, and Structured Products',
+          collapsed: true,
+          items: [
+            { text: 'Overview and Learning Sequence', link: '/d.0-overview' },
+            { text: 'Forward Contracts', link: '/d.1-forwards' },
+            { text: 'Futures and Forwards Compared', link: '/d.2-futures' },
+            { text: 'Options and Replication', link: '/d.3-options' }
+          ]
+        },
+        {
           text: 'Advanced Portfolio Construction and Analysis',
           collapsed: false,
           items: [
@@ -145,6 +155,7 @@ function nav() {
   return [
     { text: 'Home', link: '/' },
     { text: 'Portfolio Fundamentals', link: '/1.0-overview' },
+    { text: 'Derivatives', link: '/d.0-overview' },
     { text: 'Advanced Portfolio Analysis', link: '/2.0-overview' },
     { text: 'Next Courses', items: [
       { text: 'Machine Learning: Overview and Preparation', link: '/3.0-overview' },

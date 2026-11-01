@@ -3516,6 +3516,147 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_option_payoff_echart(final_spot=120.):
+    """D.3 expiry scenarios with fixed strike, original premiums, and funding."""
+    if isinstance(final_spot, (bool, np.bool_)) or not isinstance(final_spot, (int, float, np.integer, np.floating)) or not np.isfinite(final_spot) or not 0 <= final_spot <= 200:
+        raise ValueError("Final asset price must be a finite number from 0 to 200")
+    final_spot = float(final_spot)
+    grid = np.arange(0., 201.)
+    strike, growth = 100., 1.05
+    premiums = {"Call": 0.5 * 100 - 40 / growth, "Put": -0.5 * 100 + 60 / growth}
+    plots = {}
+    lines = [f"Final asset price: {final_spot:.2f} GBP/unit",
+             "Fixed strike: 100.00 GBP; one unit per option; one year; effective annual rate: 5.00%"]
+    for name, sign in (("Call", 1), ("Put", -1)):
+        payoff = np.maximum(sign * (grid - strike), 0.)
+        selected_payoff = max(sign * (final_spot - strike), 0.)
+        funded_cost = premiums[name] * growth
+        profit = payoff - funded_cost
+        selected_profit = selected_payoff - funded_cost
+        plots["option" + name + "Experiment"] = {
+            "type": "line", "title": "Long " + name + ": Payoff and Financed Profit",
+            "xAxis": {"type": "value", "name": "Final asset price (GBP/unit)"},
+            "yAxisName": "Maturity cash for one option (GBP)",
+            "series": {
+                "Payoff": np.column_stack([grid, payoff]).tolist(),
+                "Financed profit": np.column_stack([grid, profit]).tolist(),
+                "Selected payoff": [[final_spot, selected_payoff]],
+                "Selected profit": [[final_spot, selected_profit]],
+            },
+            "seriesOptions": {
+                "Payoff": {"itemStyle": {"color": "#2563eb"}, "lineStyle": {"type": "solid", "color": "#2563eb"}},
+                "Financed profit": {"itemStyle": {"color": "#7c3aed"}, "lineStyle": {"type": "dashed", "color": "#7c3aed"}},
+                "Selected payoff": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                                    "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}},
+                "Selected profit": {"type": "scatter", "symbol": "rect", "symbolSize": 14,
+                                    "itemStyle": {"color": "#db2777", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}},
+            },
+        }
+        lines.extend([f"{name} premium today: {premiums[name]:.6f} GBP; financed premium: {funded_cost:.2f} GBP",
+                      f"{name} payoff: {selected_payoff:.2f} GBP; financed profit: {selected_profit:.2f} GBP",
+                      f"{name} positive exercise benefit: {'yes' if selected_payoff > 0 else 'no'}"])
+    _publish_echarts(plots, "\n".join(lines))
+
+
+def futures_margin_ledger(prices, quantity=10, initial_margin=100., maintenance_margin=75.):
+    """D.2's zero-interest retained-margin account, closed after the last settlement."""
+    prices = np.asarray(prices, dtype=float)
+    if prices.ndim != 1 or len(prices) < 2 or not np.isfinite(prices).all():
+        raise ValueError("Provide at least two finite settlement prices in a one-dimensional sequence")
+    parameters = (quantity, initial_margin, maintenance_margin)
+    if not all(isinstance(x, (int, float, np.integer, np.floating)) and not isinstance(x, (bool, np.bool_)) and np.isfinite(x) for x in parameters):
+        raise ValueError("Quantity and margin levels must be finite numbers")
+    if quantity == 0 or not 0 < maintenance_margin <= initial_margin:
+        raise ValueError("Use a nonzero signed quantity and 0 < maintenance margin <= initial margin")
+    balance = 0.0
+    records = []
+    for day, price in enumerate(prices):
+        variation = 0.0 if day == 0 else quantity * (price - prices[day - 1])
+        before = balance + variation
+        if day == 0:
+            deposit = initial_margin
+        elif day < len(prices) - 1 and before < maintenance_margin:
+            deposit = initial_margin - before
+        else:
+            deposit = 0.0
+        transfer = before + deposit if day == len(prices) - 1 else 0.0
+        balance = before + deposit - transfer
+        records.append([price, variation, before, deposit, transfer, balance, transfer - deposit])
+    frame = pd.DataFrame(records, columns=[
+        "Quote (GBP/unit)", "Variation (GBP)", "Before funding/close (GBP)",
+        "Deposit (GBP)", "Close-out transfer (GBP)", "Closing balance (GBP)", "Outside cash flow (GBP)",
+    ], index=pd.Index(range(len(prices)), name="Day"))
+    frame["Cumulative deposits (GBP)"] = frame["Deposit (GBP)"].cumsum()
+    return frame
+
+
+def show_futures_liquidity_echart(dip=5):
+    """Change two early quotes while retaining D.2's endpoint and margin rules."""
+    if isinstance(dip, (bool, np.bool_)) or not isinstance(dip, (int, np.integer)) or not 0 <= dip <= 15:
+        raise ValueError("Drop must be an integer from 0 to 15")
+    selected = np.full(366, 105.)
+    selected[-4:] = [105 - dip, 105 - 1.4 * dip, 112, 120]
+    steady = np.full(366, 105.)
+    steady[-4:] = [110, 115, 118, 120]
+    ledger = futures_margin_ledger(selected)
+    reference = futures_margin_ledger(steady)
+    days = np.arange(361, 366)
+    axis = {"type": "category", "name": "Day", "data": [str(d) for d in days]}
+    plots = {
+        "futuresPathExperiment": {
+            "type": "line", "title": "Change the Early Fall, Keep the Final Price",
+            "xAxis": axis, "yAxisName": "Futures settlement price (GBP/unit)",
+            "series": {"Selected path": selected[days].tolist(), "Steady rise": steady[days].tolist()},
+        },
+        "futuresDepositExperiment": {
+            "type": "line", "title": "Cash Supplied Includes the Initial 100 GBP",
+            "xAxis": axis, "yAxisName": "Cumulative deposits by the owner (GBP)",
+            "series": {"Selected path": ledger.loc[days, "Cumulative deposits (GBP)"].tolist(),
+                       "Steady rise": reference.loc[days, "Cumulative deposits (GBP)"].tolist()},
+            "seriesOptions": {"Selected path": {"step": "end"}, "Steady rise": {"step": "end"}},
+        },
+    }
+    _publish_echarts(plots, f"Day 362 drop: {dip} GBP/unit\nFinal quote: 120.00 GBP/unit\n"
+                    "Initial margin: 100.00 GBP; maintenance: 75.00 GBP; quantity: 10 units\n"
+                    f"Additional deposits: {ledger['Deposit (GBP)'].iloc[1:].sum():.2f} GBP\n"
+                    f"Total deposits: {ledger['Deposit (GBP)'].sum():.2f} GBP\n"
+                    f"Close-out receipt: {ledger['Close-out transfer (GBP)'].iloc[-1]:.2f} GBP\n"
+                    f"Net cash before interest: {ledger['Outside cash flow (GBP)'].sum():.2f} GBP")
+
+
+def show_forward_value_echart(spot=110):
+    """Revalue D.1's existing ten-unit forward at its fixed six-month review."""
+    if isinstance(spot, (bool, np.bool_)) or not isinstance(spot, (int, float, np.integer, np.floating)) or not np.isfinite(spot) or spot <= 0:
+        raise ValueError("Spot must be a finite positive number")
+    spot = float(spot)
+    quantity, delivery, rate, remaining = 10, 105.0, 0.05, 0.5
+    discount = (1 + rate) ** (-remaining)
+    new_quote = spot / discount
+    value = quantity * (spot - delivery * discount)
+    grid = np.linspace(min(60, spot), max(150, spot), 91)
+    plots = {"forwardValueExperiment": {
+        "type": "line", "title": "Change the Spot Price, Keep the Agreement Fixed",
+        "xAxis": {"type": "value", "name": "Current spot (GBP/unit)", "scale": True},
+        "yAxisName": "Ten-unit long forward value today (GBP)",
+        "series": {
+            "Existing long": np.column_stack([grid, quantity * (grid - delivery * discount)]).tolist(),
+            "Selected spot": [[spot, value]],
+            "Zero value": [[float(grid[0]), 0], [float(grid[-1]), 0]],
+        },
+        "seriesOptions": {
+            "Existing long": {"itemStyle": {"color": "#2563eb"}, "lineStyle": {"color": "#2563eb"}},
+            "Selected spot": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                              "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}},
+            "Zero value": {"itemStyle": {"color": "#64748b"}, "lineStyle": {"type": "dashed", "color": "#64748b"}},
+        },
+    }}
+    _publish_echarts(plots, f"Current spot: {spot:.2f} GBP/unit\n"
+                    "Existing delivery price: 105.00 GBP/unit\n"
+                    "Remaining term: 0.50 years; effective annual rate: 5.00%\n"
+                    f"New forward delivery price: {new_quote:.4f} GBP/unit\n"
+                    f"Existing ten-unit long value: {value:.4f} GBP")
+
+
 def show_ml_complexity_echart(degree=1):
     """Fit the chapter 3.1 training sample; display validation, never test outcomes."""
     from sklearn.linear_model import LinearRegression

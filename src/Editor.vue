@@ -37,7 +37,7 @@ if (typeof window !== 'undefined') {
 </script>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watchEffect, nextTick } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watchEffect, nextTick } from 'vue'
 import {
   EditorView,
   highlightSpecialChars,
@@ -167,7 +167,8 @@ onMounted(() => {
   mounted.value = true
 })
 
-onUnmounted(() => {
+// Lumino must detach widget views while their DOM nodes are still connected.
+onBeforeUnmount(() => {
   if (activeEditorId.value === props.id) interruptBuffer[0] = 2
   worker.postMessage({ cancel: props.id })
   save(editor.state.doc.toString())

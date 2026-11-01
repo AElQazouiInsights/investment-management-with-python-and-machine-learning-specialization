@@ -1,5 +1,8 @@
 // One registry drives both control filtering and generated Python calls.
 export const chartHelperParameters = {
+  show_option_payoff_echart: new Set(['final_spot']),
+  show_futures_liquidity_echart: new Set(['dip']),
+  show_forward_value_echart: new Set(['spot']),
   show_ml_complexity_echart: new Set(['degree']),
   show_risk_parity_echart: new Set(['vol_equity', 'vol_bond', 'correlation', 'equity_budget']),
   show_black_litterman_echart: new Set(['view_return', 'confidence', 'tau', 'delta', 'risk_model']),
