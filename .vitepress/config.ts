@@ -108,7 +108,10 @@ export default defineConfig({
             { text: 'Overview and Learning Sequence', link: '/d.0-overview' },
             { text: 'Forward Contracts', link: '/d.1-forwards' },
             { text: 'Futures and Forwards Compared', link: '/d.2-futures' },
-            { text: 'Options and Replication', link: '/d.3-options' }
+            { text: 'Options and Replication', link: '/d.3-options' },
+            { text: "Random Motion and Itô's Lemma", link: '/random-motion-ito' },
+            { text: 'Deriving and Using Black–Scholes', link: '/black-scholes' },
+            { text: 'Futures Basis, Dividends, and Implied Financing', link: '/futures-basis' }
           ]
         },
         {

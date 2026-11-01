@@ -2,27 +2,34 @@
 
 ## Placement and priority
 
-Approved sequence: Portfolio Fundamentals → **Derivatives, Options, and Structured Products** → Advanced Portfolio Construction → Machine Learning → Alternative Data. Use D.x for the supplementary track so the four course numbers retain their syllabus mapping. The homepage, sidebar, and Course 1 transitions introduce the new route.
+Approved sequence: Portfolio Fundamentals → **Derivatives, Options, and Structured Products** → Advanced Portfolio Construction → Machine Learning → Alternative Data. The derivatives track uses chapter names without a separate letter-prefixed numbering scheme. Cross-chapter references use names, not chapter numbers. The homepage, sidebar, and Portfolio Fundamentals transitions introduce the route.
 
-This track is the immediate development priority. Resume Course 3.2 after the derivatives capstone. Follow `TEACHING_GUIDE.md` for every concept: everyday explanation → numbers → worked calculation → explained graph → Python → experiment → exercise with feedback.
+This track is the immediate development priority. Resume Robust Estimation of Factor Models after the derivatives capstone. Follow `TEACHING_GUIDE.md` for every concept: everyday explanation → numbers → worked calculation → explained graph → Python → experiment → exercise with feedback.
 
 ## Delivery sequence
 
 | Chapter | Status | Core calculation and experiment |
 | --- | --- | --- |
-| D.0 — Overview | Delivered | Prerequisites, reading order, and explicit status of each planned chapter |
-| D.1 — Forward Contracts | Delivered | Zero-initial-value delivery price, long/short payoffs, both arbitrage directions, existing-contract valuation, and purchase hedge; one current-spot slider |
-| D.2 — Futures and Forwards Compared | Delivered | Same underlying/quantity/maturity as D.1; daily settlement ledger, margin collateral, cash requirements, funding, and deterministic-rate replication |
-| D.3 — Options and Replication | Delivered | Calls/puts, premiums, payoff versus financed profit, put–call parity, price bounds, pricing weights, and two-state replication |
-| D.4 — Random Motion and Itô's Lemma | Next | Small curvature example, derivatives and Taylor expansion, Brownian increments/quadratic variation, Itô derivation, and log-price application |
-| D.5 — Deriving and Using Black–Scholes | Planned | Self-financing hedge, PDE, pricing-distribution expectation, normal integrals, call/put prices, parity, and dynamic futures hedging |
-| D.6 — The Greeks and Hedging | Planned | Finite-difference intuition followed by delta/gamma/theta/vega/rho formulas; units and discrete hedging with a reconciled cash account |
-| D.7 — Spreads and Basic Option Combinations | Planned | Bull/bear spreads, covered calls, protective puts, and collars; signed prices, payoff regions, break-even points, and aggregate Greeks |
-| D.8 — Straddles, Strangles, Butterflies, and Condors | Planned | Leg-by-leg construction, theoretical value, financed profit, strike spacing, and pre-expiry sensitivity |
-| D.9 — Building Structured Products | Planned | Funding plus option budget, participation rates, caps, income enhancement with downside exposure, and issuer/early-sale implications |
-| D.10 — Design, Price, and Explain a Product | Planned | Reconciled initial budget, dated cash flows, payoff table, graphs, Greeks, scenarios, and plain-language investor explanation |
+| Overview | Delivered | Prerequisites, reading order, and explicit status of each planned chapter |
+| Forward Contracts | Delivered | Zero-initial-value delivery price, long/short payoffs, both arbitrage directions, existing-contract valuation, and purchase hedge; one current-spot slider |
+| Futures and Forwards Compared | Delivered | Same underlying/quantity/maturity as the forward example; daily settlement ledger, margin collateral, cash requirements, funding, and deterministic-rate replication |
+| Options and Replication | Delivered | Calls/puts, premiums, payoff versus financed profit, put–call parity, price bounds, pricing weights, and two-state replication |
+| Random Motion and Itô's Lemma | Delivered | Curvature, derivatives and Taylor expansion, Brownian increments, nested-grid quadratic variation, Itô derivation, and log-price application |
+| Deriving and Using Black–Scholes | Delivered | Self-financing hedge, PDE, pricing-distribution expectation, normal integrals, call/put prices, parity, and explicit stock/futures hedge ledgers |
+| Futures Basis, Dividends, and Implied Financing | Delivered | Dated-dividend carry, execution bands, two-direction funding ledgers, implied roots, identification, anchored financing/dividend calibration, parity, held-out checks, calendar P&L, and stress attribution |
+| The Greeks and Hedging | Next | Finite-difference intuition followed by delta/gamma/theta/vega/rho formulas; units and discrete hedging with a reconciled cash account |
+| Spreads and Basic Option Combinations | Planned | Bull/bear spreads, covered calls, protective puts, and collars; signed prices, payoff regions, break-even points, and aggregate Greeks |
+| Reading the Options Market: Implied Volatility and Surfaces | Planned | Quote inversion, vega conditioning, bid/ask ranges, forward-input sensitivity, smile/term structure, total variance, and price-space arbitrage diagnostics |
+| Straddles, Strangles, Butterflies, and Condors | Planned | Leg-by-leg construction, theoretical value, financed profit, strike spacing, and pre-expiry sensitivity |
+| Butterflies, Implied Distributions, and Tail Pricing | Planned | Strike curvature, local pricing-distribution information, tails and moment estimation; distinguish risk reversals/smile butterflies from statistical skewness/kurtosis |
+| Building Structured Products | Planned | Funding plus option budget, participation rates, caps, income enhancement with downside exposure, and issuer/early-sale implications |
+| Design, Price, and Explain a Product | Planned | Reconciled initial budget, dated cash flows, payoff table, graphs, Greeks, scenarios, and plain-language investor explanation |
 
-Only delivered chapters receive sidebar links. Planned descriptions live in `docs/d.0-overview.md`. D.1 links to D.2, D.2 to D.3, and D.3 ends at the stable `#ito` overview anchor until D.4 is delivered. Retain the overview's `#futures` and `#options` anchors for earlier links.
+Only delivered chapters receive sidebar links. Planned descriptions live in `docs/d.0-overview.md`. Delivered chapters link directly to the next available lesson; Deriving and Using Black–Scholes now links to Futures Basis, Dividends, and Implied Financing, which links to the stable `#greeks` overview anchor. Existing forward/futures/options URLs and overview anchors remain valid; new lessons use descriptive URLs such as `/random-motion-ito`, `/black-scholes`, and `/futures-basis`.
+
+`FUTURES_BASIS_PLAN.md` maps the expanded market-implied curriculum to the agreed delivery sequence. The basis lesson establishes carry and identification; full volatility inversion/surface fitting follows the Greeks and basic option combinations, and distribution/tail inference follows butterfly construction. Advanced residual forecasting and execution research builds on the portfolio-estimation chapters. Fitting must expose identification limits: an unrestricted financing curve and dividend schedule cannot both be recovered from futures quotes alone.
+
+The user's intended meaning of fitting is **reading the market-implied state from traded derivative prices**. Organize the calibration material around a quote-to-implied-input dashboard for volatility, dividends, financing, option-implied forwards/discounting, and relative pricing. Every reading must identify its instruments, horizon, quote range, assumptions, and repricing check; market-implied quantities are not automatically real-world forecasts.
 
 ## Financial and teaching conventions
 
@@ -38,7 +45,7 @@ Only delivered chapters receive sidebar links. Planned descriptions live in `doc
 
 ## Implementation and acceptance
 
-Use the existing VitePress presentation, browser-run Pyodide, ECharts, and selective ipywidgets. Keep small calculations visible in lesson cells. Helpers are for justified reuse or allowlisted callbacks and must match all six toolkit copies. D.1–D.3 use the existing runtime packages.
+Use the existing VitePress presentation, browser-run Pyodide, ECharts, and selective ipywidgets. Keep small calculations visible in lesson cells. Helpers are for justified reuse or allowlisted callbacks and must match all six toolkit copies. The delivered derivatives lessons use the existing runtime packages.
 
 For each delivered chapter:
 
@@ -48,22 +55,47 @@ For each delivered chapter:
 4. Separately measure axis/legend geometry and rendered series against the dev server. Check homepage and navigation at intermediate widths when adding the track.
 5. Update overview/status, README, sidebar, and audit registry. Push reviewed source to `uat` and verify the deployed preview.
 
-## D.0–D.1 validation
+## Overview and Forward Contracts validation
 
 - Production build passed. Ten forward-example tests, three existing widget-serialization tests, and all 36 JavaScript tests passed.
-- Chromium 156.0.8078.4 and Firefox 157.0 executed all eight D.1 cells and displayed all six charts with off-site requests blocked. The independent widget ran before setup and passed spot-price endpoint/intermediate updates without changing other outputs.
-- Both browsers passed measured dev-server axis/legend bounds, mixed-series reconciliation, money tooltip checks, and fixed-contract-term checks. Chapter chart layouts passed at 1920, 1440, 390, and 320 pixels; D.0 also passed both browsers' page-layout audits.
+- Chromium 156.0.8078.4 and Firefox 157.0 executed all eight Forward Contracts cells and displayed all six charts with off-site requests blocked. The independent widget ran before setup and passed spot-price endpoint/intermediate updates without changing other outputs.
+- Both browsers passed measured dev-server axis/legend bounds, mixed-series reconciliation, money tooltip checks, and fixed-contract-term checks. Chapter chart layouts passed at 1920, 1440, 390, and 320 pixels; the track overview also passed both browsers' page-layout audits.
 - Homepage and navigation checks covered widths from 320 to 1920 pixels, including intermediate desktop/tablet widths. Desktop/light and mobile/dark screenshots were inspected. All 255 internal links on the homepage, Course 1 overview, ALM chapter, and two new pages resolved, including the next-topic anchor.
 
-## D.2 validation
+## Futures and Forwards Compared validation
 
 - Production build passed. Twelve futures tests, ten forward-example regression tests, three widget-serialization tests, and all 36 JavaScript tests passed. Checks include exact maintenance boundaries, long/short cash conservation, negative final close-out transfers, losses exceeding initial margin, all 16 slider settings, dated funding, ideal tailing, and six-copy helper parity.
 - Chromium 156.0.8078.4 and Firefox 157.0 each ran all nine cells and rendered eight charts with off-origin requests blocked. The widget ran independently before setup, then passed repeated zero/intermediate/deep-drop updates while preserving other outputs.
-- Separate dev-server audits passed axis/legend bounds, rendered series, step timing, cash units, and widget updates at 1920, 1440, 390, and 320 pixels in both browsers. Desktop/light, mobile/dark, and chart screenshots were inspected. All 155 internal links on the homepage and derivatives pages resolved; the D.3 `#options` transition and overview-to-D.2 navigation were checked in the browser.
+- Separate dev-server audits passed axis/legend bounds, rendered series, step timing, cash units, and widget updates at 1920, 1440, 390, and 320 pixels in both browsers. Desktop/light, mobile/dark, and chart screenshots were inspected. All 155 internal links on the homepage and derivatives pages resolved; the `#options` next-topic transition and overview-to-futures navigation were checked in the browser.
 
-## D.3 validation
+## Options and Replication validation
 
 - Production build passed. Eleven option-example tests, ten forward-example regression tests, and all 36 JavaScript tests passed. Numerical checks cover signed initial funding, both state replications, financed break-even points, pricing weights versus forecasts, all-price parity, bounds, changed-strike/up-state exercises, all 81 widget settings, and six-copy helper parity.
 - Chromium and Firefox each executed all ten cells and rendered eleven charts with off-origin requests blocked. Independent widget execution, zero/maximum final prices, both fractional break-even points, strike crossing, fixed premiums, and other-output isolation passed. Dev-server audits measured axes, legends, and rendered series at 1920, 1440, 390, and 320 pixels in both browsers. Desktop/light, mobile/dark, and chart screenshots were inspected; 206 internal links across the homepage and derivatives pages resolved.
-- Navigation with a mounted widget exposed a Lumino detach error: Vue had already disconnected its DOM before `onUnmounted` removed the view. Cleanup now runs in `onBeforeUnmount`. Both final-build browser audits leave D.3 for the Itô overview anchor, return without reloading, and create one working slider with the shared worker; no browser or Python errors occur. The full shared-widget browser regression also passed, including saved code, storage failures, input/interruption, runtime failures/retry, and existing chart controls.
-- The standalone options widget uses high-contrast outlined payoff/profit markers. The requested D.1 spot-marker contrast improvement is included with this delivery.
+- Navigation with a mounted widget exposed a Lumino detach error: Vue had already disconnected its DOM before `onUnmounted` removed the view. Cleanup now runs in `onBeforeUnmount`. Both final-build browser audits left the options lesson for the Itô overview anchor, returned without reloading, and created one working slider with the shared worker; no browser or Python errors occurred. The full shared-widget browser regression also passed, including saved code, storage failures, input/interruption, runtime failures/retry, and existing chart controls.
+- The standalone options widget uses high-contrast outlined payoff/profit markers. The requested forward spot-marker contrast improvement was included with that delivery.
+
+## Random Motion and Itô's Lemma validation
+
+- Twelve scientific-example tests and all 36 JavaScript tests passed. Checks cover curvature scaling, nested sample preservation, normal second/fourth moments, exact discrete left-endpoint and midpoint identities, conditional transformation expectations, zero/doubled diffusion limits, log-price solutions and Gaussian mean integration, half-year units, all nine grid settings, standalone widget serialization, and six-copy helper parity.
+- Chromium and Firefox dev-server audits ran all ten cells and reconciled nine chart payloads with the worked calculations. Axes, legends, captions, and canvases fit at 1920, 1440, 390, and 320 pixels. Widget refinement preserves the sample endpoint and other editors; named-link navigation to the next-topic overview and back retains one working widget. Options and Replication also passed its full browser regression using the new direct next-chapter link.
+- Production build and Chromium/Firefox execution/layout/control/navigation audits passed. Desktop/light, mobile/dark, refinement, curvature, quadratic-variation, and zoomed-price screenshots were inspected. Mathematical rendering and homepage layouts were checked separately. All 768 internal links across the 16 affected pages resolved.
+- The visible derivatives sequence now uses unnumbered chapter names. Numbered cross-chapter references in the lesson Markdown were replaced with linked names, and the naming convention is recorded in `TEACHING_GUIDE.md`.
+
+## Deriving and Using Black–Scholes and cross-course review
+
+The following record covers the preceding delivery; the basis delivery is recorded below.
+
+- Delivered 11 runnable cells and 10 charts: convention comparison, self-financing replication, PDE, pricing expectation, normal integrals, call/put prices, parity, expiry/zero-volatility limits, and explicit stock/futures hedge ledgers. Trading grids share one fine GBM path. A zero budget residual is distinguished from a nonzero hedge residual.
+- All 505 Python scientific/core/lesson tests passed in the full regression suite, including 11 new Black–Scholes tests. Independent checks cover direct payoff integration, finite-difference delta/PDE, bounds and parity at negative/zero/positive rates, deterministic limits, discounted gains identities, zero-rate stock/futures equivalence, all 117 widget settings, serialization, and six-copy helper parity. All 36 JavaScript tests passed.
+- Chromium and Firefox dev-server audits passed all cells, rendered chart values, control endpoints, marker contrast, output isolation, and named-link navigation. Layouts passed at 1920, 1440, 390, and 320 pixels. Production build and Chromium execution/control/navigation audit passed; Firefox also passed the Itô-to-Black–Scholes navigation regression. Desktop and mobile/dark views were inspected, including mathematical rendering and the responsive homepage/three overviews.
+- All 1,208 internal links across 23 built pages resolved. Existing overview anchors remain valid, with a stable `#greeks` anchor for the next planned lesson.
+- `COURSE_CONSISTENCY_REVIEW.md` records the review of fundamentals, advanced portfolios, and delivered derivatives. Existing financial formulas and helper conventions agreed. Added explicit bridges for arithmetic mean/CAGR/GBM drift, effective/continuous rates, simple-return versus diffusion volatility, price versus total-return index, physical/pricing probabilities, statistical/payoff replication, Black–Litterman views, capital weights/hedge quantities, and self-financing costs. Aligned the recommended learning route and remaining numbered course-link labels.
+
+## Futures Basis, Dividends, and Implied Financing
+
+- Delivered `docs/futures-basis.md` with 13 runnable cells and 13 charts. The independent rate/dividend identification slider is synchronized across all six toolkit copies and routed through the callback allowlist. Numerical examples expose ex/payment dates, both executable directions, long/reverse funding ledgers, implied roots, anchored curve/dividend calibration, parity, held-out repricing, calendar P&L, and stress attribution.
+- All 519 Python tests passed, including 14 new independent basis checks; all 36 JavaScript tests passed. Cash-flow checks independently accumulate terminal wealth and bootstrap discount factors rather than only duplicating the displayed formulas. Tests cover all 17 slider positions, malformed quote rejection, negative/zero/positive-rate roots, rank/recovery, parity contamination, sensitivity units, and standalone serialization.
+- Chromium and Firefox dev audits passed all cells, rendered payload comparisons, rate endpoints, marker styling, isolated output updates, and navigation/remounting. All 13 charts passed geometry at 1920, 1440, 390, and 320 pixels. Inspected desktop/mobile chart screenshots, displayed dividend mathematics, and the dark mobile widget. The Firefox Black–Scholes regression passed the new next-chapter route and return widget execution.
+- `env NODE_OPTIONS=--max-old-space-size=2048 pnpm build` passed. The production Chromium audit passed all lesson cells, controls, responsive checks, and navigation. Checked 1,298 internal links across 24 generated HTML pages, including planned-topic anchors, with no broken destinations.
+- Updated the overview, sidebar, homepage, README, and cross-course consistency review. Reconciled `FUTURES_BASIS_PLAN.md` with the agreed sequence: Greeks → basic option combinations → volatility surfaces → butterfly strategies and implied distributions → structured products. The Greeks and Hedging is next.

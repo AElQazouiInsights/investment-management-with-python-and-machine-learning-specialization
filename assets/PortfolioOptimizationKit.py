@@ -3516,6 +3516,105 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_basis_identification_echart(financing_percent=5.):
+    """Dividend/financing pairs compatible with one fixed three-month quote."""
+    if isinstance(financing_percent, (bool, np.bool_)) or not isinstance(financing_percent, (int, float, np.integer, np.floating)) or not np.isfinite(financing_percent) or not 4 <= financing_percent <= 8:
+        raise ValueError("Financing must be a finite percentage from 4 to 8")
+    rates = np.linspace(4., 8., 161)
+    dividends = 5000 * np.exp(rates / 100 * .25) - 5040
+    selected = float(5000 * np.exp(financing_percent / 100 * .25) - 5040)
+    _publish_echarts({"basisIdentification": {
+        "type": "line", "title": "One Futures Quote Admits Many Financing/Dividend Pairs",
+        "xAxis": {"type": "value", "name": "Continuous financing rate (%)"},
+        "yAxisName": "Compatible expiry dividend (index points)",
+        "series": {"Compatible pairs": np.column_stack([rates, dividends]).tolist(),
+                   "Selected assumption": [[float(financing_percent), selected]]},
+        "seriesOptions": {
+            "Compatible pairs": {"itemStyle": {"color": "#2563eb"}, "lineStyle": {"color": "#2563eb"}},
+            "Selected assumption": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}},
+        },
+    }}, f"Financing assumption: {financing_percent:.2f}%\n"
+        f"Compatible dividend: {selected:.9f} points; repriced future: 5040.000000 points\n"
+        "Fixed spot: 5000 points; horizon: 0.25 years; dividend paid at expiry.")
+
+
+def show_black_scholes_echart(remaining=1., volatility=0.20):
+    """One-unit European prices; fixed strike 100 and effective cash rate 5%."""
+    if not np.isfinite([remaining, volatility]).all() or not 0 <= remaining <= 2 or not 0 <= volatility <= .60:
+        raise ValueError("Use remaining years in [0, 2] and volatility in [0, 0.60]")
+    spots = np.linspace(50., 150., 101)
+    rate = np.log1p(.05)
+    pv_strike = 100 * np.exp(-rate * remaining)
+    lower_call, lower_put = np.maximum(spots-pv_strike, 0.), np.maximum(pv_strike-spots, 0.)
+    if remaining == 0 or volatility == 0:
+        calls, puts = lower_call, lower_put
+    else:
+        scale = volatility * np.sqrt(remaining)
+        d1 = (np.log(spots/100) + (rate+volatility**2/2)*remaining) / scale
+        d2 = d1-scale
+        calls = spots*scipy.stats.norm.cdf(d1)-pv_strike*scipy.stats.norm.cdf(d2)
+        puts = pv_strike*scipy.stats.norm.cdf(-d2)-spots*scipy.stats.norm.cdf(-d1)
+    series = {name: np.column_stack([spots, values]).tolist() for name, values in
+              (("Call", calls), ("Put", puts), ("Call lower bound", lower_call), ("Put lower bound", lower_put))}
+    styles = {}
+    for name, values, color in (("Call", calls, "#2563eb"), ("Put", puts, "#ea580c")):
+        styles[name] = {"itemStyle": {"color": color}, "lineStyle": {"color": color}}
+        series[name + " at 100"] = [[100., float(values[50])]]
+        styles[name + " at 100"] = {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": color, "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}
+    for name, color in (("Call lower bound", "#64748b"), ("Put lower bound", "#9333ea")):
+        styles[name] = {"itemStyle": {"color": color}, "lineStyle": {"color": color, "type": "dashed"}}
+    _publish_echarts({"bsLimits": {
+        "type": "line", "title": "Approach Expiry or Remove Volatility",
+        "xAxis": {"type": "value", "name": "Current spot (GBP/unit)"},
+        "yAxisName": "Option value (GBP/contract)", "series": series, "seriesOptions": styles,
+    }}, f"Remaining years: {remaining:.2f}; volatility: {volatility:.2f}\n"
+        f"At spot 100: call {calls[50]:.9f} GBP; put {puts[50]:.9f} GBP\n"
+        f"Call minus put: {calls[50]-puts[50]:.9f} GBP; spot minus discounted strike: {100-pv_strike:.9f} GBP")
+
+
+def show_ito_refinement_echart(grid_power=8):
+    """Refine nested observations of one fixed Brownian sample and its square."""
+    if isinstance(grid_power, (bool, np.bool_)) or not isinstance(grid_power, (int, np.integer)) or not 4 <= grid_power <= 12:
+        raise ValueError("Grid power must be an integer from 4 to 12")
+    count = 2 ** int(grid_power)
+    fine = np.random.default_rng(20261101).standard_normal(4096) / 64
+    increments = fine.reshape(count, -1).sum(axis=1)
+    times = np.linspace(0., 1., count + 1)
+    path = np.r_[0., np.cumsum(increments)]
+    exact = path ** 2
+    first = np.r_[0., np.cumsum(2 * path[:-1] * increments)]
+    squared_sum = np.r_[0., np.cumsum(increments ** 2)]
+    corrected = first + times
+    blue = {"itemStyle": {"color": "#2563eb"}, "lineStyle": {"type": "solid", "color": "#2563eb"}}
+    orange = {"itemStyle": {"color": "#ea580c"}, "lineStyle": {"type": "dashed", "color": "#ea580c"}}
+    axis = {"type": "value", "name": "Elapsed time (years)"}
+    plots = {
+        "itoRefinementSquare": {
+            "type": "line", "title": "Same Path: Observe the Missing Curvature Term",
+            "xAxis": axis, "yAxisName": "Squared Brownian value or accumulated terms (years)",
+            "series": {"Exact square": np.column_stack([times, exact]).tolist(),
+                       "First order only": np.column_stack([times, first]).tolist(),
+                       "First order + time": np.column_stack([times, corrected]).tolist()},
+            "seriesOptions": {"Exact square": blue, "First order + time": orange,
+                              "First order only": {"itemStyle": {"color": "#64748b"}, "lineStyle": {"type": "dashed", "color": "#64748b"}}},
+        },
+        "itoRefinementVariation": {
+            "type": "line", "title": "Accumulated Squared Increments Approach Elapsed Time",
+            "xAxis": axis, "yAxisName": "Quadratic variation and elapsed time (years)",
+            "series": {"Squared increments": np.column_stack([times, squared_sum]).tolist(),
+                       "Elapsed time": np.column_stack([times, times]).tolist()},
+            "seriesOptions": {"Squared increments": blue, "Elapsed time": orange},
+        },
+    }
+    _publish_echarts(plots, f"Grid power: {grid_power}; intervals: {count}; fixed seed: 20261101\n"
+                    f"Brownian endpoint: {path[-1]:.6f} sqrt(years)\nExact final square: {exact[-1]:.6f} years\n"
+                    f"Squared-increment sum: {squared_sum[-1]:.6f} years; target: 1.000000 years\n"
+                    f"First-order endpoint: {first[-1]:.6f} years\nCorrected endpoint error: {corrected[-1] - exact[-1]:.6f} years\n"
+                    f"Maximum discrete-identity error: {np.max(np.abs(first + squared_sum - exact)):.2e}")
+
+
 def show_option_payoff_echart(final_spot=120.):
     """D.3 expiry scenarios with fixed strike, original premiums, and funding."""
     if isinstance(final_spot, (bool, np.bool_)) or not isinstance(final_spot, (int, float, np.integer, np.floating)) or not np.isfinite(final_spot) or not 0 <= final_spot <= 200:

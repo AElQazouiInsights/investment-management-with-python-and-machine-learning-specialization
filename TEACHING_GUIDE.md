@@ -29,6 +29,8 @@ Use plain, precise language and short sections. Avoid promotional wording, unexp
 
 Preserve the existing website design, editable browser-run Python, ECharts, and selective ipywidgets. Link to a prerequisite when needed and briefly recall the part used in the current calculation.
 
+Use chapter names, without chapter numbers, when referring or linking to another lesson. The derivatives track uses named chapters without a separate letter-prefixed numbering scheme.
+
 ## Review question
 
 Can a student explain the question, reproduce the small calculation, read the graph, and predict the effect of one changed assumption? If not, identify the missing teaching step before adding more complexity.

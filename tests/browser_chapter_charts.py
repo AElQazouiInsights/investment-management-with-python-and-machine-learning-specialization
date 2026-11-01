@@ -21,6 +21,9 @@ CHAPTERS = {
     "d.1-forwards": (8, 6),
     "d.2-futures": (9, 8),
     "d.3-options": (10, 11),
+    "random-motion-ito": (10, 9),
+    "black-scholes": (11, 10),
+    "futures-basis": (13, 13),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (20, 10),
@@ -66,7 +69,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
             page.wait_for_function("document.querySelector('button.run:not(:disabled)')", timeout=120000)
         ids = page.locator("[data-editor-id]").evaluate_all("els => els.map(el => el.dataset.editorId)")
         standalone = {"3.1-ml-fundamentals": "ml-complexity-widget", "d.1-forwards": "forward-value-widget",
-                      "d.2-futures": "futures-liquidity-widget", "d.3-options": "options-payoff-widget"}.get(chapter)
+                      "d.2-futures": "futures-liquidity-widget", "d.3-options": "options-payoff-widget",
+                      "random-motion-ito": "ito-refinement-widget", "black-scholes": "bs-limits-widget",
+                      "futures-basis": "basis-identification-widget"}.get(chapter)
         if standalone:
             # Prove the experiment needs no variables from preceding lesson cells.
             page.locator(f'[data-editor-id="{standalone}"] button.run').click()
@@ -162,6 +167,15 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "d.3-options":
             from browser_option_charts import check_defaults as check_option_defaults, check_controls as check_option_controls, check_navigation as check_option_navigation
             check_option_defaults(page, inspect_axes)
+        if chapter == "random-motion-ito":
+            from browser_ito_charts import check_defaults as check_ito_defaults, check_controls as check_ito_controls, check_navigation as check_ito_navigation
+            check_ito_defaults(page, inspect_axes)
+        if chapter == "black-scholes":
+            from browser_black_scholes_charts import check_defaults as check_bs_defaults, check_controls as check_bs_controls, check_navigation as check_bs_navigation
+            check_bs_defaults(page, inspect_axes)
+        if chapter == "futures-basis":
+            from browser_futures_basis_charts import check_defaults as check_basis_defaults, check_controls as check_basis_controls, check_navigation as check_basis_navigation
+            check_basis_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -236,6 +250,15 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "d.3-options":
             check_option_controls(page, inspect_axes)
             check_option_navigation(page)
+        if chapter == "random-motion-ito":
+            check_ito_controls(page, inspect_axes)
+            check_ito_navigation(page)
+        if chapter == "black-scholes":
+            check_bs_controls(page, inspect_axes)
+            check_bs_navigation(page)
+        if chapter == "futures-basis":
+            check_basis_controls(page, inspect_axes)
+            check_basis_navigation(page)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)
