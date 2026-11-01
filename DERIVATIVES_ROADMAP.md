@@ -16,13 +16,18 @@ This track is the immediate development priority. Resume Robust Estimation of Fa
 | Options and Replication | Delivered | Calls/puts, premiums, payoff versus financed profit, put–call parity, price bounds, pricing weights, and two-state replication |
 | Random Motion and Itô's Lemma | Delivered | Curvature, derivatives and Taylor expansion, Brownian increments, nested-grid quadratic variation, Itô derivation, and log-price application |
 | Deriving and Using Black–Scholes | Delivered | Self-financing hedge, PDE, pricing-distribution expectation, normal integrals, call/put prices, parity, and explicit stock/futures hedge ledgers |
-| The Greeks and Hedging | Next | Finite-difference intuition followed by delta/gamma/theta/vega/rho formulas; units and discrete hedging with a reconciled cash account |
+| Futures Basis, Dividends, and Implied Financing | Next — expanded specification | Executable carry, dividend/payment timing, financing curves, implied-rate inversion, calendar P&L, identification, option parity, financing/dividend calibration, implied volatility and fit diagnostics; see `FUTURES_BASIS_PLAN.md` |
+| The Greeks and Hedging | Planned after the basis lesson | Finite-difference intuition followed by delta/gamma/theta/vega/rho formulas; units and discrete hedging with a reconciled cash account |
 | Spreads and Basic Option Combinations | Planned | Bull/bear spreads, covered calls, protective puts, and collars; signed prices, payoff regions, break-even points, and aggregate Greeks |
 | Straddles, Strangles, Butterflies, and Condors | Planned | Leg-by-leg construction, theoretical value, financed profit, strike spacing, and pre-expiry sensitivity |
 | Building Structured Products | Planned | Funding plus option budget, participation rates, caps, income enhancement with downside exposure, and issuer/early-sale implications |
 | Design, Price, and Explain a Product | Planned | Reconciled initial budget, dated cash flows, payoff table, graphs, Greeks, scenarios, and plain-language investor explanation |
 
 Only delivered chapters receive sidebar links. Planned descriptions live in `docs/d.0-overview.md`. Delivered chapters link directly to the next available lesson; Deriving and Using Black–Scholes links to the stable `#greeks` overview anchor until that lesson is delivered. Existing forward/futures/options URLs and overview anchors remain valid; new lessons use descriptive URLs such as `/random-motion-ito` and `/black-scholes`.
+
+The newly requested basis lesson is specified in `FUTURES_BASIS_PLAN.md`, including institutional-depth calibration with accessible worked explanations. Update the published learning sequence and Black–Scholes transition when this lesson is delivered. Its advanced residual-forecasting and execution extension will build on sensitivities, option combinations, and the portfolio-estimation chapters. Fitting must expose identification limits: an unrestricted financing curve and dividend schedule cannot both be recovered from futures quotes alone.
+
+The user's intended meaning of fitting is **reading the market-implied state from traded derivative prices**. Organize the calibration material around a quote-to-implied-input dashboard for volatility, dividends, financing, option-implied forwards/discounting, and relative pricing. Every reading must identify its instruments, horizon, quote range, assumptions, and repricing check; market-implied quantities are not automatically real-world forecasts.
 
 ## Financial and teaching conventions
 
