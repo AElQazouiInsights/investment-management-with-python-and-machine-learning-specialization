@@ -97,8 +97,8 @@ def check_controls(page, inspect_axes):
 
 def check_navigation(page):
     page.evaluate('window.bsNavigationSentinel = true')
-    page.locator('.vp-doc').get_by_role('link', name='The Greeks and Hedging', exact=True).click()
-    page.wait_for_function("location.hash === '#greeks' && !!document.getElementById('greeks')")
+    page.locator('.vp-doc').get_by_role('link', name='Futures Basis, Dividends, and Implied Financing', exact=True).click()
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Futures Basis')")
     assert page.get_by_role('slider').count() == 0
     page.locator('.vp-doc').get_by_role('link', name='Deriving and Using Black–Scholes', exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Deriving and Using Black')")

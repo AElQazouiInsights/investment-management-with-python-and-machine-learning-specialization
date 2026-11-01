@@ -3509,6 +3509,29 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_basis_identification_echart(financing_percent=5.):
+    """Dividend/financing pairs compatible with one fixed three-month quote."""
+    if isinstance(financing_percent, (bool, np.bool_)) or not isinstance(financing_percent, (int, float, np.integer, np.floating)) or not np.isfinite(financing_percent) or not 4 <= financing_percent <= 8:
+        raise ValueError("Financing must be a finite percentage from 4 to 8")
+    rates = np.linspace(4., 8., 161)
+    dividends = 5000 * np.exp(rates / 100 * .25) - 5040
+    selected = float(5000 * np.exp(financing_percent / 100 * .25) - 5040)
+    _publish_echarts({"basisIdentification": {
+        "type": "line", "title": "One Futures Quote Admits Many Financing/Dividend Pairs",
+        "xAxis": {"type": "value", "name": "Continuous financing rate (%)"},
+        "yAxisName": "Compatible expiry dividend (index points)",
+        "series": {"Compatible pairs": np.column_stack([rates, dividends]).tolist(),
+                   "Selected assumption": [[float(financing_percent), selected]]},
+        "seriesOptions": {
+            "Compatible pairs": {"itemStyle": {"color": "#2563eb"}, "lineStyle": {"color": "#2563eb"}},
+            "Selected assumption": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}},
+        },
+    }}, f"Financing assumption: {financing_percent:.2f}%\n"
+        f"Compatible dividend: {selected:.9f} points; repriced future: 5040.000000 points\n"
+        "Fixed spot: 5000 points; horizon: 0.25 years; dividend paid at expiry.")
+
+
 def show_black_scholes_echart(remaining=1., volatility=0.20):
     """One-unit European prices; fixed strike 100 and effective cash rate 5%."""
     if not np.isfinite([remaining, volatility]).all() or not 0 <= remaining <= 2 or not 0 <= volatility <= .60:

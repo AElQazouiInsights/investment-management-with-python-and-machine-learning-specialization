@@ -2,15 +2,30 @@
 
 ## Status and purpose
 
-Expanded specification following the user's request for accessible explanation at institutional research depth, including fitting implied financing, dividends, volatility, and related inputs. This is a delivery specification, not a published lesson or a claim that the experiments below have been implemented.
+Expanded curriculum specification following the user's request for accessible explanation at institutional research depth, including fitting implied financing, dividends, volatility, and related inputs. The core basis lesson is implemented in `docs/futures-basis.md`. The broader requirements below span subsequent lessons; their presence here does not imply delivery in the basis chapter.
+
+### Agreed scope and acceptance by delivery
+
+The later sequencing agreement takes precedence over the original combined specification below:
+
+| Delivery | Scope and acceptance |
+| --- | --- |
+| Futures Basis, Dividends, and Implied Financing | Carry and date accounting; executable directional thresholds; both cash/futures funding ledgers; flat and dated implied-rate roots; identification widget; independently anchored financing/dividend recovery; quote-scaled residuals, smoothing and held-out maturity; option-parity extraction and stale-quote diagnostics; calendar P&L, sensitivity units, stress attribution, and elementary execution examples. Validate these numerical results, every chart, standalone control, and navigation. |
+| The Greeks and Hedging | Systematic sensitivity derivations, units, discrete hedging, and cash accounting. |
+| Spreads and Basic Option Combinations | Signed option combinations, parity boxes, fixed payments, and financing interpretation. |
+| Reading the Options Market: Implied Volatility and Surfaces | Full bid/mid/ask IV inversion, vega conditioning, carry-input error, smile/surface fitting, strike and cross-maturity price consistency, and anchored staged/joint calibration. Requirements below concerning IV repricing and surface acceptance apply here. ATM total-variance differences require explicit model assumptions and are not automatically tradable forward variance. |
+| Butterfly strategies, then Butterflies, Implied Distributions, and Tail Pricing | Payoff construction followed by local distribution inference, tails, truncation, and moments. Risk reversals are not statistical skewness; smile butterflies are not kurtosis. |
+| Later Futures Relative Value application | Full point-in-time temporal validation, fill/latency simulation, funding renewal and forced-exit/roll studies, portfolio integration, and residual forecasting. The core lesson supplies small accounting and execution examples, not an implemented trading backtest. |
+
+The current core has 13 runnable cells and 13 charts. It compares a weighted-mid fit with a regularized fit and explains interval-distance fitting; the full interval-feasible/joint optimizer comparison remains in the subsequent calibration application. Margin-rule changes and liquidation are explained as scenario extensions; the implemented core stress changes financing and dividends with the original margin rule held fixed.
 
 **User clarification: “fitting” means listening to traded derivative prices to take the market's temperature.** The central learning question is: what volatility, dividend amounts, financing conditions, and related risk prices are embedded in the current quote set? Build the lesson around reverse-engineering those readings, with calibration serving their extraction and reconciliation. Preserve the distinction between a market-implied reading, a research forecast, and an executable trade.
 
-Develop this lesson next, before The Greeks and Hedging. Readers already have Forward Contracts, Futures and Forwards Compared, Options and Replication, and Deriving and Using Black–Scholes. Introduce any additional derivative, regression, or numerical method beside a small worked example rather than assuming the later Greeks or machine-learning lessons.
+The core lesson precedes The Greeks and Hedging. Readers already have Forward Contracts, Futures and Forwards Compared, Options and Replication, and Deriving and Using Black–Scholes. Introduce any additional derivative, regression, or numerical method beside a small worked example rather than assuming the later Greeks or machine-learning lessons.
 
 The full subject has three connected layers: pricing from contractual cash flows; calibration from market observations; and executable trading/accounting. Every layer needs the complete teaching cycle in `TEACHING_GUIDE.md`. Plain language must preserve the financial and numerical reasoning.
 
-Use `docs/futures-basis.md` for the core lesson, with a descriptive URL and named references. If reading length warrants splitting the calibration material into a companion lesson, preserve a complete linked route and the acceptance criteria below; do not reduce coverage to fit a single page. Advanced statistical trading and execution research remains a subsequent application rather than a prerequisite for understanding the core calculations.
+Use `docs/futures-basis.md` for the core lesson, with a descriptive URL and named references. Preserve the linked route and apply the acceptance criteria below to the corresponding delivery in the scope table. Advanced statistical trading and execution research remains a subsequent application rather than a prerequisite for understanding the core calculations.
 
 ## Questions a reader must be able to answer
 
@@ -174,7 +189,7 @@ The later Futures Relative Value application can add residual forecasting, an el
 
 ## Experiments and worked exercises
 
-Required demonstrations include:
+Required demonstrations across the mapped curriculum include (volatility experiments 7–8 belong to the surface lesson; full joint-fit and execution research extensions follow their prerequisites):
 
 1. Change dividend date while keeping amount fixed; reconcile financing effects.
 2. Compare both executable carry directions and the no-trade band.
@@ -192,6 +207,8 @@ Required demonstrations include:
 Every experiment has a stated prediction, a numerical result, an explained chart, and an interpretation. Selected controls must run independently, use high-contrast colors/markers, and preserve unrelated editor output. Most first calculations remain visible rather than hidden in toolkit helpers.
 
 ## Acceptance and integration
+
+Apply each criterion to its mapped delivery above. The basis chapter's numerical acceptance covers carry, financing/dividend inversion, parity, calibration diagnostics, funding ledgers, and position attribution; volatility-surface and distribution tests accompany their later implementations.
 
 - Verify closed-form cases, discount-factor ratios, implied-rate roots, parity extraction, calibration identifiability, synthetic recovery, quote bounds, implied-volatility repricing, and sensitivity units with independent checks.
 - Verify each cash ledger and P&L attribution, including signs, dividends, short-sale payments, settlement timing, funding, and contract multipliers. Avoid tests that only repeat the implementation.

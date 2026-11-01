@@ -491,4 +491,4 @@ print(f"Parity difference: {exercise_call-exercise_put:.9f}; financed call profi
 - Parity links both option values to asset minus discounted strike, independently of the chosen payoff distribution when replication applies.
 - Finite-grid stock and futures hedges require explicit cash accounting and retain hedge error. Statistical portfolio replication and an exact contractual hedge are different claims.
 
-Continue with [The Greeks and Hedging](./d.0-overview.md#greeks), currently planned, to measure sensitivities and investigate discrete hedging in more detail. For the portfolio connections, revisit [Portfolio Management Fundamentals](./1.0-overview.md) and [Advanced Portfolio Construction and Analysis](./2.0-overview.md).
+Continue with [Futures Basis, Dividends, and Implied Financing](./futures-basis.md) to infer carry inputs from traded prices and reconcile settlement funding. For the portfolio connections, revisit [Portfolio Management Fundamentals](./1.0-overview.md) and [Advanced Portfolio Construction and Analysis](./2.0-overview.md).

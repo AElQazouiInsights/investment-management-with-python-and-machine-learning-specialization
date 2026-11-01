@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), and [Deriving and Using Black–Scholes](./black-scholes.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), and [Futures Basis, Dividends, and Implied Financing](./futures-basis.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -69,11 +69,21 @@ Match an option's exposure with the underlying asset and a cash account. Explain
 
 **Experiment:** compare call and put prices under matched assumptions, verify parity, and inspect expiry and low-volatility limits.
 
+### Futures Basis, Dividends, and Implied Financing {#futures-basis}
+
+**Available:** [Futures Basis, Dividends, and Implied Financing](./futures-basis.md).
+
+Derive carry from dated cash flows, distinguish dividend entitlement from payment, and compare executable prices. Read financing and dividends backwards from futures under independent anchors; fit a small financing curve, extract option parity, and reconcile margin funding and calendar-spread profit.
+
+**Experiment:** find several rate/dividend pairs that reproduce one quote, then investigate how independent observations identify a fit. Compare residual convergence with the actual position's P&L.
+
 ### The Greeks and Hedging {#greeks}
 
 **Planned.** Explain delta, gamma, theta, vega, and rho as answers to specific questions about changing inputs. Estimate each with a small numerical change before using its analytical formula. State units, including a one-percentage-point volatility change and the chosen day-count convention for theta. Combine sensitivities across positions and examine discrete delta hedging.
 
 **Experiment:** compare exact repricing with delta and delta–gamma approximations. Follow the cash account during hedging and investigate the effect of rebalancing frequency.
+
+<span id="option-spreads"></span>
 
 ### Spreads and Basic Option Combinations
 
@@ -81,11 +91,23 @@ Match an option's exposure with the underlying asset and a cash account. Explain
 
 **Experiment:** change a strike and explain the change in entry cost, payoff, and aggregate Greeks.
 
+### Reading the Options Market: Implied Volatility and Surfaces {#volatility-surfaces}
+
+**Planned.** Invert option bid/ask prices into implied-volatility ranges using explicit forward and discount inputs. Explain vega, quote conditioning, log-moneyness, smiles, and total variance before fitting a surface. Reprice the quotes and check price bounds, strike convexity, and cross-maturity consistency. Separate market-implied pricing from realized-volatility forecasts.
+
+**Experiment:** change the forward input and observe the inferred smile. Compare a smooth fit with quote-consistent prices; explain why differences in ATM total variance are not automatically executable forward-variance trades.
+
 ### Straddles, Strangles, Butterflies, and Condors
 
 **Planned.** Build strategies related to the size and location of price movements. Distinguish expiry payoffs from pre-expiry values and sensitivities. For a call butterfly, buy one lower-strike call, sell two middle-strike calls, and buy one upper-strike call; verify every region of the payoff before using the combined graph.
 
 **Experiment:** vary strike spacing and time remaining. Compare the price of the ingredients, financed profit, and the position's sensitivity to volatility.
+
+### Butterflies, Implied Distributions, and Tail Pricing {#implied-distributions}
+
+**Planned.** Build on the preceding butterfly payoffs and volatility surfaces to relate strike-price curvature to a pricing distribution. Derive finite-strike approximations before estimating tail probabilities or moments. Explain truncation, quote noise, discounting, and the distinction between pricing and physical probabilities.
+
+**Experiment:** narrow a butterfly's strikes and inspect local distribution information. Show why a risk reversal is not statistical skewness and a smile butterfly is not kurtosis.
 
 ### Building Structured Products
 
