@@ -30,7 +30,7 @@ features:
   - icon:
       src: "/market-forecast.svg"
     title: "D. Derivatives, Options, and Structured Products"
-    details: "Forwards, futures, and options: pricing, settlement, payoff, and replication. Continue toward Itô, Black–Scholes, the Greeks, and structured products."
+    details: "Forwards, futures, options, and Itô’s lemma: pricing, replication, and random motion. Continue toward Black–Scholes, the Greeks, and structured products."
     link: "/d.0-overview"
     linkText: "Track overview"
   - icon:

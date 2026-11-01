@@ -10,7 +10,7 @@ description: "Understand calls, puts, financed profit, two-state option pricing,
 
 A forward is like a binding purchase agreement. An option is more like paying for a reservation: you pay for the choice, then decide whether to use it. The reservation payment is not refunded just because you decide not to buy.
 
-In [D.1](./d.1-forwards.md), the buyer had an obligation. In [D.2](./d.2-futures.md), we followed daily settlement and collateral. Here we introduce a **premium**: the price paid to acquire an option. It is different from the collateral supporting a futures position.
+In [Forward Contracts](./d.1-forwards.md), the buyer had an obligation. In [Futures and Forwards Compared](./d.2-futures.md), we followed daily settlement and collateral. Here we introduce a **premium**: the price paid to acquire an option. It is different from the collateral supporting a futures position.
 
 Our invented investment costs **£100 per unit today**, pays no income, and has a nonnegative price. Each option covers **one unit**, expires in **one year**, and has a **£100 strike price**. The strike is the fixed price at which the holder can buy or sell. We use **European options**, exercisable only at expiry; “European” describes exercise timing, not geography. An American option permits earlier exercise and needs additional analysis.
 
@@ -345,7 +345,7 @@ print("\n<ECHARTS_DATA>" + json.dumps({
 ```
 <Editor id="options-parity" />
 
-The synthetic £100-delivery-price forward costs **£4.761905 today**. It is not the zero-cost new forward from D.1: today's fair one-year forward delivery price is £105. Financing the synthetic position's initial cost gives £5 at maturity, so its financed profit is $S_T-100-5=S_T-105$, matching the payoff of that fair new forward. For example, at £120 both give £15 after this funding adjustment.
+The synthetic £100-delivery-price forward costs **£4.761905 today**. It is not the zero-cost new forward from [Forward Contracts](./d.1-forwards.md): today's fair one-year forward delivery price is £105. Financing the synthetic position's initial cost gives £5 at maturity, so its financed profit is $S_T-100-5=S_T-105$, matching the payoff of that fair new forward. For example, at £120 both give £15 after this funding adjustment.
 
 **Experiment:** if a market call quote were £13 and the put quote stayed £7.142857, Package A would cost £108.238095 and B £107.142857. Sell A and buy B; the initial surplus is £1.095238, and expiry payments cancel for every final price. This parity comparison does not require the two-state assumption, but it still requires the same contract terms and executable trades.
 
@@ -471,4 +471,4 @@ print(f"Call financed profit in up state: {10 - exercise_call * exercise_growth:
 - European put–call parity is an all-price payoff identity under matched terms. A static two-state replication has a narrower scope.
 - Option price bounds detect some inconsistent quotes, but do not determine a unique price.
 
-Next is [D.4 — Random Motion and Itô's Lemma](./d.0-overview.md#ito), currently planned. We will introduce changes, slopes, and curvature with small numerical examples, then build the tools needed to move beyond a two-state model.
+Continue with [Random Motion and Itô's Lemma](./random-motion-ito.md). Introduce changes, slopes, and curvature with small numerical examples, then build the tools needed to move beyond a two-state model.

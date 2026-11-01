@@ -10,7 +10,7 @@ description: "Work through daily futures settlement, initial and maintenance mar
 
 Imagine two ways to keep accounts with a seller. With the first, you settle the agreed difference at the end. With the second, you settle each day's change as you go. The final total may match, but the second arrangement can require money on a day when your account is already under pressure.
 
-In [D.1 — Forward Contracts](./d.1-forwards.md), we agreed to buy ten units in one year at £105 per unit. We now compare that forward with a hypothetical futures contract on the same income-free investment. We will first add the cash amounts without interest, then put every cash flow on a common date to include funding.
+In [Forward Contracts](./d.1-forwards.md), we agreed to buy ten units in one year at £105 per unit. We now compare that forward with a hypothetical futures contract on the same income-free investment. We will first add the cash amounts without interest, then put every cash flow on a common date to include funding.
 
 All prices and rules below are invented teaching inputs, not an exchange's contract specification. Run cells in order; the early-drop widget also works independently.
 
@@ -30,8 +30,8 @@ A long position benefits when the quoted futures price rises; a short position b
 | Question | Forward | Futures |
 | --- | --- | --- |
 | How are terms agreed? | Often negotiated privately with a dealer or another counterparty | Standardized contract, generally exchange-traded and centrally cleared |
-| When are gains and losses paid? | At maturity in our D.1 example; actual agreements may require collateral and interim transfers | Settlement variation is paid at least daily; intraday settlement can also occur |
-| Is an upfront payment the purchase price? | A fair new forward has zero initial value in D.1; collateral may still be required | Initial margin is collateral, not a purchase price or option premium |
+| When are gains and losses paid? | At maturity in our forward example; actual agreements may require collateral and interim transfers | Settlement variation is paid at least daily; intraday settlement can also occur |
+| Is an upfront payment the purchase price? | A fair new forward has zero initial value in our example; collateral may still be required | Initial margin is collateral, not a purchase price or option premium |
 | What happens at expiry? | Physical delivery or cash settlement, according to the agreement | Physical delivery or final cash settlement, according to the contract |
 | Can the contract be exited? | By agreed termination, transfer, or an offsetting agreement, subject to terms | Normally by an opposite trade in the same contract |
 
@@ -45,7 +45,7 @@ At the initial £105 quote, the contract's **notional exposure** is $10\times105
 
 ## 2. Calculate Each Daily Settlement
 
-Keep D.1's one-year horizon, £100 initial spot, and 5% effective annual financing benchmark, giving an initial quote of £105. We use a **cash-settled futures contract**; any purchase of the underlying investment is a separate transaction. Our invented market has **365 equal daily intervals**, with a settlement every day. This simplifies the calendar; it does not reproduce exchange holidays or business-day rules.
+Keep the forward example's one-year horizon, £100 initial spot, and 5% effective annual financing benchmark, giving an initial quote of £105. We use a **cash-settled futures contract**; any purchase of the underlying investment is a separate transaction. Our invented market has **365 equal daily intervals**, with a settlement every day. This simplifies the calendar; it does not reproduce exchange holidays or business-day rules.
 
 The quote stays at £105 through day 361. We concentrate its movement in the final four days so you can check every nonzero settlement:
 
@@ -106,7 +106,7 @@ The intermediate quote changes cancel when added:
 $$\sum_{i=1}^{365}q(f_i-f_{i-1})=q(f_{365}-f_0)
 =10(120-105)=£150.$$
 
-This is an **undiscounted sum of dated payments**, not yet a calculation of their value at one common date. The long D.1 forward also pays £150 at maturity under cash settlement, but it pays none of that gain beforehand in our uncollateralized example.
+This is an **undiscounted sum of dated payments**, not yet a calculation of their value at one common date. The long position from [Forward Contracts](./d.1-forwards.md) also pays £150 at maturity under cash settlement, but it pays none of that gain beforehand in our uncollateralized example.
 
 The graph compares cumulative contractual settlements. It excludes margin deposits and interest, which we will add separately. Only the last five day labels are shown; all earlier variation payments are zero.
 
@@ -304,13 +304,13 @@ print("\n<ECHARTS_DATA>" + json.dumps({
 ```
 <Editor id="futures-funding" />
 
-For the D.1 purchase hedge, buying ten units at the final £120 spot costs £1,200. Subtracting the nominal £150 derivative gain gives £1,050 for all three constructions **before funding**. Including this account's funding costs gives approximately **£1,055.02 for A**, **£1,055.00 for B**, and **£1,050 for the forward**. The differences describe our specified account rules, not a universal ranking of futures and forwards. Collateral remuneration, withdrawals, borrowing spreads, and a collateralized forward would change the comparison.
+For the purchase hedge from [Forward Contracts](./d.1-forwards.md), buying ten units at the final £120 spot costs £1,200. Subtracting the nominal £150 derivative gain gives £1,050 for all three constructions **before funding**. Including this account's funding costs gives approximately **£1,055.02 for A**, **£1,055.00 for B**, and **£1,050 for the forward**. The differences describe our specified account rules, not a universal ranking of futures and forwards. Collateral remuneration, withdrawals, borrowing spreads, and a collateralized forward would change the comparison.
 
 The chart's vertical axis begins at zero: the differences are small relative to the £150 gross gain. Read the table for the precise amounts.
 
 ## 7. When Are Forward and Futures Quotes Equal?
 
-For the income-free asset in D.1, a fair new forward quote is $S_0(1+R)^T$. Under the standard frictionless benchmark with **deterministic interest rates**, matching underlying and maturity, and consistent borrowing, investment, and collateral treatment, the futures quote equals that forward quote. Our £100 asset and one-year 5% rate give **£105** for both.
+For the income-free asset in [Forward Contracts](./d.1-forwards.md), a fair new forward quote is $S_0(1+R)^T$. Under the standard frictionless benchmark with **deterministic interest rates**, matching underlying and maturity, and consistent borrowing, investment, and collateral treatment, the futures quote equals that forward quote. Our £100 asset and one-year 5% rate give **£105** for both.
 
 That equality concerns **quotes at entry**, not an assertion that a fixed-size futures position has the same funded cash flows as a forward. The zero-interest margin account in Section 6 is a particular implementation with a funding cost, separate from the frictionless pricing benchmark.
 
@@ -383,7 +383,7 @@ print(f"Net purchase cost before funding: {10 * exercise_prices[-1] - exercise_g
 - Compare dated cash flows at a common date before comparing funded outcomes. State how collateral and variation are treated.
 - Deterministic-rate replication explains matching forward and futures quotes in the ideal benchmark. Real account costs and uncertain rates require additional analysis.
 
-Continue with [D.3 — Options and Replication](./d.3-options.md). Replace the obligation to buy with the right to choose, then calculate what that right is worth in a two-outcome example.
+Continue with [Options and Replication](./d.3-options.md). Replace the obligation to buy with the right to choose, then calculate what that right is worth in a two-outcome example.
 
 ## References for Contract Mechanics
 

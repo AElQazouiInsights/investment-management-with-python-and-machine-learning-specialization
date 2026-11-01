@@ -89,10 +89,10 @@ def check_controls(page, inspect_axes):
 
 def check_navigation(page):
     page.evaluate('window.optionNavigationSentinel = true')
-    page.get_by_role('link', name="D.4 — Random Motion and Itô's Lemma", exact=True).click()
-    page.wait_for_function("location.hash === '#ito' && !!document.getElementById('ito')")
+    page.locator('.vp-doc').get_by_role('link', name="Random Motion and Itô's Lemma", exact=True).click()
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Random Motion')")
     assert page.get_by_role('slider').count() == 0
-    page.get_by_role('link', name='study options and replication', exact=True).click()
+    page.locator('.vp-doc').get_by_role('link', name='Options and Replication', exact=True).click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Options and Replication')")
     assert page.evaluate('window.optionNavigationSentinel === true'), 'Must use client-side navigation'
     assert page.locator('.chart-panel').count() == 0

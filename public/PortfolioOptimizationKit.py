@@ -3516,6 +3516,47 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_ito_refinement_echart(grid_power=8):
+    """Refine nested observations of one fixed Brownian sample and its square."""
+    if isinstance(grid_power, (bool, np.bool_)) or not isinstance(grid_power, (int, np.integer)) or not 4 <= grid_power <= 12:
+        raise ValueError("Grid power must be an integer from 4 to 12")
+    count = 2 ** int(grid_power)
+    fine = np.random.default_rng(20261101).standard_normal(4096) / 64
+    increments = fine.reshape(count, -1).sum(axis=1)
+    times = np.linspace(0., 1., count + 1)
+    path = np.r_[0., np.cumsum(increments)]
+    exact = path ** 2
+    first = np.r_[0., np.cumsum(2 * path[:-1] * increments)]
+    squared_sum = np.r_[0., np.cumsum(increments ** 2)]
+    corrected = first + times
+    blue = {"itemStyle": {"color": "#2563eb"}, "lineStyle": {"type": "solid", "color": "#2563eb"}}
+    orange = {"itemStyle": {"color": "#ea580c"}, "lineStyle": {"type": "dashed", "color": "#ea580c"}}
+    axis = {"type": "value", "name": "Elapsed time (years)"}
+    plots = {
+        "itoRefinementSquare": {
+            "type": "line", "title": "Same Path: Observe the Missing Curvature Term",
+            "xAxis": axis, "yAxisName": "Squared Brownian value or accumulated terms (years)",
+            "series": {"Exact square": np.column_stack([times, exact]).tolist(),
+                       "First order only": np.column_stack([times, first]).tolist(),
+                       "First order + time": np.column_stack([times, corrected]).tolist()},
+            "seriesOptions": {"Exact square": blue, "First order + time": orange,
+                              "First order only": {"itemStyle": {"color": "#64748b"}, "lineStyle": {"type": "dashed", "color": "#64748b"}}},
+        },
+        "itoRefinementVariation": {
+            "type": "line", "title": "Accumulated Squared Increments Approach Elapsed Time",
+            "xAxis": axis, "yAxisName": "Quadratic variation and elapsed time (years)",
+            "series": {"Squared increments": np.column_stack([times, squared_sum]).tolist(),
+                       "Elapsed time": np.column_stack([times, times]).tolist()},
+            "seriesOptions": {"Squared increments": blue, "Elapsed time": orange},
+        },
+    }
+    _publish_echarts(plots, f"Grid power: {grid_power}; intervals: {count}; fixed seed: 20261101\n"
+                    f"Brownian endpoint: {path[-1]:.6f} sqrt(years)\nExact final square: {exact[-1]:.6f} years\n"
+                    f"Squared-increment sum: {squared_sum[-1]:.6f} years; target: 1.000000 years\n"
+                    f"First-order endpoint: {first[-1]:.6f} years\nCorrected endpoint error: {corrected[-1] - exact[-1]:.6f} years\n"
+                    f"Maximum discrete-identity error: {np.max(np.abs(first + squared_sum - exact)):.2e}")
+
+
 def show_option_payoff_echart(final_spot=120.):
     """D.3 expiry scenarios with fixed strike, original premiums, and funding."""
     if isinstance(final_spot, (bool, np.bool_)) or not isinstance(final_spot, (int, float, np.integer, np.floating)) or not np.isfinite(final_spot) or not 0 <= final_spot <= 200:
