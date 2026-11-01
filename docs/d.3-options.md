@@ -472,3 +472,5 @@ print(f"Call financed profit in up state: {10 - exercise_call * exercise_growth:
 - Option price bounds detect some inconsistent quotes, but do not determine a unique price.
 
 Continue with [Random Motion and Itô's Lemma](./random-motion-ito.md). Introduce changes, slopes, and curvature with small numerical examples, then build the tools needed to move beyond a two-state model.
+
+[Deriving and Using Black–Scholes](./black-scholes.md) then replaces these two possible terminal prices with a continuous lognormal model. Its individual option values change, while the same strike, spot, and financing assumptions preserve the put–call parity difference.

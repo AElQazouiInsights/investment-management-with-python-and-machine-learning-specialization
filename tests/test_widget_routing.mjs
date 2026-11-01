@@ -136,6 +136,8 @@ test('unknown helpers and empty supported controls do not generate widget reruns
     'import PortfolioOptimizationKit as pok\npok.show_option_payoff_echart(final_spot=0)')
   assert.equal(buildChartCode('widgets.interactive(callback)', { grid_power: 12, seed: 0 }, 'show_ito_refinement_echart'),
     'import PortfolioOptimizationKit as pok\npok.show_ito_refinement_echart(grid_power=12)')
+  assert.equal(buildChartCode('widgets.interactive(callback)', { remaining: 0, volatility: 0, drift: 0.12 }, 'show_black_scholes_echart'),
+    'import PortfolioOptimizationKit as pok\npok.show_black_scholes_echart(remaining=0, volatility=0)')
 })
 
 test('friendly widget labels route through their Python parameter metadata', async () => {

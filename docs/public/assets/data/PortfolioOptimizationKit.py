@@ -3509,6 +3509,41 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_black_scholes_echart(remaining=1., volatility=0.20):
+    """One-unit European prices; fixed strike 100 and effective cash rate 5%."""
+    if not np.isfinite([remaining, volatility]).all() or not 0 <= remaining <= 2 or not 0 <= volatility <= .60:
+        raise ValueError("Use remaining years in [0, 2] and volatility in [0, 0.60]")
+    spots = np.linspace(50., 150., 101)
+    rate = np.log1p(.05)
+    pv_strike = 100 * np.exp(-rate * remaining)
+    lower_call, lower_put = np.maximum(spots-pv_strike, 0.), np.maximum(pv_strike-spots, 0.)
+    if remaining == 0 or volatility == 0:
+        calls, puts = lower_call, lower_put
+    else:
+        scale = volatility * np.sqrt(remaining)
+        d1 = (np.log(spots/100) + (rate+volatility**2/2)*remaining) / scale
+        d2 = d1-scale
+        calls = spots*scipy.stats.norm.cdf(d1)-pv_strike*scipy.stats.norm.cdf(d2)
+        puts = pv_strike*scipy.stats.norm.cdf(-d2)-spots*scipy.stats.norm.cdf(-d1)
+    series = {name: np.column_stack([spots, values]).tolist() for name, values in
+              (("Call", calls), ("Put", puts), ("Call lower bound", lower_call), ("Put lower bound", lower_put))}
+    styles = {}
+    for name, values, color in (("Call", calls, "#2563eb"), ("Put", puts, "#ea580c")):
+        styles[name] = {"itemStyle": {"color": color}, "lineStyle": {"color": color}}
+        series[name + " at 100"] = [[100., float(values[50])]]
+        styles[name + " at 100"] = {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": color, "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}
+    for name, color in (("Call lower bound", "#64748b"), ("Put lower bound", "#9333ea")):
+        styles[name] = {"itemStyle": {"color": color}, "lineStyle": {"color": color, "type": "dashed"}}
+    _publish_echarts({"bsLimits": {
+        "type": "line", "title": "Approach Expiry or Remove Volatility",
+        "xAxis": {"type": "value", "name": "Current spot (GBP/unit)"},
+        "yAxisName": "Option value (GBP/contract)", "series": series, "seriesOptions": styles,
+    }}, f"Remaining years: {remaining:.2f}; volatility: {volatility:.2f}\n"
+        f"At spot 100: call {calls[50]:.9f} GBP; put {puts[50]:.9f} GBP\n"
+        f"Call minus put: {calls[50]-puts[50]:.9f} GBP; spot minus discounted strike: {100-pv_strike:.9f} GBP")
+
+
 def show_ito_refinement_echart(grid_power=8):
     """Refine nested observations of one fixed Brownian sample and its square."""
     if isinstance(grid_power, (bool, np.bool_)) or not isinstance(grid_power, (int, np.integer)) or not 4 <= grid_power <= 12:

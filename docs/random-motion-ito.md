@@ -437,7 +437,7 @@ print("\n<ECHARTS_DATA>" + json.dumps({"itoLogPrice": {
 
 **Check:** does the 0.02 correction represent a fee or cash taken from an account? No. It comes from transforming a random price with a concave function. It reconciles price growth and log-price growth under the same model.
 
-The $\mu$ used here describes an assumed real-world price process. It is not automatically the financing rate. In [Deriving and Using Black–Scholes](./d.0-overview.md#black-scholes), replication and a self-financing hedge will explain the pricing equation and why a pricing distribution uses a different drift. Itô's formula alone does not establish an option price. A call payoff's kink also fails the smoothness requirement at its strike; applying this twice-differentiable formula directly there is not justified.
+The $\mu$ used here describes an assumed real-world price process. It is not automatically the financing rate. In [Deriving and Using Black–Scholes](./black-scholes.md), replication and a self-financing hedge explain the pricing equation and why a pricing distribution uses a different drift. Itô's formula alone does not establish an option price. A call payoff's kink also fails the smoothness requirement at its strike; applying this twice-differentiable formula directly there is not justified.
 
 ## 9. Worked Exercise: Half a Year with a Different Volatility
 
@@ -488,4 +488,4 @@ print(f"Corrected-square error if squared sum is 0.54: {exercise_time - 0.54:.6f
 - Itô's formula combines explicit time change, the ordinary slope effect, and a curvature term equal to half the local variance rate times the second derivative.
 - For geometric Brownian motion, log drift is price drift minus half the squared volatility. Mean price, median price, expected log return, and realized price answer different questions.
 
-Next is [Deriving and Using Black–Scholes](./d.0-overview.md#black-scholes), currently planned. We will use these derivatives inside a fully accounted-for hedge, then derive and calculate European option prices.
+Continue with [Deriving and Using Black–Scholes](./black-scholes.md). Use these derivatives inside a fully accounted-for hedge, then derive and calculate European option prices.

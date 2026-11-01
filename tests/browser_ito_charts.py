@@ -101,7 +101,7 @@ def check_controls(page, inspect_axes):
 def check_navigation(page):
     page.evaluate('window.itoNavigationSentinel = true')
     page.locator('.vp-doc').get_by_role('link', name='Deriving and Using Black–Scholes', exact=True).last.click()
-    page.wait_for_function("location.hash === '#black-scholes' && !!document.getElementById('black-scholes')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Deriving and Using Black')")
     assert page.get_by_role('slider').count() == 0
     assert not re.search(r'\bD\.\d', page.locator('.vp-doc').inner_text())
     page.locator('.vp-doc').get_by_role('link', name="Random Motion and Itô's Lemma", exact=True).first.click()

@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), and [Random Motion and Itô's Lemma](./random-motion-ito.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), and [Deriving and Using Black–Scholes](./black-scholes.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -25,7 +25,7 @@ Useful foundations from [Portfolio Management Fundamentals](./1.0-overview.md) a
 - **Asset prices and uncertainty:** [Strategies Beyond Diversification](./1.3-diversification.md) introduces simulated price paths.
 - **Dated payments:** [Fundamentals of Asset-Liability Management](./1.4-alm.md) explains bonds, present value, and interest-rate sensitivity.
 
-The derivatives track and [Advanced Portfolio Construction and Analysis](./2.0-overview.md) are two routes after those foundations. The latter studies the estimates behind portfolio allocations; this track studies contractual payments and their replication.
+The recommended sequence continues from this track to [Advanced Portfolio Construction and Analysis](./2.0-overview.md). The latter studies the estimates behind portfolio allocations; this track studies contractual payments and their replication. Both share the same cash-flow and return conventions. The [Black–Scholes convention comparison](./black-scholes.md#_1-connect-the-portfolio-and-pricing-conventions) distinguishes portfolio arithmetic means, GBM drift, quoted rates, and pricing probabilities. The portfolio course can also be studied directly after the foundations.
 
 ## The Learning Sequence
 
@@ -63,11 +63,13 @@ Begin with rates of change and curvature. Show why an unchanged average input ca
 
 ### Deriving and Using Black–Scholes {#black-scholes}
 
-**Planned.** Match an option's exposure with the underlying asset and a cash account. Explain self-financing rebalancing, derive the pricing equation, and work through the normal integrals leading to European call and put prices. Separate the pricing distribution from a real-world return forecast. Connect put–call parity to a forward payoff and explain dynamic hedging with futures.
+**Available:** [Deriving and Using Black–Scholes](./black-scholes.md).
+
+Match an option's exposure with the underlying asset and a cash account. Explain self-financing rebalancing, derive the pricing equation, and work through the normal integrals leading to European call and put prices. Separate the pricing distribution from a real-world return forecast. Connect put–call parity to a forward payoff and reconcile discrete stock and futures hedge ledgers.
 
 **Experiment:** compare call and put prices under matched assumptions, verify parity, and inspect expiry and low-volatility limits.
 
-### The Greeks and Hedging
+### The Greeks and Hedging {#greeks}
 
 **Planned.** Explain delta, gamma, theta, vega, and rho as answers to specific questions about changing inputs. Estimate each with a small numerical change before using its analytical formula. State units, including a one-percentage-point volatility change and the chosen day-count convention for theta. Combine sensitivities across positions and examine discrete delta hedging.
 

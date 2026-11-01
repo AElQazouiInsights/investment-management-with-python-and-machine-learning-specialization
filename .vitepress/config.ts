@@ -109,7 +109,8 @@ export default defineConfig({
             { text: 'Forward Contracts', link: '/d.1-forwards' },
             { text: 'Futures and Forwards Compared', link: '/d.2-futures' },
             { text: 'Options and Replication', link: '/d.3-options' },
-            { text: "Random Motion and Itô's Lemma", link: '/random-motion-ito' }
+            { text: "Random Motion and Itô's Lemma", link: '/random-motion-ito' },
+            { text: 'Deriving and Using Black–Scholes', link: '/black-scholes' }
           ]
         },
         {
