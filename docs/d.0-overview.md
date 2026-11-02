@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), and [Futures Basis, Dividends, and Implied Financing](./futures-basis.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), and [The Greeks and Hedging](./greeks-hedging.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -79,9 +79,11 @@ Derive carry from dated cash flows, distinguish dividend entitlement from paymen
 
 ### The Greeks and Hedging {#greeks}
 
-**Planned.** Explain delta, gamma, theta, vega, and rho as answers to specific questions about changing inputs. Estimate each with a small numerical change before using its analytical formula. State units, including a one-percentage-point volatility change and the chosen day-count convention for theta. Combine sensitivities across positions and examine discrete delta hedging.
+**Available:** [The Greeks and Hedging](./greeks-hedging.md).
 
-**Experiment:** compare exact repricing with delta and delta–gamma approximations. Follow the cash account during hedging and investigate the effect of rebalancing frequency.
+Derive delta, gamma, theta, vega, rho, dividend sensitivity, vanna, volga, charm, speed, zomma, color, veta, and ultima. Explain units, calendar-time signs, and held-fixed inputs. Separate carry from discounting, attribute joint shocks with a measured remainder, and construct a local delta/gamma/vega hedge before reconciling actual stock trades and funding.
+
+**Experiment:** compare exact repricing with local approximations; expose a same-expiry gamma/vega rank limit and a target-only volatility shock. Follow the cash account and compare hedge errors and costs across shared synthetic paths at different rebalancing frequencies.
 
 <span id="option-spreads"></span>
 

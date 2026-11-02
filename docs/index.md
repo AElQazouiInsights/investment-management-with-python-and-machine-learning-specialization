@@ -30,7 +30,7 @@ features:
   - icon:
       src: "/market-forecast.svg"
     title: "D. Derivatives, Options, and Structured Products"
-    details: "Forwards, futures, Itô’s lemma, Black–Scholes, and implied financing: derive prices, read carry inputs, and reconcile funded hedges. Continue toward the Greeks and structured products."
+    details: "Forwards, futures, Black–Scholes, implied financing, and the Greeks: derive prices and sensitivities, then reconcile funded hedges. Continue toward option combinations and structured products."
     link: "/d.0-overview"
     linkText: "Track overview"
   - icon:

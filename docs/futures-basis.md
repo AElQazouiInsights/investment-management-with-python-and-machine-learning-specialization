@@ -620,7 +620,7 @@ For an intraday example, suppose a buy-near/sell-far signal uses near ask 5,050.
 
 Intraday validation requires quote timestamps, sequence, stale-quote rejection, partial fills, adverse selection, and a stated latency assumption. A backtest using candle closes or simultaneous mid fills cannot validate that execution claim. For days-to-weeks positions, the emphasis shifts to point-in-time dividend revisions, financing renewals, margin paths, roll rules, and held-out evaluation. Neither horizon converts a model residual directly into expected profit.
 
-The fuller volatility sequence will follow [The Greeks and Hedging](./d.0-overview.md#greeks) and [Spreads and Basic Option Combinations](./d.0-overview.md#option-spreads). [Reading the Options Market: Implied Volatility and Surfaces](./d.0-overview.md#volatility-surfaces) will extract single-option implied volatility before fitting level, skew, curvature, and term structure. [Butterflies, Implied Distributions, and Tail Pricing](./d.0-overview.md#implied-distributions) will distinguish local butterfly information from distributional skewness and kurtosis. Carry inputs established here support those readings; a wrong forward can distort the inferred smile.
+The fuller volatility sequence will follow [The Greeks and Hedging](./greeks-hedging.md) and [Spreads and Basic Option Combinations](./d.0-overview.md#option-spreads). [Reading the Options Market: Implied Volatility and Surfaces](./d.0-overview.md#volatility-surfaces) will extract single-option implied volatility before fitting level, skew, curvature, and term structure. [Butterflies, Implied Distributions, and Tail Pricing](./d.0-overview.md#implied-distributions) will distinguish local butterfly information from distributional skewness and kurtosis. Carry inputs established here support those readings; a wrong forward can distort the inferred smile.
 
 ## 13. Worked Exercise: Read a Price, Then Explain the Trade
 
@@ -667,7 +667,7 @@ print(f"Calendar P&L: {-multiplier*(7-5):.2f} EUR")
 - Fit quality, parameter identification, quote consistency, and predictive usefulness are different checks. Reprice every inferred input and preserve held-out observations.
 - Calendar-residual convergence can accompany losses. Reconcile actual quantities and price changes before discussing an investment signal.
 
-Continue with [The Greeks and Hedging](./d.0-overview.md#greeks), currently planned, to study sensitivity units and hedge behavior systematically. [Advanced Portfolio Construction and Analysis](./2.0-overview.md) supplies the later estimation, covariance, and portfolio-cost connections.
+Continue with [The Greeks and Hedging](./greeks-hedging.md) to derive first-, second-, and higher-order sensitivities and reconcile exact repricing with funded hedge behavior. [Advanced Portfolio Construction and Analysis](./2.0-overview.md) supplies the later estimation, covariance, and portfolio-cost connections.
 
 ## Sources and Market Context
 

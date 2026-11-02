@@ -3509,6 +3509,47 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_greeks_hedge_echart(spot_move=5., volatility_percent=20.):
+    """Fixed-time call repricing versus local spot sensitivities; one-share GBP units."""
+    for value, low, high in ((spot_move, -20, 20), (volatility_percent, 10, 60)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use spot move in [-20, 20] and volatility percent in [10, 60]")
+    vol, rate = volatility_percent / 100, np.log1p(.05)
+    def price(spot):
+        d1 = (np.log(spot / 100) + rate + vol**2 / 2) / vol
+        return spot * scipy.stats.norm.cdf(d1) - 100 * np.exp(-rate) * scipy.stats.norm.cdf(d1-vol)
+    d1 = (rate + vol**2 / 2) / vol
+    delta = scipy.stats.norm.cdf(d1)
+    gamma = scipy.stats.norm.pdf(d1) / (100 * vol)
+    moves = np.linspace(-20., 20., 81)
+    exact = price(100 + moves) - price(100)
+    quadratic = delta * moves + .5 * gamma * moves**2
+    selected_exact = float(price(100 + spot_move) - price(100))
+    selected_estimate = float(delta * spot_move + .5 * gamma * spot_move**2)
+    series = {"Exact repricing": np.column_stack([moves, exact]).tolist(),
+              "Delta": np.column_stack([moves, delta*moves]).tolist(),
+              "Delta + gamma": np.column_stack([moves, quadratic]).tolist(),
+              "Selected exact": [[float(spot_move), selected_exact]],
+              "Selected estimate": [[float(spot_move), selected_estimate]]}
+    styles = {"Delta": {"itemStyle": {"color": "#64748b"}, "lineStyle": {"color": "#64748b", "type": "dashed"}}}
+    for name, color in (("Exact repricing", "#2563eb"), ("Delta + gamma", "#ea580c")):
+        styles[name] = {"itemStyle": {"color": color}, "lineStyle": {"color": color, "type": "solid" if name == "Exact repricing" else "dashed"}}
+    for name, color in (("Selected exact", "#2563eb"), ("Selected estimate", "#ea580c")):
+        styles[name] = {"type": "scatter", "symbol": "circle" if name == "Selected exact" else "diamond",
+                        "symbolSize": 24 if name == "Selected exact" else 16,
+                        "itemStyle": {"color": "transparent" if name == "Selected exact" else color,
+                                      "borderColor": color if name == "Selected exact" else "#ffffff",
+                                      "borderWidth": 3 if name == "Selected exact" else 2, "opacity": 1}}
+    _publish_echarts({"greeksApproximation": {
+        "type": "line", "title": "Compare a Local Hedge Estimate with Exact Repricing",
+        "xAxis": {"type": "value", "name": "Spot change (GBP/share)"},
+        "yAxisName": "One-share call value change (GBP)", "series": series, "seriesOptions": styles,
+    }}, f"Spot move: {spot_move:.2f} GBP; baseline volatility: {volatility_percent:.2f}%\n"
+        f"Delta: {delta:.9f}; gamma: {gamma:.9f}\n"
+        f"Exact change: {selected_exact:.9f}; delta-gamma: {selected_estimate:.9f} GBP\n"
+        f"Approximation error: {selected_estimate-selected_exact:.9f} GBP")
+
+
 def show_basis_identification_echart(financing_percent=5.):
     """Dividend/financing pairs compatible with one fixed three-month quote."""
     if isinstance(financing_percent, (bool, np.bool_)) or not isinstance(financing_percent, (int, float, np.integer, np.floating)) or not np.isfinite(financing_percent) or not 4 <= financing_percent <= 8:
