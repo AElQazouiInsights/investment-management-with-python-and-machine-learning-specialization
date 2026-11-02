@@ -3516,6 +3516,36 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_implied_volatility_echart(assumed_forward=105., premium_change=0.):
+    """Fixed-contract IV inversion: separate a quote change from a forward assumption."""
+    from scipy.optimize import brentq
+    for value, low, high in ((assumed_forward, 103, 107), (premium_change, -.5, .5)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use forward in [103, 107] and premium change in [-0.5, 0.5]")
+    def price(forward, vol):
+        d1 = np.log(forward / 105) / vol + vol / 2
+        return (forward * scipy.stats.norm.cdf(d1) - 105 * scipy.stats.norm.cdf(d1-vol)) / 1.05
+    premium = float(price(105., .2) + premium_change)
+    def invert(forward):
+        return brentq(lambda vol: price(forward, vol)-premium, .001, 2., xtol=1e-12)
+    forwards = np.unique(np.r_[np.linspace(103., 107., 41), assumed_forward])
+    vols = np.array([invert(forward) for forward in forwards])
+    selected = float(invert(assumed_forward))
+    _publish_echarts({"ivInputExperiment": {
+        "type": "line", "title": "Several Forward and Volatility Pairs Explain One Premium",
+        "xAxis": {"type": "value", "name": "Assumed forward (GBP/share)", "min": 103, "max": 107},
+        "yAxisName": "Recovered annual IV (%)",
+        "series": {"Quote-consistent pairs": np.column_stack([forwards, 100*vols]).tolist(),
+                   "Selected assumption": [[float(assumed_forward), 100*selected]]},
+        "seriesOptions": {"Quote-consistent pairs": {"lineStyle": {"color": "#2563eb"}, "itemStyle": {"color": "#2563eb"}},
+                          "Selected assumption": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                              "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Forward assumption: {assumed_forward:.2f} GBP; premium change: {premium_change:.2f} GBP\n"
+        f"Selected premium: {premium:.9f} GBP/share; implied volatility: {100*selected:.9f}%\n"
+        f"Repricing error: {price(assumed_forward, selected)-premium:.2e} GBP/share\n"
+        "Fixed strike: 105 GBP; remaining life: 1 year; discount factor: 1/1.05.")
+
+
 def show_option_spread_echart(upper_strike=110., final_spot=120.):
     """One-share European bull call spread with signed premiums and expiry funding."""
     for value, low, high in ((upper_strike, 105, 130), (final_spot, 0, 160)):

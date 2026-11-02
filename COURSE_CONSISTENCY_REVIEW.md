@@ -2,7 +2,7 @@
 
 ## Scope
 
-Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Spreads and Basic Option Combinations. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
+Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Reading the Options Market: Implied Volatility and Surfaces. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
 
 ## Findings and resolutions
 
@@ -57,5 +57,15 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Priced the fixed-payment European box as a discount bond, retaining calendar accrual and discount-rate sensitivity after spot and volatility exposures cancel. A hypothetical executable £9.60 debit implies a 4.1667% lending return, not a profit when borrowed funding costs 5%; entry bid/ask costs reduce the ideal box profit further.
 - Independently integrated signed basket payoffs under the pricing distribution and differentiated basket values to check aggregate Greek units. A bullish spread's negative baseline gamma and parallel vega are explained separately from its positive delta; independent strike-volatility shifts remain for the next lesson.
 - Reconciled early exits with elapsed financing and remaining option life. Independent bid/ask ledgers verify buy-at-ask and sell-at-bid entry costs in both directions, with fees and stock costs scaled consistently. Defined margin funding and exercise/settlement differences as additional implementation cash flows rather than free theoretical arbitrage.
+
+### Implied volatility and surface extension
+
+- Retained the GBP-per-share convention and 5% effective / log(1.05) continuous baseline, but made the forward and option discount factor explicit independent inputs. Forward-Black volatility remains a quotation coordinate rather than an assertion that a smile is a single constant-volatility stock process.
+- Independently integrated call/put payoffs and checked inverse price/forward sensitivities. Inversion rejects expiry, nonfinite data, crossed quotes, incompatible timestamps, inadmissible premiums, and failure to bracket a finite root. Synthetic wing quote widths are constructed from admissible time value; invalid observed prices are not clipped into an IV.
+- Explained fixed strike, log-forward-moneyness, undiscounted versus discounted forward delta, and the need to specify premium-adjusted conventions. A change of coordinate or assumed surface dynamics is not an observed change in premium.
+- Compared weighted-mid, interval-distance, and soft prior-penalized surface fits with separate market and preference objectives. The zero-error interval plateau admits several parameter readings. The independently anchored forward/discount/smile joint fit includes moneyness changes in its analytic Jacobian and scaled-rank checks; neither anchors nor regularization are mislabeled as a financing/dividend decomposition.
+- Kept held-out strikes and maturity separate from fitting and used a later synthetic snapshot with unchanged contract strikes and aged expiries. Old-model residuals are not called forecasts or realized trading P&L.
+- Checked strike bounds, discounted vertical-spread slopes, convexity, and normalized calendar behavior on a stated finite domain. Calendar comparisons use fixed forward moneyness and normalized martingale payoffs under deterministic no-dividend carry. An ATM total-variance slope is not equated to a smile-aware variance-swap price or an automatically tradable forward variance.
+- Distinguished a midpoint butterfly inconsistency from an executable negative-cost basket by applying the correct bid/ask side and signed quantities. Continuous interpolation, tails, alternative contract conventions, and actual funding remain separate from the finite-grid acceptance result.
 
 Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.

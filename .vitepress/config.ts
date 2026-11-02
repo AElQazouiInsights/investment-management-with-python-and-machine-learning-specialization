@@ -113,7 +113,8 @@ export default defineConfig({
             { text: 'Deriving and Using Black–Scholes', link: '/black-scholes' },
             { text: 'Futures Basis, Dividends, and Implied Financing', link: '/futures-basis' },
             { text: 'The Greeks and Hedging', link: '/greeks-hedging' },
-            { text: 'Spreads and Basic Option Combinations', link: '/option-combinations' }
+            { text: 'Spreads and Basic Option Combinations', link: '/option-combinations' },
+            { text: 'Reading the Options Market: Implied Volatility and Surfaces', link: '/implied-volatility-surfaces' }
           ]
         },
         {

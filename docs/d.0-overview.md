@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), and [Spreads and Basic Option Combinations](./option-combinations.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), and [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -97,9 +97,13 @@ Construct bull and bear spreads, covered calls, protective puts, and collars one
 
 ### Reading the Options Market: Implied Volatility and Surfaces {#volatility-surfaces}
 
-**Planned.** Invert option bid/ask prices into implied-volatility ranges using explicit forward and discount inputs. Explain vega, quote conditioning, log-moneyness, smiles, and total variance before fitting a surface. Reprice the quotes and check price bounds, strike convexity, and cross-maturity consistency. Separate market-implied pricing from realized-volatility forecasts.
+**Available:** [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md).
+
+Invert option bid/mid/ask prices using explicit forward and discount inputs. Explain vega, quote conditioning, strike/moneyness/delta coordinates, smiles, and total variance before fitting a bounded surface. Compare weighted-mid, interval-distance, prior-regularized, and anchored joint fits. Reprice held-out and later quotes, check strike and normalized calendar consistency, and distinguish implied pricing from forecasts and executable profit.
 
 **Experiment:** change the forward input and observe the inferred smile. Compare a smooth fit with quote-consistent prices; explain why differences in ATM total variance are not automatically executable forward-variance trades.
+
+<span id="option-volatility-strategies"></span>
 
 ### Straddles, Strangles, Butterflies, and Condors
 

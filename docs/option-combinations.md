@@ -544,4 +544,4 @@ chart("collarExercise","A 100-Share Collar with Entry Bid/Ask Costs",{
 - Add signed Greeks, and reprice every leg for an early exit. Bullish direction does not guarantee positive gamma or vega.
 - Execution, collateral funding, and actual contract terms determine how the theoretical basket can be implemented.
 
-Next: [Reading the Options Market: Implied Volatility and Surfaces](./d.0-overview.md#volatility-surfaces). We will read prices back into volatility, compare strikes and expiries, and check what an inferred surface does and does not tell us.
+Next: [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md). Read prices back into volatility, compare strikes and expiries, and check what an inferred surface does and does not tell us.

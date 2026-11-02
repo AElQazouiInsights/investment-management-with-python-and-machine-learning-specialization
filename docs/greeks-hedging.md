@@ -576,7 +576,7 @@ The graph prints each signed contribution and a **remainder equal to exact chang
 
 ### A Smile Changes What “Hold Volatility Fixed” Means
 
-Our delta is a partial derivative with the option's implied volatility fixed. Suppose a scenario rule makes that volatility rise by 0.001 for every £1 spot rise. The **total** spot sensitivity along that rule is $\Delta+\nu(0.001)\approx0.672161$, rather than 0.634558. That rule is an assumed surface response, not a Black–Scholes prediction. Later [Reading the Options Market: Implied Volatility and Surfaces](./d.0-overview.md#volatility-surfaces) will distinguish fixed-strike, moneyness, and delta-coordinate surface conventions.
+Our delta is a partial derivative with the option's implied volatility fixed. Suppose a scenario rule makes that volatility rise by 0.001 for every £1 spot rise. The **total** spot sensitivity along that rule is $\Delta+\nu(0.001)\approx0.672161$, rather than 0.634558. That rule is an assumed surface response, not a Black–Scholes prediction. [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md) distinguishes fixed-strike, moneyness, and delta-coordinate surface conventions.
 
 ```python:line-numbers
 def price_attribution(ds, dv, dt):
