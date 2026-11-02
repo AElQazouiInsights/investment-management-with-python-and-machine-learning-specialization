@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), and [The Greeks and Hedging](./greeks-hedging.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), and [Spreads and Basic Option Combinations](./option-combinations.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -89,7 +89,9 @@ Derive delta, gamma, theta, vega, rho, dividend sensitivity, vanna, volga, charm
 
 ### Spreads and Basic Option Combinations
 
-**Planned.** Construct bull and bear spreads, covered calls, protective puts, and collars one position at a time. Explain bought and sold legs, debit and credit, limited gains and losses, and break-even calculations. Price each component before adding the signed values.
+**Available:** [Spreads and Basic Option Combinations](./option-combinations.md).
+
+Construct bull and bear spreads, covered calls, protective puts, and collars one position at a time. Explain signed legs, debit and credit, payoff regions, financing, and break-even calculations. Use parity to build synthetic positions and boxes; add Greeks, reprice early exits, and account for entry bid/ask costs.
 
 **Experiment:** change a strike and explain the change in entry cost, payoff, and aggregate Greeks.
 

@@ -107,7 +107,7 @@ def check_controls(page, inspect_axes):
 def check_navigation(page):
     page.evaluate('window.greeksNavigationSentinel = true')
     page.locator('.vp-doc').get_by_role('link',name='Spreads and Basic Option Combinations',exact=True).last.click()
-    page.wait_for_function("location.hash === '#option-spreads' && !!document.getElementById('option-spreads')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Spreads and Basic Option Combinations')")
     assert page.get_by_role('slider').count()==0
     page.locator('.vp-doc').get_by_role('link',name='The Greeks and Hedging',exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('The Greeks and Hedging')")

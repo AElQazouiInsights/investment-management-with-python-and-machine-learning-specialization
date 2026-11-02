@@ -112,7 +112,8 @@ export default defineConfig({
             { text: "Random Motion and Itô's Lemma", link: '/random-motion-ito' },
             { text: 'Deriving and Using Black–Scholes', link: '/black-scholes' },
             { text: 'Futures Basis, Dividends, and Implied Financing', link: '/futures-basis' },
-            { text: 'The Greeks and Hedging', link: '/greeks-hedging' }
+            { text: 'The Greeks and Hedging', link: '/greeks-hedging' },
+            { text: 'Spreads and Basic Option Combinations', link: '/option-combinations' }
           ]
         },
         {

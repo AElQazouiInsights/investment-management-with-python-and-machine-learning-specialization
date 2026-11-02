@@ -2,7 +2,7 @@
 
 ## Scope
 
-Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through The Greeks and Hedging. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
+Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Spreads and Basic Option Combinations. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
 
 ## Findings and resolutions
 
@@ -48,5 +48,14 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Distinguished a future's unit sensitivity to its own quote from multiplier-adjusted spot sensitivity under fixed carry. Explained delta-one products separately from delta-neutral positions and preserved the daily-settlement cash-account interpretation.
 - Inverted two different premiums into the same implied volatility under agreed contract/model/carry inputs. Separate funded delta-neutral scenarios show spot curvature, implied-volatility repricing, and time decay; realized movement and dynamic hedging P&L remain distinct from implied-volatility quotes.
 - Replaced visible em dashes in published Markdown with sentence-appropriate punctuation and retained existing overview heading anchors explicitly.
+
+### Option combinations extension
+
+- Kept the one-share option baseline, European exercise, no-dividend share, and 5% effective / log(1.05) continuous rates. Signed instrument value plus an opposite entry cash balance reconciles every debit and credit construction; the worked collar scales both options and stock to 100 shares.
+- Verified all four vertical spread payoff regions and the funded bull-call/bull-put and bear-put/bear-call equivalences at negative, zero, and positive rates. Their unfunded values and terminal payments differ by a bond, so their theta and rho need not match before including cash.
+- Distinguished terminal wealth floors from financed profit floors, covered delivery from protection, and an offsetting option premium from a costless stock position. Synthetic covered calls, protective puts, and collars agree with parity at expiry, zero volatility, and zero spot as well as smooth pre-expiry inputs.
+- Priced the fixed-payment European box as a discount bond, retaining calendar accrual and discount-rate sensitivity after spot and volatility exposures cancel. A hypothetical executable £9.60 debit implies a 4.1667% lending return, not a profit when borrowed funding costs 5%; entry bid/ask costs reduce the ideal box profit further.
+- Independently integrated signed basket payoffs under the pricing distribution and differentiated basket values to check aggregate Greek units. A bullish spread's negative baseline gamma and parallel vega are explained separately from its positive delta; independent strike-volatility shifts remain for the next lesson.
+- Reconciled early exits with elapsed financing and remaining option life. Independent bid/ask ledgers verify buy-at-ask and sell-at-bid entry costs in both directions, with fees and stock costs scaled consistently. Defined margin funding and exercise/settlement differences as additional implementation cash flows rather than free theoretical arbitrage.
 
 Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.

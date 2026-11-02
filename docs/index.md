@@ -30,7 +30,7 @@ features:
   - icon:
       src: "/market-forecast.svg"
     title: "D. Derivatives, Options, and Structured Products"
-    details: "Forwards, futures, Black–Scholes, implied financing, and the Greeks: derive prices and sensitivities, then reconcile funded hedges. Continue toward option combinations and structured products."
+    details: "Forwards, futures, Black–Scholes, implied financing, Greeks, and option combinations: derive prices, reconcile hedges, and build spreads and collars. Continue toward volatility surfaces and structured products."
     link: "/d.0-overview"
     linkText: "Track overview"
   - icon:

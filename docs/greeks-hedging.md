@@ -713,7 +713,7 @@ print("<ECHARTS_DATA>"+json.dumps({"greeksBook": {
 
 **Experiment:** increase only the target's implied volatility, leaving the hedge options' implied volatilities unchanged. The book loses value even though aggregate vega for a parallel bump is zero. **Check:** what if hedge expiries become almost equal? The independent directions become poorly conditioned; small quote or Greek errors can produce unstable quantities. Inspect economically scaled sensitivities, liquidity, and lot sizes before accepting a numerical solution.
 
-The gamma/vega-neutral book is a local illustration, not a complete hedge policy. It has unmatched maturities, residual surface exposures, and future rebalancing needs. The subsequent [Spreads and Basic Option Combinations](./d.0-overview.md#option-spreads) will build and explain signed option positions systematically.
+The gamma/vega-neutral book is a local illustration, not a complete hedge policy. It has unmatched maturities, residual surface exposures, and future rebalancing needs. [Spreads and Basic Option Combinations](./option-combinations.md) builds and explains signed option positions systematically.
 
 ## 11. Trade a Delta Hedge and Reconcile the Cash Account
 
@@ -963,4 +963,4 @@ print(f"Vol-move net P&L: vega-volga estimate {exercise_vol_approx:.9f}; exact {
 - Local P&L attribution must retain a remainder and be checked against exact repricing. A delta/gamma/parallel-vega hedge can retain material surface and cross-risk.
 - A hedge is a sequence of funded trades. Preserve the budget at every rebalance, pay costs from cash, and measure the terminal liability separately.
 
-Continue with [Spreads and Basic Option Combinations](./d.0-overview.md#option-spreads), currently planned, to construct and explain option positions leg by leg. For the portfolio connection, [Robust Portfolio Construction: Diversification and Risk Budgets](./2.4-robust-portfolios.md) distinguishes uncertainty-aware allocation from a local derivative hedge and keeps costs inside wealth accounting.
+Continue with [Spreads and Basic Option Combinations](./option-combinations.md) to construct and explain option positions leg by leg. For the portfolio connection, [Robust Portfolio Construction: Diversification and Risk Budgets](./2.4-robust-portfolios.md) distinguishes uncertainty-aware allocation from a local derivative hedge and keeps costs inside wealth accounting.

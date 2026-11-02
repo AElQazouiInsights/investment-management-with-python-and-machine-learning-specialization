@@ -3516,6 +3516,45 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_option_spread_echart(upper_strike=110., final_spot=120.):
+    """One-share European bull call spread with signed premiums and expiry funding."""
+    for value, low, high in ((upper_strike, 105, 130), (final_spot, 0, 160)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use upper strike in [105, 130] and final spot in [0, 160]")
+    rate, vol, growth = np.log1p(.05), .20, 1.05
+    def call(strike):
+        d1 = (np.log(100 / strike) + rate + vol**2 / 2) / vol
+        return 100 * scipy.stats.norm.cdf(d1) - strike / growth * scipy.stats.norm.cdf(d1-vol)
+    debit = float(call(100) - call(upper_strike))
+    funded = debit * growth
+    prices = np.unique(np.r_[np.linspace(0., 160., 321), upper_strike, final_spot])
+    payoff = np.maximum(prices-100, 0) - np.maximum(prices-upper_strike, 0)
+    selected = float(max(final_spot-100, 0) - max(final_spot-upper_strike, 0))
+    styles = {"Zero": {"lineStyle": {"color": "#64748b", "type": "dashed"}, "itemStyle": {"color": "#64748b"}}}
+    for label, color in (("Payoff", "#2563eb"), ("Financed profit", "#ea580c")):
+        styles[label] = {"lineStyle": {"color": color}, "itemStyle": {"color": color}}
+    for label, color in (("Selected payoff", "#2563eb"), ("Selected profit", "#ea580c")):
+        hollow = label == "Selected payoff"
+        styles[label] = {"type": "scatter", "symbol": "circle" if hollow else "diamond",
+                         "symbolSize": 24 if hollow else 16,
+                         "itemStyle": {"color": "transparent" if hollow else color,
+                                       "borderColor": color if hollow else "#ffffff",
+                                       "borderWidth": 3 if hollow else 2, "opacity": 1}}
+    _publish_echarts({"optionSpread": {
+        "type": "line", "title": "Choose an Upside Cap and Inspect the Funded Outcome",
+        "xAxis": {"type": "value", "name": "Final share price (GBP/share)"},
+        "yAxisName": "GBP per one-share bull call spread",
+        "series": {"Payoff": np.column_stack([prices, payoff]).tolist(),
+                   "Financed profit": np.column_stack([prices, payoff-funded]).tolist(),
+                   "Zero": [[0., 0.], [160., 0.]],
+                   "Selected payoff": [[float(final_spot), selected]],
+                   "Selected profit": [[float(final_spot), selected-funded]]}, "seriesOptions": styles,
+    }}, f"Sold strike: {upper_strike:.2f} GBP; final share: {final_spot:.2f} GBP\n"
+        f"Entry debit: {debit:.9f}; financed cost: {funded:.9f} GBP\n"
+        f"Break-even: {100+funded:.9f}; maximum loss: {funded:.9f}; maximum gain: {upper_strike-100-funded:.9f} GBP\n"
+        f"Selected payoff: {selected:.9f}; financed profit: {selected-funded:.9f} GBP")
+
+
 def show_greeks_hedge_echart(spot_move=5., volatility_percent=20.):
     """Fixed-time call repricing versus local spot sensitivities; one-share GBP units."""
     for value, low, high in ((spot_move, -20, 20), (volatility_percent, 10, 60)):

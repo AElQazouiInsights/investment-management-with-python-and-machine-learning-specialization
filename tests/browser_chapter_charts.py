@@ -25,6 +25,7 @@ CHAPTERS = {
     "black-scholes": (11, 10),
     "futures-basis": (13, 13),
     "greeks-hedging": (16, 19),
+    "option-combinations": (14, 15),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (20, 10),
@@ -72,7 +73,8 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         standalone = {"3.1-ml-fundamentals": "ml-complexity-widget", "d.1-forwards": "forward-value-widget",
                       "d.2-futures": "futures-liquidity-widget", "d.3-options": "options-payoff-widget",
                       "random-motion-ito": "ito-refinement-widget", "black-scholes": "bs-limits-widget",
-                      "futures-basis": "basis-identification-widget", "greeks-hedging": "greeks-approximation-widget"}.get(chapter)
+                      "futures-basis": "basis-identification-widget", "greeks-hedging": "greeks-approximation-widget",
+                      "option-combinations": "combinations-strike-widget"}.get(chapter)
         if standalone:
             # Prove the experiment needs no variables from preceding lesson cells.
             page.locator(f'[data-editor-id="{standalone}"] button.run').click()
@@ -180,6 +182,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "greeks-hedging":
             from browser_greeks_charts import check_defaults as check_greeks_defaults, check_controls as check_greeks_controls, check_navigation as check_greeks_navigation
             check_greeks_defaults(page, inspect_axes)
+        if chapter == "option-combinations":
+            from browser_combination_charts import check_defaults as check_combination_defaults, check_controls as check_combination_controls, check_navigation as check_combination_navigation
+            check_combination_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -266,6 +271,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "greeks-hedging":
             check_greeks_controls(page, inspect_axes)
             check_greeks_navigation(page)
+        if chapter == "option-combinations":
+            check_combination_controls(page, inspect_axes)
+            check_combination_navigation(page)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)
