@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), and [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), and [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -107,9 +107,11 @@ Invert option bid/mid/ask prices using explicit forward and discount inputs. Exp
 
 ### Straddles, Strangles, Butterflies, and Condors
 
-**Planned.** Build strategies related to the size and location of price movements. Distinguish expiry payoffs from pre-expiry values and sensitivities. For a call butterfly, buy one lower-strike call, sell two middle-strike calls, and buy one upper-strike call; verify every region of the payoff before using the combined graph.
+**Available:** [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md).
 
-**Experiment:** vary strike spacing and time remaining. Compare the price of the ingredients, financed profit, and the position's sensitivity to volatility.
+A short application of the existing signed-leg tools: compare the movement required by a straddle or strangle with the finishing range purchased by a butterfly or condor. Work through each payoff region and financed break-even, then compare local exposures and a six-month exit. One shared exercise applies execution costs to all four positions.
+
+**Experiment:** open a butterfly into a condor by widening its plateau, reprice the premium, and select a final share price to explain the trade-off.
 
 ### Butterflies, Implied Distributions, and Tail Pricing {#implied-distributions}
 

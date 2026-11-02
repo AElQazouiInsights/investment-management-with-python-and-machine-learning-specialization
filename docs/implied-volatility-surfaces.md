@@ -650,4 +650,4 @@ publish(line_chart("ivExercise","Reprice Every Side of the Quote",100*exercise_i
 - Check bounds, vertical spreads, convexity, and carry-consistent calendar behavior in price space. Finite grid checks do not certify all tails or all interpolated points.
 - Held-out quotes and later snapshots test different things. An implied reading is neither a physical forecast nor executable profit.
 
-Next: [Straddles, Strangles, Butterflies, and Condors](./d.0-overview.md#option-volatility-strategies). We will build the multi-leg positions behind views on movement size and payoff location before extracting pricing-distribution information.
+Next: [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md). Build the multi-leg positions behind views on movement size and payoff location before extracting pricing-distribution information.

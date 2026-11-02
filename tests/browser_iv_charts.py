@@ -110,7 +110,7 @@ def check_controls(page,inspect_axes):
 def check_navigation(page):
     page.evaluate('window.ivNavigationSentinel=true')
     page.locator('.vp-doc').get_by_role('link',name='Straddles, Strangles, Butterflies, and Condors',exact=True).click()
-    page.wait_for_function("location.hash==='#option-volatility-strategies' && !!document.getElementById('option-volatility-strategies')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Straddles, Strangles, Butterflies, and Condors')")
     assert page.get_by_role('slider').count()==0
     page.locator('.vp-doc').get_by_role('link',name='Reading the Options Market: Implied Volatility and Surfaces',exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Reading the Options Market: Implied Volatility and Surfaces')")

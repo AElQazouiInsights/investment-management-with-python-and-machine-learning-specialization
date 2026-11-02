@@ -1,5 +1,6 @@
 // One registry drives both control filtering and generated Python calls.
 export const chartHelperParameters = {
+  show_option_range_echart: new Set(['half_plateau', 'final_spot']),
   show_implied_volatility_echart: new Set(['assumed_forward', 'premium_change']),
   show_option_spread_echart: new Set(['upper_strike', 'final_spot']),
   show_greeks_hedge_echart: new Set(['spot_move', 'volatility_percent']),

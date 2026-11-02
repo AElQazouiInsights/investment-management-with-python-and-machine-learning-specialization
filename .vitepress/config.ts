@@ -114,7 +114,8 @@ export default defineConfig({
             { text: 'Futures Basis, Dividends, and Implied Financing', link: '/futures-basis' },
             { text: 'The Greeks and Hedging', link: '/greeks-hedging' },
             { text: 'Spreads and Basic Option Combinations', link: '/option-combinations' },
-            { text: 'Reading the Options Market: Implied Volatility and Surfaces', link: '/implied-volatility-surfaces' }
+            { text: 'Reading the Options Market: Implied Volatility and Surfaces', link: '/implied-volatility-surfaces' },
+            { text: 'Straddles, Strangles, Butterflies, and Condors', link: '/option-movement-range' }
           ]
         },
         {

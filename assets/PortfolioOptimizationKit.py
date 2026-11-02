@@ -3516,6 +3516,36 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_option_range_echart(half_plateau=5., final_spot=100.):
+    """Reprice equal-width call wings as a butterfly opens into a condor."""
+    for value, low, high in ((half_plateau, 0, 10), (final_spot, 60, 140)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use half-plateau in [0, 10] and final share price in [60, 140]")
+    strikes = np.array([90-half_plateau, 100-half_plateau, 100+half_plateau, 110+half_plateau])
+    quantities = np.array([1., -1., -1., 1.])
+    d1 = (np.log(100/strikes)+np.log1p(.05)+.02)/.2
+    calls = 100*scipy.stats.norm.cdf(d1)-strikes/1.05*scipy.stats.norm.cdf(d1-.2)
+    debit = float(quantities@calls)
+    final = np.unique(np.r_[np.linspace(60., 140., 161), strikes, final_spot])
+    payoff = np.maximum(final[:, None]-strikes, 0)@quantities
+    selected = float(np.maximum(final_spot-strikes, 0)@quantities-debit*1.05)
+    _publish_echarts({"optionRangeExperiment": {
+        "type": "line", "title": "Broaden the Payment and Reprice Its Cost",
+        "xAxis": {"type": "value", "name": "Final share price (GBP/share)", "min": 60, "max": 140},
+        "yAxisName": "GBP per one-share strategy",
+        "series": {"Expiry payoff": np.column_stack([final, payoff]).tolist(),
+                   "Financed profit": np.column_stack([final, payoff-debit*1.05]).tolist(),
+                   "Selected profit": [[float(final_spot), selected]]},
+        "seriesOptions": {"Financed profit": {"lineStyle": {"type": "dashed"}},
+                          "Selected profit": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                              "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Half-plateau: {half_plateau:.2f} GBP; final share: {final_spot:.2f} GBP\n"
+        f"Call strikes: {strikes.tolist()}; quantities: +1, -1, -1, +1\n"
+        f"Entry debit: {debit:.6f} GBP; selected profit: {selected:.6f} GBP\n"
+        f"Maximum profit: {10-debit*1.05:.6f}; maximum loss: {debit*1.05:.6f} GBP\n"
+        f"Financed break-even prices: {strikes[0]+debit*1.05:.6f}, {strikes[-1]-debit*1.05:.6f} GBP")
+
+
 def show_implied_volatility_echart(assumed_forward=105., premium_change=0.):
     """Fixed-contract IV inversion: separate a quote change from a forward assumption."""
     from scipy.optimize import brentq

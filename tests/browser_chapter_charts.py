@@ -27,6 +27,7 @@ CHAPTERS = {
     "greeks-hedging": (16, 19),
     "option-combinations": (14, 15),
     "implied-volatility-surfaces": (15, 16),
+    "option-movement-range": (8, 7),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (20, 10),
@@ -75,7 +76,8 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
                       "d.2-futures": "futures-liquidity-widget", "d.3-options": "options-payoff-widget",
                       "random-motion-ito": "ito-refinement-widget", "black-scholes": "bs-limits-widget",
                       "futures-basis": "basis-identification-widget", "greeks-hedging": "greeks-approximation-widget",
-                      "option-combinations": "combinations-strike-widget", "implied-volatility-surfaces": "iv-input-widget"}.get(chapter)
+                      "option-combinations": "combinations-strike-widget", "implied-volatility-surfaces": "iv-input-widget",
+                      "option-movement-range": "movement-range-widget"}.get(chapter)
         if standalone:
             # Prove the experiment needs no variables from preceding lesson cells.
             page.locator(f'[data-editor-id="{standalone}"] button.run').click()
@@ -189,6 +191,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "implied-volatility-surfaces":
             from browser_iv_charts import check_defaults as check_iv_defaults, check_controls as check_iv_controls, check_navigation as check_iv_navigation
             check_iv_defaults(page, inspect_axes)
+        if chapter == "option-movement-range":
+            from browser_movement_charts import check_defaults as check_movement_defaults, check_controls as check_movement_controls, check_navigation as check_movement_navigation
+            check_movement_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -281,6 +286,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "implied-volatility-surfaces":
             check_iv_controls(page, inspect_axes)
             check_iv_navigation(page)
+        if chapter == "option-movement-range":
+            check_movement_controls(page, inspect_axes)
+            check_movement_navigation(page)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)

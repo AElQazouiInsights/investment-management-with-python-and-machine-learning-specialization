@@ -2,7 +2,7 @@
 
 ## Scope
 
-Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Reading the Options Market: Implied Volatility and Surfaces. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
+Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Straddles, Strangles, Butterflies, and Condors. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
 
 ## Findings and resolutions
 
@@ -67,5 +67,14 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Kept held-out strikes and maturity separate from fitting and used a later synthetic snapshot with unchanged contract strikes and aged expiries. Old-model residuals are not called forecasts or realized trading P&L.
 - Checked strike bounds, discounted vertical-spread slopes, convexity, and normalized calendar behavior on a stated finite domain. Calendar comparisons use fixed forward moneyness and normalized martingale payoffs under deterministic no-dividend carry. An ATM total-variance slope is not equated to a smile-aware variance-swap price or an automatically tradable forward variance.
 - Distinguished a midpoint butterfly inconsistency from an executable negative-cost basket by applying the correct bid/ask side and signed quantities. Continuous interpolation, tails, alternative contract conventions, and actual funding remain separate from the finite-grid acceptance result.
+
+### Movement and range strategy extension
+
+- Kept the new chapter to eight runnable cells and seven charts. Its new concepts are the four movement/range payoff shapes and the cost of broadening a central payment. Pricing, signed cash-account rules, Greek definitions, and execution conventions are linked prerequisites, recalled only where needed for the worked applications. Butterfly price-consistency testing remains in the IV lesson; pricing-density extraction remains in the next lesson.
+- Independently integrated each strategy's piecewise terminal payoff under the same lognormal pricing inputs, including changed spot, time, and volatility. Checked every strike boundary, zero and large terminal prices, financed break-evens, bounded range profits, and frictionless short-position reversal.
+- Distinguished a symmetric expiry payoff from today's delta neutrality. Verified local gamma and per-point vega through independent repricing derivatives; spot-ATM straddle delta is positive with the stated positive carry. Retained the dependence of Greek signs on spot, time, and volatility.
+- Used elapsed-time funding for the six-month straddle sale, distinguishing its negative financed result from a large spot move and from delta-hedged realized-volatility P&L. Flat-volatility scenarios are explicit assumptions rather than a prediction of smile movement.
+- The widget preserves £10 outside ramp widths and moves all four strikes when widening the plateau. At zero width the duplicate short strikes recover the equal-spaced butterfly. Debit increases with the wider payment, while peak profit falls. Financed bounds and break-even prices are recalculated at every setting.
+- Applied bid/ask sides to absolute option quantities, financed entry slippage, and scaled the whole basket to 100-share contracts. The tiny model butterfly profit at the worked finish becomes a loss after spreads. The all-call condor is explicitly distinguished from an iron condor; bounded matched expiry loss is not presented as freedom from collateral requirements.
 
 Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.
