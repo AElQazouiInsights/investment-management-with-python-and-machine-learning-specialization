@@ -41,4 +41,12 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Exposed the same-expiry gamma/vega rank limitation, paralleling the earlier calibration-identification lesson. A two-expiry hedge neutralizes a parallel volatility bump, not each option's independent implied-volatility change.
 - Kept rebalancing costs inside the cash account and verified global discounted gains. The simulated frequency comparison uses common paths, explicit physical/pricing assumptions, and GBP hedge errors rather than returns on zero initial net wealth.
 
+### Practical Greek interpretation revision
+
+- Converted core and higher-order risk readings into signed 100-share-contract exposures, currency changes, and changes in other risk readings. Finite differences independently verify the scaled desk units. Cash delta is distinguished from premium and P&L for a specified percentage move.
+- Added an explicit delta-neutral rebalancing example and a single-option gamma hedge before the combined hedge. Neutrality refers to one stated risk factor at current inputs; option gamma, residual vega, contract rounding, hedge expiry, and funding remain visible.
+- Distinguished a future's unit sensitivity to its own quote from multiplier-adjusted spot sensitivity under fixed carry. Explained delta-one products separately from delta-neutral positions and preserved the daily-settlement cash-account interpretation.
+- Inverted two different premiums into the same implied volatility under agreed contract/model/carry inputs. Separate funded delta-neutral scenarios show spot curvature, implied-volatility repricing, and time decay; realized movement and dynamic hedging P&L remain distinct from implied-volatility quotes.
+- Replaced visible em dashes in published Markdown with sentence-appropriate punctuation and retained existing overview heading anchors explicitly.
+
 Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.

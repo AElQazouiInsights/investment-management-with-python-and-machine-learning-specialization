@@ -10,7 +10,7 @@ description: "Understand forwards, futures, options, Black–Scholes, the Greeks
 
 A **derivative** is a contract whose value depends on something else, called its **underlying**. For example, a contract linked to a share price is a derivative; the share is its underlying. The contract specifies who must pay, how much, and when.
 
-Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
+Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
 **Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), and [The Greeks and Hedging](./greeks-hedging.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
@@ -81,7 +81,7 @@ Derive carry from dated cash flows, distinguish dividend entitlement from paymen
 
 **Available:** [The Greeks and Hedging](./greeks-hedging.md).
 
-Derive delta, gamma, theta, vega, rho, dividend sensitivity, vanna, volga, charm, speed, zomma, color, veta, and ultima. Explain units, calendar-time signs, and held-fixed inputs. Separate carry from discounting, attribute joint shocks with a measured remainder, and construct a local delta/gamma/vega hedge before reconciling actual stock trades and funding.
+Derive delta, gamma, theta, vega, rho, dividend sensitivity, vanna, volga, charm, speed, zomma, color, veta, and ultima. Translate risk readings into shares and pounds, explain delta neutrality, and build a simple gamma hedge before combining delta/gamma/vega targets. Explain futures delta, delta-one desks, and volatility quoting. Separate carry from discounting and reconcile actual stock trades and funding.
 
 **Experiment:** compare exact repricing with local approximations; expose a same-expiry gamma/vega rank limit and a target-only volatility shock. Follow the cash account and compare hedge errors and costs across shared synthetic paths at different rebalancing frequencies.
 

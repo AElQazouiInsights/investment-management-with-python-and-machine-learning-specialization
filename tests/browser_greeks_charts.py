@@ -5,9 +5,9 @@ from browser_robust_charts import payload_for
 from browser_ml_charts import check_rendered
 
 
-EDITORS = ('greeks-spot', 'greeks-time', 'greeks-volatility', 'greeks-carry', 'greeks-cross',
+EDITORS = ('greeks-spot', 'greeks-time', 'greeks-volatility', 'greeks-vol-quotes', 'greeks-carry', 'greeks-cross',
            'greeks-higher', 'greeks-approximation-widget', 'greeks-attribution', 'greeks-book',
-           'greeks-ledger', 'greeks-frequency')
+           'greeks-gamma-hedge', 'greeks-ledger', 'greeks-delta-one', 'greeks-frequency')
 
 
 def near(a, b, tolerance=1e-7):
@@ -28,6 +28,20 @@ def check_defaults(page, inspect_axes):
     for x,y in spot['Exact repricing']:
         near(y,call(100+x,.2)-call(100,.2))
     near(spot['Delta + gamma'][50][1],3.407809804)
+    neutral=payload_for(page,'greeks-spot')['greeksDeltaNeutral']['series']
+    near(neutral['Exact hedged P&L'][40][1],0)
+    assert neutral['Exact hedged P&L'][42][1]<-.9
+    quotes=payload_for(page,'greeks-vol-quotes')['greeksVolQuotes']['series']
+    near(quotes['Quoted strike 90'][0][0],20)
+    near(quotes['Quoted strike 110'][0][0],20)
+    near(quotes['Quoted strike 90'][0][1],16.621743776917896)
+    near(quotes['Quoted strike 110'][0][1],5.993111968355159)
+    gamma=payload_for(page,'greeks-gamma-hedge')['greeksGammaHedge']['series']
+    near(gamma['Delta and gamma hedge'][40][1],0)
+    assert abs(gamma['Delta and gamma hedge'][44][1])<abs(gamma['Delta hedge only'][44][1])
+    future=payload_for(page,'greeks-delta-one')['greeksDeltaOne']['series']
+    near(future['Move in futures quote'][12][1],10)
+    near(future['Move in spot at fixed carry'][12][1],10.5)
     time=payload_for(page,'greeks-time')['greeksTime']['series']
     assert time['Put'][0][1]>0
     near(time['Call'][40][1],-.017403935)
@@ -86,7 +100,7 @@ def check_controls(page, inspect_axes):
             assert markers==[['scatter','circle',24,3],['scatter','diamond',16,2]]
         for editor,original in frozen.items():
             assert payload_for(page,editor)==original,editor
-    assert page.locator('.chart-panel').count()==15
+    assert page.locator('.chart-panel').count()==19
     print('PASS: independent two-control widget, both parameter boundaries, selected markers, and output isolation.',flush=True)
 
 

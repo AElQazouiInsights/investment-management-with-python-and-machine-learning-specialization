@@ -82,14 +82,53 @@ print(pd.DataFrame({"Call": g, "Put": p}).to_string(float_format=lambda x: f"{x:
 print(f"Call vega per volatility point: {g['vega']*.01:.9f} GBP")
 print(f"Call theta per calendar day: {g['theta']/365:.9f} GBP")
 print(f"Call rho per basis point: {g['rho']*.0001:.9f} GBP")
+contract_shares = 100.
+desk_core = pd.DataFrame([
+    ["Delta", contract_shares*g["delta"], "Equivalent shares"],
+    ["Gamma", contract_shares*g["gamma"], "Change in equivalent shares per GBP/share move"],
+    ["Theta", contract_shares*g["theta"]/365, "GBP per calendar day"],
+    ["Vega", contract_shares*g["vega"]*.01, "GBP per volatility percentage point"],
+    ["Rho", contract_shares*g["rho"]*.0001, "GBP per rate basis point"],
+    ["Yield sensitivity", contract_shares*g["yield_sensitivity"]*.0001, "GBP per yield basis point"],
+], columns=["Greek", "One long 100-share contract", "Unit"])
+cash_delta = contract_shares*g["delta"]*S
+print(desk_core.to_string(index=False, float_format=lambda x:f"{x:.6f}"))
+print(f"Currency delta: {cash_delta:.6f} GBP; delta P&L for a 1% spot rise: {.01*cash_delta:.6f} GBP")
 ```
 <Editor id="greeks-setup" />
 
 **Check:** if a desk reports vega as £37.60, can you assume a one-point volatility move earns £37.60? No. First ask whether the report is per unit volatility, per volatility point, per option, or for the entire position. Here one volatility point gives approximately **£0.376029 per one-share option**.
 
+### Read the Number as Shares or Money
+
+For **one long contract covering 100 shares**, the printed table means:
+
+| Desk reading | What it means in this example |
+| --- | --- |
+| Delta: +63.455836 shares | For a £1 share-price rise, the option gains about £63.46 from its initial delta exposure. |
+| Gamma: +1.880144 shares per £1 spot move | After a small rise, the option behaves like more shares. For a £1 move, gamma alone adds about $\tfrac12(1.880144)(1)^2=£0.94$ to the price-change estimate. |
+| Theta: −£1.739606 per calendar day | One day passing at unchanged inputs reduces the option's value by about £1.74. |
+| Vega: +£37.602877 per volatility point | A move from 20% to 21% implied volatility increases value by about £37.60. |
+| Rho: +£0.530696 per basis point | A classical rate bump of 0.01 percentage points increases value by about 53 pence. |
+| Yield sensitivity: −£0.634558 per basis point | A dividend-yield bump of 0.01 percentage points reduces value by about 63 pence. |
+
+These are separate local experiments, not numbers to add without specifying a joint scenario. A short contract reverses every sign. Two contracts double the exposures under the same assumptions.
+
+A desk may also report **currency delta**, often called cash delta or dollar delta even when the currency is GBP. Here it is $63.455836\times£100=£6,345.58$. A 1% spot rise gives approximately $0.01(£6,345.58)=£63.46$ of delta P&L. This exposure measure is different from the **£1,038.63 option premium**. Ask whether a displayed delta means shares, currency exposure, or P&L for a stated percentage move.
+
+For a share option, spot is measured in GBP/share; for an index option, spot is measured in index points and the contract has a currency-per-point multiplier. For an FX option, also specify the currency being hedged and the reporting currency. The derivative and its units must match that contract before converting risk to money.
+
 ## 2. Delta and Gamma: Slope, Curvature, and Hedge Quantity
 
-An option whose delta is 0.634558 gains approximately £0.634558 when a £100 share rises by £1. For a short position in ten 100-share call contracts, position delta is $-10(100)(0.634558)=-634.558$ shares. Buying 634.558 shares offsets that **local** exposure.
+An option whose delta is 0.634558 gains approximately £0.634558 when a £100 share rises by £1. For a short position in one 100-share call contract, position delta is $-100(0.634558)=-63.4558$ shares. Buying 63.4558 shares offsets that **local** exposure.
+
+### What Delta Neutral Means
+
+**Delta neutral means the signed deltas of the whole position add to zero for the same underlying risk factor at the current inputs.** One share has delta +1 share. Our short option and long stock therefore give $-63.455836+63.455836=0$. A very small spot rise makes the short option lose approximately what the stock gains. An unchanged initial delta hedge does not cancel the whole finite price change. Equal and opposite share counts in two different companies do not establish delta neutrality: their prices can move differently.
+
+After spot rises from £100 to £101 with other inputs fixed, the short option's delta becomes approximately −65.309964 shares. The stock position is still +63.455836 shares, leaving **−1.854128 shares** of net delta. Buy another 1.854128 shares to become neutral again. The next section's gamma explains why the required hedge changes. The cash-ledger section later shows how that purchase is funded.
+
+Buying stock against a short call is a **delta hedge**. Being **delta neutral** describes the resulting position at that moment. Neither phrase means that volatility, curvature, time, funding, or gap risk has disappeared.
 
 Estimate slope before differentiating the formula. With a small symmetric bump $h$:
 
@@ -126,6 +165,13 @@ spot_quadratic = spot_linear+.5*g["gamma"]*spot_moves**2
 print(f"Prices at 99.99 / 100 / 100.01: {down:.9f}, {g['value']:.9f}, {up:.9f}")
 print(f"Finite-difference delta: {fd_delta:.9f}; gamma: {fd_gamma:.9f}")
 print(f"Five-pound move: exact {spot_exact[50]:.9f}; delta {spot_linear[50]:.9f}; delta-gamma {spot_quadratic[50]:.9f} GBP")
+neutral_stock_shares = contract_shares*g["delta"]
+new_option_delta = -contract_shares*core_greeks(S+1,K,tau,r,sigma)["delta"]
+residual_delta_after_rise = new_option_delta+neutral_stock_shares
+neutral_exact = contract_shares*(-spot_exact+spot_linear)
+neutral_gamma = -contract_shares*.5*g["gamma"]*spot_moves**2
+print(f"Initially neutral stock hedge: {neutral_stock_shares:.9f} shares")
+print(f"After a GBP 1 rise, net delta: {residual_delta_after_rise:.9f} shares; buy {-residual_delta_after_rise:.9f} shares to rebalance")
 print("<ECHARTS_DATA>"+json.dumps({"greeksSpot": {
     "type": "line", "title": "A Delta Hedge Removes Slope, Not Curvature",
     "xAxis": {"type": "value", "name": "Spot change (GBP/share)"}, "yAxisName": "One-share call value change (GBP)",
@@ -133,9 +179,18 @@ print("<ECHARTS_DATA>"+json.dumps({"greeksSpot": {
                (("Exact repricing", spot_exact), ("Delta", spot_linear), ("Delta + gamma", spot_quadratic))},
     "seriesOptions": {"Delta": {"lineStyle": {"type": "dashed", "color": "#64748b"}, "itemStyle": {"color": "#64748b"}},
                       "Delta + gamma": {"lineStyle": {"type": "dashed", "color": "#ea580c"}, "itemStyle": {"color": "#ea580c"}}},
+}, "greeksDeltaNeutral": {
+    "type": "line", "title": "Delta Neutral Still Leaves a Curved Position P&L",
+    "xAxis": {"type": "value", "name": "Instantaneous spot change (GBP/share)"},
+    "yAxisName": "Short 100-share call plus fixed stock hedge P&L (GBP)",
+    "series": {"Exact hedged P&L": np.column_stack([spot_moves,neutral_exact]).tolist(),
+               "Gamma estimate": np.column_stack([spot_moves,neutral_gamma]).tolist()},
+    "seriesOptions": {"Gamma estimate": {"itemStyle": {"color": "#ea580c"}, "lineStyle": {"color": "#ea580c", "type": "dashed"}}},
 }}, allow_nan=False))
 ```
 <Editor id="greeks-spot" />
+
+The second chart is the short call plus its **initially fixed** stock hedge. It holds time and volatility fixed, so no interval funding is added. Delta cancels the initial slope, but the remaining curve is not flat. A short vanilla option loses from its negative curvature in either direction relative to its initial tangent; the exact losses need not be symmetric.
 
 **Experiment:** compare £1, £5, and £20 moves. Predict where the approximation deteriorates. **Check:** a stock position has zero gamma. Buying stock against a short call removes initial delta but leaves negative gamma: the required stock hedge tends to increase after a rise and decrease after a fall.
 
@@ -215,6 +270,59 @@ print("<ECHARTS_DATA>"+json.dumps({"greeksVolatility": {
 <Editor id="greeks-volatility" />
 
 **Experiment:** price at $r=q=0$, retaining spot=strike, and recompute volga. **Check:** does negative volga mean vega is negative? No. It means vega is decreasing with volatility at that point. The option can still become more valuable as volatility rises.
+
+### Why Traders Often Speak in Volatility
+
+Suppose two calls on the same £100 share have one year left and the same 20% implied volatility. The £90-strike call costs **£16.621744 per share**, while the £110-strike call costs **£5.993112**. The first premium is larger mainly because its right to buy is more favorable. The two premiums alone do not tell us which option offers more volatility for the money.
+
+**Implied volatility is the volatility input that reproduces an observed option premium under a stated pricing model and carry inputs.** Quoting “20% vol” is therefore another way of describing a price, once strike, expiry, forward, discounting, and contract conventions are agreed. The graph shows the two pricing curves. At the same horizontal coordinate, 20%, they have different premiums. Reading from a premium back to the horizontal axis is volatility inversion.
+
+This language helps traders compare and manage the uncertainty priced across strikes and expiries. A surface is still needed: different strikes and dates can fairly have different implied volatilities. A lower volatility quote is not automatically a bargain. Some markets communicate directly in volatility; others display currency premiums while traders use volatility screens internally. Contracts still settle currency or deliver the specified underlying.
+
+Delta hedging makes volatility language especially useful because it offsets the largest **local directional** exposure. A long call hedged by shorting its delta can still gain if its implied volatility rises at unchanged spot. It also retains gamma and time exposure. The trader is managing the price of uncertainty and the consequences of rebalancing, rather than only betting that spot rises.
+
+The small table in the next cell uses **one long 100-share call, short 63.455836 shares, and the cash balance that makes initial net value zero**. Assume the short-sale proceeds are available to invest at the stated cash rate, with no fees or separate collateral in this illustration. It compares three separate scenarios: spot +£1, implied volatility +1 point, and one calendar day passing. Stock offset removes only the first-order spot effect. The one-day result also includes cash interest. These controlled scenarios are not forecasts.
+
+```python:line-numbers
+from scipy.optimize import brentq
+
+quoted_strikes = np.array([90.,110.])
+quoted_premiums = np.array([option_price(S,k,tau,r,sigma) for k in quoted_strikes])
+recovered_vols = np.array([brentq(lambda vol: option_price(S,k,tau,r,vol)-premium,.001,3.,xtol=1e-12)
+                           for k,premium in zip(quoted_strikes,quoted_premiums)])
+print(pd.DataFrame({"Strike GBP": quoted_strikes, "Premium GBP/share": quoted_premiums,
+                    "Implied vol %": 100*recovered_vols}).to_string(index=False))
+long_hedge_cash = contract_shares*(g["delta"]*S-g["value"])
+quote_scenarios = []
+for label, ds, dv, dt in [("Spot +1",1.,0.,0.),("Vol +1 point",0.,.01,0.),("One calendar day",0.,0.,day)]:
+    option_change = contract_shares*(option_price(S+ds,K,tau-dt,r,sigma+dv)-g["value"])
+    stock_change = -contract_shares*g["delta"]*ds
+    interest = long_hedge_cash*np.expm1(r*dt)
+    quote_scenarios.append([label,option_change,stock_change,interest,option_change+stock_change+interest])
+quote_scenarios = pd.DataFrame(quote_scenarios,columns=["Scenario","Option GBP","Stock GBP","Interest GBP","Net GBP"])
+print(quote_scenarios.to_string(index=False,float_format=lambda x:f"{x:.6f}"))
+quoted_vol_grid = np.linspace(.10,.40,61)
+quote_series = {f"Strike {k:.0f}": [[float(100*vol),float(option_price(S,k,tau,r,vol))] for vol in quoted_vol_grid] for k in quoted_strikes}
+quote_series["Quoted strike 90"] = [[float(100*recovered_vols[0]),float(quoted_premiums[0])]]
+quote_series["Quoted strike 110"] = [[float(100*recovered_vols[1]),float(quoted_premiums[1])]]
+print("<ECHARTS_DATA>"+json.dumps({"greeksVolQuotes": {
+    "type": "line", "title": "The Same Implied Volatility Can Describe Different Premiums",
+    "xAxis": {"type": "value", "name": "Implied volatility (%)", "min": 10, "max": 40},
+    "yAxisName": "Call premium (GBP per share)", "series": quote_series,
+    "seriesOptions": {
+        "Strike 110": {"itemStyle": {"color": "#ea580c"}, "lineStyle": {"color": "#ea580c"}},
+        "Quoted strike 90": {"type": "scatter", "symbol": "circle", "symbolSize": 18,
+            "itemStyle": {"color": "#2563eb", "borderColor": "#ffffff", "borderWidth": 2}},
+        "Quoted strike 110": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2}},
+    },
+}}, allow_nan=False))
+```
+<Editor id="greeks-vol-quotes" />
+
+**Experiment:** raise only the £110-strike premium by £0.20 and invert again. Its implied volatility rises; the other quote is unchanged. **Check:** did delta hedging make the premium irrelevant? No. The premium, its financing, and transaction costs enter actual P&L. Volatility is a quoting and risk-management language, not a replacement for the cash account.
+
+Keep two meanings of volatility separate. **Implied volatility** is read from current option prices; a change in it changes the option's marked value. **Realized movement** is what the underlying actually does during the holding period; it affects the gains and costs of dynamic hedging. Delta-neutral trading retains both kinds of exposure. The later shared-path experiment makes that distinction concrete.
 
 ## 5. Rho, Dividends, and the Financing Inputs Behind Them
 
@@ -339,6 +447,25 @@ These names describe derivatives of sensitivities already introduced. They are u
 
 Their units follow by dividing the original sensitivity's units by the bumped input's units. For example, color is gamma per calendar year. Ultima is GBP per unit decimal volatility cubed; the cubic **price** term is $\operatorname{Ultima}(\Delta\sigma)^3/6$, not ultima times a one-point volatility move.
 
+### Translate the Less Familiar Greeks into a Desk Action
+
+Continue with **one long 100-share call contract**. The following readings tell us how a risk number changes, rather than all being immediate cash profits:
+
+| Greek | Small experiment | What the changed number measures |
+| --- | --- | --- |
+| Vanna | Implied volatility rises by one point | Change in equivalent shares. Here delta falls by approximately 0.270648 shares. |
+| Volga | Implied volatility rises by one point | Change in vega quoted in GBP per volatility point. Here that vega rises by approximately £0.093090 per point. |
+| Charm | One calendar day passes | Change in equivalent shares. Here delta falls by approximately 0.017717 shares. |
+| Speed | Spot rises by £1/share | Change in gamma, quoted as equivalent shares per £1/share move. |
+| Zomma | Implied volatility rises by one point | Change in that same gamma reading. |
+| Color | One calendar day passes | Change in that same gamma reading. |
+| Veta | One calendar day passes | Change in vega quoted in GBP per volatility point. |
+| Ultima | Implied volatility rises by one point | Change in volga quoted in GBP per volatility point squared. |
+
+For example, vanna's −0.270648-share change means that the stock hedge needed after a volatility move changes by that amount. If spot and volatility move together, its local cross-contribution to the **long option's price** for +£1 and +1 volatility point is approximately −£0.270648. That is only one component of the full price change.
+
+Volga's £0.093090 per point squared gives a **half-weighted curvature contribution** of about £0.046545 for a one-point volatility move. For ultima, a price expansion uses a one-sixth-weighted cubic term. These factors are why a raw Greek should not be read as cash profit without specifying both the input move and the formula. The next cell prints the desk-unit conversion for all eight readings.
+
 ### Derive the Formulas from Logarithmic Changes
 
 Because $\Gamma=A\phi(d_1)/(S\sigma\sqrt\tau)$, differentiate its logarithm. The spot derivative has the explicit $-1/S$ term and the density term $-d_1/(S\sigma\sqrt\tau)$. Multiply their sum by gamma:
@@ -383,6 +510,17 @@ higher_examples = pd.DataFrame([
     ["Ultima", higher["ultima"], higher["ultima"]*.01, cross_greeks(S,K,tau,r,.21)["volga"]-cross["volga"]],
 ], columns=["Greek", "Unscaled coefficient", "Predicted change", "Exact change"])
 print(higher_examples.to_string(index=False, float_format=lambda x:f"{x:.9f}"))
+desk_higher = pd.DataFrame([
+    ["Vanna", contract_shares*cross["vanna"]*.01, "Delta shares", "+1 volatility point"],
+    ["Volga", contract_shares*cross["volga"]*.01**2, "Vega GBP per volatility point", "+1 volatility point"],
+    ["Charm", contract_shares*cross["charm"]/365, "Delta shares", "+1 calendar day"],
+    ["Speed", contract_shares*higher["speed"], "Gamma shares per GBP/share", "+1 GBP/share spot"],
+    ["Zomma", contract_shares*higher["zomma"]*.01, "Gamma shares per GBP/share", "+1 volatility point"],
+    ["Color", contract_shares*higher["color"]/365, "Gamma shares per GBP/share", "+1 calendar day"],
+    ["Veta", contract_shares*higher["veta"]*.01/365, "Vega GBP per volatility point", "+1 calendar day"],
+    ["Ultima", contract_shares*higher["ultima"]*.01**3, "Volga GBP per volatility point squared", "+1 volatility point"],
+], columns=["Greek", "Predicted change", "Risk reading that changes", "Input experiment"])
+print(desk_higher.to_string(index=False, float_format=lambda x:f"{x:.9f}"))
 longer_days = np.linspace(0., 350., 71)
 time_risks = [core_greeks(S,K,tau-d/365,r,sigma) for d in longer_days]
 time_charts = {}
@@ -468,6 +606,55 @@ print("<ECHARTS_DATA>"+json.dumps({"greeksAttribution": {
 **Experiment:** reverse the spot move but retain the volatility rise. The gamma and volga terms keep their signs, but delta and vanna contributions reverse. **Check:** is the remainder trading alpha? No. Here it is omitted Taylor terms and numerical approximation. A real P&L explain can also contain model/input changes, execution, fees, and data differences, which need separate reconciliation.
 
 ## 10. Hedge More Than Delta: A Small Option Book
+
+### First Hedge Gamma with One Other Option
+
+Delta tells us the stock quantity needed **now**. Gamma tells us how quickly that quantity changes as spot moves. A stock trade changes delta, but stock itself has zero gamma. To offset a short call's negative gamma, buy an instrument with positive gamma, such as another vanilla option. Then adjust stock to cancel the new combined delta.
+
+Start with one short baseline call contract on 100 shares. The available hedge is a call on the same 100 shares, strike £95, with half a year left and 20% implied volatility. Calculate the two **one-share** gammas, $\Gamma_T$ for the target and $\Gamma_H$ for the hedge. Because the multipliers match, buy:
+
+$$a=\frac{\Gamma_T}{\Gamma_H}=0.800785\text{ hedge contracts}.$$
+
+Now recalculate delta. The required stock position is $100(\Delta_T-a\Delta_H)=5.181704$ shares. Compare that with the **63.455836 shares** needed when stock was the only hedge: the purchased option supplies most of the positive delta as well as gamma.
+
+The entry cash balance is $100(C_T-aC_H)-5.181704(100)=-£267.086073$. Borrowing that amount reconciles the option premiums and stock purchase to zero initial net value. We again permit fractional contracts for teaching and assume frictionless entry; a real hedge must deal with contract lots and execution costs.
+
+The position is now **delta and gamma neutral at the initial inputs**. This does not make it flat for every move. Its remaining parallel vega is approximately **−£18.801439 per volatility point**. Also, its gammas will change with spot and time, and the hedge option expires earlier. A gamma hedge requires monitoring and a stated exit or replacement policy.
+
+The chart compares a fixed stock-only delta hedge with this fixed delta-and-gamma hedge over instantaneous spot moves. The latter is flatter close to the starting spot. These are exact revaluations at unchanged time and volatility, not claims of guaranteed profit over a holding period.
+
+```python:line-numbers
+gamma_hedge_option = core_greeks(S,95.,.5,r,sigma)
+gamma_hedge_contracts = g["gamma"]/gamma_hedge_option["gamma"]
+gamma_hedge_shares = contract_shares*(g["delta"]-gamma_hedge_contracts*gamma_hedge_option["delta"])
+gamma_hedge_cash = contract_shares*(g["value"]-gamma_hedge_contracts*gamma_hedge_option["value"])-gamma_hedge_shares*S
+gamma_hedge_delta = contract_shares*(-g["delta"]+gamma_hedge_contracts*gamma_hedge_option["delta"])+gamma_hedge_shares
+gamma_hedge_gamma = contract_shares*(-g["gamma"]+gamma_hedge_contracts*gamma_hedge_option["gamma"])
+gamma_hedge_vega_point = contract_shares*(-g["vega"]+gamma_hedge_contracts*gamma_hedge_option["vega"])*.01
+def gamma_hedged_value(ds=0.):
+    option_book = contract_shares*(-option_price(S+ds,K,tau,r,sigma)
+                                  +gamma_hedge_contracts*option_price(S+ds,95.,.5,r,sigma))
+    return option_book+gamma_hedge_shares*(S+ds)+gamma_hedge_cash
+
+gamma_spot_moves = np.linspace(-10.,10.,81)
+gamma_hedged_changes = np.array([gamma_hedged_value(ds)-gamma_hedged_value() for ds in gamma_spot_moves])
+delta_only_changes = np.array([contract_shares*(-option_price(S+ds,K,tau,r,sigma)+g["value"]+g["delta"]*ds) for ds in gamma_spot_moves])
+print(f"Buy {gamma_hedge_contracts:.9f} hedge contracts and {gamma_hedge_shares:.9f} shares; cash {gamma_hedge_cash:.9f} GBP")
+print(f"Net delta {gamma_hedge_delta:.2e} shares; gamma {gamma_hedge_gamma:.2e}; vega {gamma_hedge_vega_point:.9f} GBP per vol point")
+print(f"Initial net value: {gamma_hedged_value():.2e} GBP; P&L after spot +1: {gamma_hedged_value(1.):.9f} GBP")
+print("<ECHARTS_DATA>"+json.dumps({"greeksGammaHedge": {
+    "type": "line", "title": "An Option Hedge Can Remove Initial Curvature as Well as Slope",
+    "xAxis": {"type": "value", "name": "Instantaneous spot change (GBP/share)"}, "yAxisName": "Short target plus hedge P&L (GBP)",
+    "series": {"Delta hedge only": np.column_stack([gamma_spot_moves,delta_only_changes]).tolist(),
+               "Delta and gamma hedge": np.column_stack([gamma_spot_moves,gamma_hedged_changes]).tolist()},
+    "seriesOptions": {"Delta and gamma hedge": {"itemStyle": {"color": "#ea580c"}, "lineStyle": {"color": "#ea580c"}}},
+}}, allow_nan=False))
+```
+<Editor id="greeks-gamma-hedge" />
+
+**Experiment:** compare £0.10, £1, and £10 spot changes. Does initially zero gamma make all three P&Ls zero? No. Higher-order changes remain. **Check:** can a future replace the hedge option to cancel gamma? In this fixed-carry model a future is linear in spot and has zero gamma, so it can adjust delta but cannot remove the option's curvature.
+
+### Add a Second Option to Hedge Parallel Vega
 
 Suppose you are short one one-share baseline call. Stock can neutralize delta, but its gamma and vega are zero. To offset curvature and volatility exposure, consider two other European calls on the same non-dividend-paying share: one with strike £95 and 0.5 years left, and one with strike £110 and two years left. All are quoted at the same synthetic 20% volatility. Their time horizons differ deliberately.
 
@@ -605,7 +792,49 @@ print("<ECHARTS_DATA>"+json.dumps({
 
 ### Stock Delta and Futures Delta Use Different Quantities
 
+**Why is a future often said to have delta one?** A long future gains one quote unit when its own futures quote rises by one unit, before applying the multiplier. For a ten-share multiplier and a quote in GBP/share, a £1 futures-price rise pays **£10 per contract** in variation margin. The exposure is linear: a £2 rise pays £20, and a £1 fall loses £10.
+
+The word **delta** must still name the input being bumped. A futures quote's sensitivity to its **own quote** is one; its sensitivity to today's **spot** can differ because spot and futures are related by carry.
+
 For an idealized no-dividend future expiring with the option, $F=S e^{r\tau}$ and $F_S=e^{r\tau}$. A futures contract with multiplier $M$ therefore requires $n_F=\Delta/(M e^{r\tau})$ to match one option's local stock exposure. At $M=10$, the baseline is $0.634558364/(10\times1.05)=0.060434130$ futures contracts. For an option covering 100 shares, multiply the numerator by 100.
+
+Here $F=£105$ and $F_S=1.05$. At unchanged carry and time, a £1 **spot** rise therefore increases the futures quote by £1.05 and generates **£10.50 per ten-share futures contract**. One such future has 10.5 share-equivalents of local spot exposure. To offset one short 100-share call, buy $63.455836/10.5=6.043413$ futures contracts in the fractional teaching calculation. The one-share call's sensitivity to the futures quote is $0.634558/1.05=0.604341$, illustrating the change of coordinate.
+
+If only whole futures contracts can trade, rounding to six leaves $-63.455836+6(10.5)=-0.455836$ share-equivalents of delta. A £1 spot rise then contributes approximately **−£0.46 from residual delta**, before gamma and other effects. Always recalculate the exposure after rounding a hedge.
+
+The chart shows the two interpretations of a £1 move. They are different controlled experiments, not contradictory quotes. Holding carry inputs fixed, both lines are straight and gamma is zero. At settlement the future's marked value resets, but its next price move still produces a cash payment. A zero reset value does not mean zero delta.
+
+```python:line-numbers
+futures_multiplier = 10.
+futures_spot_slope = np.exp(r*tau)
+futures_delta_quote = futures_multiplier
+futures_delta_spot = futures_multiplier*futures_spot_slope
+futures_for_short_contract = neutral_stock_shares/futures_delta_spot
+option_delta_in_futures_quote = g["delta"]/futures_spot_slope
+linear_moves = np.linspace(-5.,5.,21)
+futures_pnl_quote = futures_delta_quote*linear_moves
+futures_pnl_spot = futures_delta_spot*linear_moves
+print(f"Futures quote: {S*futures_spot_slope:.6f} GBP/share")
+print(f"Per contract: GBP {futures_delta_quote:.6f} for a GBP 1 futures-quote move; GBP {futures_delta_spot:.6f} for a GBP 1 spot move at fixed carry")
+print(f"Hedge for a short 100-share call: {futures_for_short_contract:.9f} futures contracts")
+print(f"One-share call delta in the futures-quote coordinate: {option_delta_in_futures_quote:.9f}")
+print("<ECHARTS_DATA>"+json.dumps({"greeksDeltaOne": {
+    "type": "line", "title": "Delta One Describes Linear Exposure with a Stated Multiplier",
+    "xAxis": {"type": "value", "name": "Change in the specified price (GBP/share)"}, "yAxisName": "One ten-share futures contract P&L (GBP)",
+    "series": {"Move in futures quote": np.column_stack([linear_moves,futures_pnl_quote]).tolist(),
+               "Move in spot at fixed carry": np.column_stack([linear_moves,futures_pnl_spot]).tolist()},
+    "seriesOptions": {"Move in spot at fixed carry": {"itemStyle": {"color": "#ea580c"}, "lineStyle": {"color": "#ea580c", "type": "dashed"}}},
+}}, allow_nan=False))
+```
+<Editor id="greeks-delta-one" />
+
+### What a Delta-One Desk Does
+
+**Delta-one desks handle predominantly linear market exposures**, such as cash baskets, ETFs, forwards, futures, and total-return swaps. “Delta one” describes that product family, in contrast to options whose slope changes with spot. It does not mean every contract has exactly one share of exposure under every risk-reporting convention.
+
+A simple desk activity is to provide a client with index exposure using a future or swap and hedge it with a cash basket or another linear instrument. Matching market direction can leave financing, dividends, stock borrow, tracking differences, and execution costs. Those are the practical connections to [Futures Basis, Dividends, and Implied Financing](./futures-basis.md). A delta-one desk is not a risk-free desk, and a delta-neutral option book is not the same thing as a delta-one product.
+
+**Check:** if an index future has a €10-per-point multiplier, what does a two-point rise pay one long contract? **€20.** If two markets quote different multipliers, compare currency exposure before comparing contract counts. For an actual stock hedge, integer lot sizes and remaining exposure must also be reported.
 
 The quote is not a premium paid for the future. Variation payments, collateral, and borrowing need their own dates and rates. Revisit the explicit futures ledgers in [Deriving and Using Black–Scholes](./black-scholes.md) and [Futures Basis, Dividends, and Implied Financing](./futures-basis.md) before replacing a stock hedge with an exchange implementation.
 

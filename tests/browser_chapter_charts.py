@@ -24,7 +24,7 @@ CHAPTERS = {
     "random-motion-ito": (10, 9),
     "black-scholes": (11, 10),
     "futures-basis": (13, 13),
-    "greeks-hedging": (13, 15),
+    "greeks-hedging": (16, 19),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (20, 10),

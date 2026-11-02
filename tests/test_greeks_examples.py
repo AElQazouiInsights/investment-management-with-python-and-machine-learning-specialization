@@ -44,8 +44,8 @@ class GreeksTests(unittest.TestCase):
 
     def test_cells_units_and_finite_charts(self):
         self.assertEqual(list(self.examples), re.findall(r'<Editor id="([^"]+)"', self.markdown))
-        self.assertEqual(len(self.examples), 13)
-        self.assertEqual(len(self.charts), 15)
+        self.assertEqual(len(self.examples), 16)
+        self.assertEqual(len(self.charts), 19)
         for chart in self.charts.values():
             self.assertTrue(chart['xAxis']['name'])
             self.assertTrue(chart['yAxisName'])
@@ -209,6 +209,78 @@ class GreeksTests(unittest.TestCase):
                   'exercise_vol_approx':-90.135268725,'exercise_vol_exact':-90.129060269}
         for key,value in expected.items(): self.assertNear(v[key],value,atol=1e-8)
         self.assertNear(v['exercise_futures']*10*np.exp(v['r']*.5),v['exercise_shares'])
+
+    def test_desk_readings_match_position_risk_derivatives(self):
+        v = self.v
+        core = v['desk_core'].set_index('Greek')['One long 100-share contract']
+        position = lambda s, t, rate, vol, yield_rate=0.: 100*v['option_price'](s,100,t,rate,vol,yield_rate)
+        self.assertNear(core['Delta'],derivative(lambda s:position(s,1,v['r'],.2),100,.001))
+        self.assertNear(core['Theta'],-derivative(lambda t:position(100,t,v['r'],.2),1,1e-5)/365)
+        self.assertNear(core['Vega'],derivative(lambda vol:position(100,1,v['r'],vol),.2,1e-5)*.01)
+        self.assertNear(core['Rho'],derivative(lambda rate:position(100,1,rate,.2),v['r'],1e-5)*.0001)
+        self.assertNear(core['Yield sensitivity'],derivative(lambda q:position(100,1,v['r'],.2,q),0,1e-5)*.0001)
+        self.assertNear(v['cash_delta']*.01,core['Delta'])  # one percent of spot 100 is GBP 1
+        self.assertGreater(v['cash_delta'],100*v['g']['value'])
+        desk = v['desk_higher'].set_index('Greek')['Predicted change']
+        # Differentiate the desk's already-scaled risk readings in the displayed coordinates.
+        f = v['core_greeks']; c = v['cross_greeks']
+        checks = {
+            'Vanna': derivative(lambda pp:100*f(100,100,1,v['r'],.2+pp*.01)['delta'],0,.001),
+            'Volga': derivative(lambda pp:f(100,100,1,v['r'],.2+pp*.01)['vega'],0,.001),
+            'Charm': derivative(lambda days:100*f(100,100,1-days/365,v['r'],.2)['delta'],0,.001),
+            'Speed': derivative(lambda s:100*f(s,100,1,v['r'],.2)['gamma'],100,.001),
+            'Zomma': derivative(lambda pp:100*f(100,100,1,v['r'],.2+pp*.01)['gamma'],0,.001),
+            'Color': derivative(lambda days:100*f(100,100,1-days/365,v['r'],.2)['gamma'],0,.001),
+            'Veta': derivative(lambda days:f(100,100,1-days/365,v['r'],.2)['vega'],0,.001),
+            'Ultima': derivative(lambda pp:.01*c(100,100,1,v['r'],.2+pp*.01)['volga'],0,.001),
+        }
+        self.assertEqual(set(desk.index),set(checks))
+        for name, expected in checks.items(): self.assertNear(desk[name],expected)
+
+    def test_delta_neutrality_and_single_option_gamma_hedge(self):
+        v = self.v
+        self.assertNear(-100*v['g']['delta']+v['neutral_stock_shares'],0)
+        self.assertNear(v['residual_delta_after_rise'],-1.85412787747705)
+        self.assertLess(v['neutral_exact'][42],0)  # GBP 1 move despite initially zero delta
+        self.assertNear(v['gamma_hedge_contracts'],.8007854445366344)
+        self.assertNear(v['gamma_hedge_shares'],5.181704030670009)
+        self.assertNear(v['gamma_hedge_cash'],-267.08607278792034)
+        f = v['gamma_hedged_value']
+        self.assertNear(f(),0)
+        self.assertNear(derivative(f,0,.001),0,atol=1e-7)
+        h = .01
+        self.assertNear((f(h)-2*f()+f(-h))/(h*h),0,atol=2e-6)
+        self.assertGreater(abs(f(1)),.001)  # hedge is local, not identical payoffs
+        self.assertLess(abs(f(1)),abs(v['neutral_exact'][42]))
+        self.assertNear(v['gamma_hedge_vega_point'],-18.80143860860843)
+        self.assertLess(v['gamma_hedge_vega_point'],0)
+
+    def test_volatility_quotes_and_funded_delta_neutral_scenarios(self):
+        v = self.v
+        np.testing.assert_allclose(v['recovered_vols'],[.2,.2],atol=1e-11)
+        self.assertGreater(v['quoted_premiums'][0],v['quoted_premiums'][1]+10)
+        for strike, premium, vol in zip(v['quoted_strikes'],v['quoted_premiums'],v['recovered_vols']):
+            self.assertNear(v['option_price'](100,strike,1,v['r'],vol),premium)
+        table = v['quote_scenarios'].set_index('Scenario')
+        np.testing.assert_allclose(table[['Option GBP','Stock GBP','Interest GBP']].sum(axis=1),table['Net GBP'],atol=1e-12)
+        self.assertGreater(table.loc['Spot +1','Net GBP'],.9)
+        self.assertGreater(table.loc['Vol +1 point','Net GBP'],37)
+        self.assertEqual(table.loc['Vol +1 point','Stock GBP'],0)
+        self.assertLess(table.loc['One calendar day','Net GBP'],0)
+        self.assertGreater(table.loc['One calendar day','Interest GBP'],0)
+        self.assertNear(100*v['g']['value']-100*v['g']['delta']*100+v['long_hedge_cash'],0)
+
+    def test_futures_delta_coordinates_and_multiplier(self):
+        v = self.v
+        self.assertNear(v['futures_delta_quote'],10)
+        self.assertNear(v['futures_delta_spot'],10.5)
+        self.assertNear(v['futures_for_short_contract'],6.04341299365789)
+        self.assertNear(v['futures_for_short_contract']*v['futures_delta_spot'],v['neutral_stock_shares'])
+        self.assertNear(v['option_delta_in_futures_quote']*v['futures_spot_slope'],v['g']['delta'])
+        np.testing.assert_allclose(np.diff(v['futures_pnl_quote'],n=2),0,atol=1e-12)
+        np.testing.assert_allclose(np.diff(v['futures_pnl_spot'],n=2),0,atol=1e-12)
+        self.assertNear(v['futures_pnl_quote'][12],10)
+        self.assertNear(v['futures_pnl_spot'][12],10.5)
 
     def test_all_widget_settings_and_markers(self):
         for vol in range(10,61,5):
