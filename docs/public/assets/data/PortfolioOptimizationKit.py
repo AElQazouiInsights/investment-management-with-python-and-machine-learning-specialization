@@ -3509,6 +3509,38 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_implied_density_echart(spacing=5., quote_change=.03):
+    """Expose finite-difference density resolution and one central quote perturbation."""
+    for value, low, high in ((spacing, 1, 10), (quote_change, -.05, .05)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use spacing in [1, 10] and quote change in [-0.05, 0.05]")
+    discount = 1/1.05
+    strikes = 105+spacing*np.arange(-4., 5.)
+    d1 = np.log(105/strikes)/.2+.1
+    clean = discount*(105*scipy.stats.norm.cdf(d1)-strikes*scipy.stats.norm.cdf(d1-.2))
+    changed = clean.copy()
+    changed[4] += quote_change
+    clean_density = np.diff(clean, n=2)/(discount*spacing**2)
+    inferred = np.diff(changed, n=2)/(discount*spacing**2)
+    selected = float(inferred[3])
+    half_width = 4*.05/(discount*spacing**2)
+    _publish_echarts({"densityResolutionExperiment": {
+        "type": "line", "title": "Narrower Strikes Amplify the Same Quote Error",
+        "xAxis": {"type": "value", "name": "Central strike (GBP/share)",
+                  "min": float(strikes[1]), "max": float(strikes[-2])},
+        "yAxisName": "Inferred pricing density (per GBP)",
+        "series": {"Clean price differences": np.column_stack([strikes[1:-1], clean_density]).tolist(),
+                   "Perturbed mid differences": np.column_stack([strikes[1:-1], inferred]).tolist(),
+                   "Selected central reading": [[105., selected]]},
+        "seriesOptions": {"Selected central reading": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Spacing: {spacing:.2f} GBP; middle quote change: {quote_change:.2f} GBP\n"
+        f"Central density reading: {selected:.9f} per GBP; clean: {clean_density[3]:.9f}\n"
+        f"Quote-box bounds: [{selected-half_width:.9f}, {selected+half_width:.9f}] per GBP\n"
+        "Each call half-spread is GBP 0.05. Negative readings are reported, not clipped.\n"
+        "Bounds express quote resolution, not statistical confidence or physical probabilities.")
+
+
 def show_option_range_echart(half_plateau=5., final_spot=100.):
     """Reprice equal-width call wings as a butterfly opens into a condor."""
     for value, low, high in ((half_plateau, 0, 10), (final_spot, 60, 140)):

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Straddles, Strangles, Butterflies, and Condors. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
+Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Butterflies, Implied Distributions, and Tail Pricing. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
 
 ## Findings and resolutions
 
@@ -76,5 +76,15 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Used elapsed-time funding for the six-month straddle sale, distinguishing its negative financed result from a large spot move and from delta-hedged realized-volatility P&L. Flat-volatility scenarios are explicit assumptions rather than a prediction of smile movement.
 - The widget preserves £10 outside ramp widths and moves all four strikes when widening the plateau. At zero width the duplicate short strikes recover the equal-spaced butterfly. Debit increases with the wider payment, while peak profit falls. Financed bounds and break-even prices are recalculated at every setting.
 - Applied bid/ask sides to absolute option quantities, financed entry slippage, and scaled the whole basket to 100-share contracts. The tiny model butterfly profit at the worked finish becomes a loss after spreads. The all-call condor is explicitly distinguished from an iron condor; bounded matched expiry loss is not presented as freedom from collateral requirements.
+
+### Implied distributions and tail-pricing extension
+
+- Reused the prior strategy payments to develop pricing information, with explicit European settlement, deterministic discounting, nonnegative share prices, and the £105 forward. A digital price is divided by its promised payment and discount factor; the resulting pricing probability is not a physical forecast.
+- Distinguished finite call-spread ramp expectations from exact digital-event probabilities. One-sided strike derivatives include or exclude an atom appropriately; a centered reading need not identify either event at a mass point.
+- Recovered a discrete law under stated piecewise-linear interpolation and boundary assumptions. The mass divisor is D times strike spacing; the smooth-density divisor is D times squared spacing. Independently solved the state-price linear system and checked nonnegativity, total mass, forward mean, and repricing, including previously unused strikes.
+- Verified continuous density against lognormal integrals and interpreted a finite butterfly as a triangularly weighted density average rather than an exact bin probability. A fitted smile requires differentiating the full strike-price curve. The plotted finite-window density is not silently renormalized.
+- Derived quote-box density bounds from all eight bid/ask corners of a three-call basket. Reported negative midpoint readings and adjacent spikes without clipping; quote resolution is not statistical confidence. Narrower spacing improves exact-price locality while amplifying noise quadratically.
+- Constructed two complete nonnegative pricing laws with identical calls throughout the observed strike window and identical forward means, but different distant tail probabilities, call prices, and moments. This establishes missing-tail nonidentification directly rather than claiming a unique distribution from finitely many quotes.
+- The worked truncation example preserves a conditional mean of £105 yet fails total-mass and call-repricing checks. The optional moments table specifies terminal price levels, population variance, standardized third/fourth moments, and excess kurtosis; it does not equate risk-reversal or smile-butterfly volatility quotes with statistical moments.
 
 Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.

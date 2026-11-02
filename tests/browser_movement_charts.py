@@ -96,7 +96,7 @@ def check_controls(page,inspect_axes):
 def check_navigation(page):
     page.evaluate('window.movementNavigationSentinel=true')
     page.locator('.vp-doc').get_by_role('link',name='Butterflies, Implied Distributions, and Tail Pricing',exact=True).click()
-    page.wait_for_function("location.hash==='#implied-distributions' && !!document.getElementById('implied-distributions')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Butterflies, Implied Distributions, and Tail Pricing')")
     assert page.get_by_role('slider').count()==0
     page.locator('.vp-doc').get_by_role('link',name='Straddles, Strangles, Butterflies, and Condors',exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Straddles, Strangles, Butterflies, and Condors')")

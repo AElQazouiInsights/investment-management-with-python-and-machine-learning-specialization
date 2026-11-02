@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), and [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md), and [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -115,9 +115,13 @@ A short application of the existing signed-leg tools: compare the movement requi
 
 ### Butterflies, Implied Distributions, and Tail Pricing {#implied-distributions}
 
-**Planned.** Build on the preceding butterfly payoffs and volatility surfaces to relate strike-price curvature to a pricing distribution. Derive finite-strike approximations before estimating tail probabilities or moments. Explain truncation, quote noise, discounting, and the distinction between pricing and physical probabilities.
+**Available:** [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md).
 
-**Experiment:** narrow a butterfly's strikes and inspect local distribution information. Show why a risk reversal is not statistical skewness and a smile butterfly is not kurtosis.
+Read pricing tail probabilities from call-spread ramps and recover discrete masses from butterflies. Distinguish mass from smooth density, check total probability, the forward mean, and repricing, then expose quote-noise amplification and nonunique missing tails. An optional moments extension separates terminal-price skewness/kurtosis from volatility-quote conventions.
+
+**Experiment:** narrow the strike spacing while perturbing one premium. Compare negative midpoint readings and quote-box bounds, then construct two tail laws that reproduce all observed prices but disagree about unobserved outcomes.
+
+<span id="structured-products"></span>
 
 ### Building Structured Products
 

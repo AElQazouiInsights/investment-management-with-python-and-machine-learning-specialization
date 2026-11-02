@@ -259,4 +259,4 @@ chart("movementExercise","Small Range Profits Can Be Consumed by Entry Spreads",
 - Financed break-even prices differ from strikes. Local Greeks and early-sale values answer different questions from expiry diagrams.
 - A strategy comparison needs consistent contract units, inputs, and execution sides. A favorable selected outcome is not evidence of expected profit.
 
-Next: [Butterflies, Implied Distributions, and Tail Pricing](./d.0-overview.md#implied-distributions). We will use the butterfly payment already built here to read local pricing-distribution information from option prices.
+Next: [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md). Use the butterfly payment already built here to read local pricing-distribution information from option prices.

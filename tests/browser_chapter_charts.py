@@ -28,6 +28,7 @@ CHAPTERS = {
     "option-combinations": (14, 15),
     "implied-volatility-surfaces": (15, 16),
     "option-movement-range": (8, 7),
+    "implied-distributions": (9, 8),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (20, 10),
@@ -77,12 +78,13 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
                       "random-motion-ito": "ito-refinement-widget", "black-scholes": "bs-limits-widget",
                       "futures-basis": "basis-identification-widget", "greeks-hedging": "greeks-approximation-widget",
                       "option-combinations": "combinations-strike-widget", "implied-volatility-surfaces": "iv-input-widget",
-                      "option-movement-range": "movement-range-widget"}.get(chapter)
+                      "option-movement-range": "movement-range-widget", "implied-distributions": "distribution-resolution-widget"}.get(chapter)
         if standalone:
             # Prove the experiment needs no variables from preceding lesson cells.
             page.locator(f'[data-editor-id="{standalone}"] button.run').click()
             page.wait_for_function("id => window.chapterMessages.some(m => m.id === id && m.done)", arg=standalone, timeout=180000)
-            assert not page.evaluate("window.chapterMessages.some(m => m.error)")
+            standalone_errors = page.evaluate("window.chapterMessages.filter(m => m.error)")
+            assert not standalone_errors, standalone_errors
             page.evaluate("window.chapterMessages = []")
         for editor_id in ids:
             page.locator(f'[data-editor-id="{editor_id}"] button.run').click()
@@ -194,6 +196,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "option-movement-range":
             from browser_movement_charts import check_defaults as check_movement_defaults, check_controls as check_movement_controls, check_navigation as check_movement_navigation
             check_movement_defaults(page, inspect_axes)
+        if chapter == "implied-distributions":
+            from browser_distribution_charts import check_defaults as check_distribution_defaults, check_controls as check_distribution_controls, check_navigation as check_distribution_navigation
+            check_distribution_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -289,6 +294,9 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "option-movement-range":
             check_movement_controls(page, inspect_axes)
             check_movement_navigation(page)
+        if chapter == "implied-distributions":
+            check_distribution_controls(page, inspect_axes)
+            check_distribution_navigation(page)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)
