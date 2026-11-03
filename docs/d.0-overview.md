@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md), and [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md), [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md), and [Building Structured Products](./structured-products.md) are available. The final design capstone below is next. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -125,9 +125,13 @@ Read pricing tail probabilities from call-spread ramps and recover discrete mass
 
 ### Building Structured Products
 
-**Planned.** Combine bonds and options into a funded investment. Allocate a £100 budget between a maturity payment and upside participation, then add caps or exchange downside exposure for premium income. Explain issuer credit exposure, early-sale value, fees, and which promises apply only at maturity.
+**Available:** [Building Structured Products](./structured-products.md).
 
-**Experiment:** change the funding rate or option cost and calculate the participation rate the budget can actually buy.
+Allocate a £100 budget between a maturity bond and option participation. Compare uncapped and capped designs with downside-funded income, then reconcile fees, an early sale with fixed original holdings, and an explicit issuer-recovery stress. Distinguish nominal gains from performance against safe cash and contractual maturity promises from current resale value.
+
+**Experiment:** change the safe cash rate and volatility for a new issuance, repricing bond, forward, and option inputs consistently. Complete an executable capped-product budget with fees and bid/ask costs.
+
+<span id="structured-products-capstone"></span>
 
 ### Design, Price, and Explain a Product
 

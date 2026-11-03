@@ -2,7 +2,7 @@
 
 ## Scope
 
-Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Butterflies, Implied Distributions, and Tail Pricing. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
+Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Building Structured Products. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
 
 ## Findings and resolutions
 
@@ -86,5 +86,15 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Derived quote-box density bounds from all eight bid/ask corners of a three-call basket. Reported negative midpoint readings and adjacent spikes without clipping; quote resolution is not statistical confidence. Narrower spacing improves exact-price locality while amplifying noise quadratically.
 - Constructed two complete nonnegative pricing laws with identical calls throughout the observed strike window and identical forward means, but different distant tail probabilities, call prices, and moments. This establishes missing-tail nonidentification directly rather than claiming a unique distribution from finitely many quotes.
 - The worked truncation example preserves a conditional mean of £105 yet fails total-mass and call-repricing checks. The optional moments table specifies terminal price levels, population variance, standardized third/fourth moments, and excess kurtosis; it does not equate risk-reversal or smile-butterfly volatility quotes with statistical moments.
+
+### Funded structured-product extension
+
+- Changed the perspective explicitly from a zero-initial-net-value financed trading basket to an investor-funded £100 product. Distinguished maturity payment, nominal gain over £100, and performance against the £105 safe-cash alternative. A nominal principal floor does not promise forgone interest, inflation protection, or an early-sale price floor.
+- Reconciled bond-plus-call and bond-plus-call-spread budgets, with participation equal to option units times initial share price divided by investment notional. Independently varied both notional and share units to test that the numerical coincidence at £100/£100 does not hide a scaling error. Distinguished underlying cap, participation, and maximum product return, including participation above 100% over a limited interval.
+- Built the income-enhancing product from a short put and a larger maturity bond. The premium funds the larger payment; downside deductions remove principal protection. Direct discounted-payoff integration prices all three baseline portfolios at £100 and implies pricing-measure expected payments of £105, without treating those as physical expected returns or equal risks.
+- The new-issue widget changes safe bond discounting, option discounting, and the no-dividend forward consistently. Explicit Black forward and discount inputs remain separate in the pricing function. Issuer borrowing spreads are not treated as default-free investment returns.
+- Fees reduce the residual option budget; infeasible floor-plus-fee designs are rejected rather than silently producing short-call exposure. The executed exercise buys the lower call at ask, sells the upper at bid, and reconciles £100 as model mid-value plus the stated fee and quantity-scaled entry slippage.
+- Repriced the original holdings after six months with new spot, rate, volatility, and remaining life. Original participation stays fixed. The model mark below £100 is compatible with the conditional maturity floor; elapsed cash growth supplies the correct benchmark.
+- Distinguished direct ownership of the replicating portfolio from an unsecured issuer claim. A clearly specified 40%-of-contractual-payment recovery stress reduces the apparent £100 floor to £40. It is a loss scenario, not an inferred default probability, credit-spread model, or claim about universal recovery conventions.
 
 Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.

@@ -116,7 +116,8 @@ export default defineConfig({
             { text: 'Spreads and Basic Option Combinations', link: '/option-combinations' },
             { text: 'Reading the Options Market: Implied Volatility and Surfaces', link: '/implied-volatility-surfaces' },
             { text: 'Straddles, Strangles, Butterflies, and Condors', link: '/option-movement-range' },
-            { text: 'Butterflies, Implied Distributions, and Tail Pricing', link: '/implied-distributions' }
+            { text: 'Butterflies, Implied Distributions, and Tail Pricing', link: '/implied-distributions' },
+            { text: 'Building Structured Products', link: '/structured-products' }
           ]
         },
         {

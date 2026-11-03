@@ -3509,6 +3509,38 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_structured_budget_echart(cash_rate_percent=5., volatility_percent=20.):
+    """Design new no-fee £100-floor terms with consistent bond and option inputs."""
+    for value, low, high in ((cash_rate_percent, 0, 8), (volatility_percent, 10, 40)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use cash rate in [0, 8]% and volatility in [10, 40]%")
+    discount = 1/(1+cash_rate_percent/100)
+    forward = 100/discount
+    bond_cost = 100*discount
+    budget = 100-bond_cost
+    vol_grid = np.unique(np.r_[np.linspace(10., 40., 61), volatility_percent])
+    vols = vol_grid/100
+    d1 = np.log(forward/100)/vols+vols/2
+    calls = discount*(forward*scipy.stats.norm.cdf(d1)-100*scipy.stats.norm.cdf(d1-vols))
+    participation = budget/calls
+    selected_index = np.flatnonzero(vol_grid==volatility_percent)[0]
+    selected = float(participation[selected_index])
+    _publish_echarts({"structuredBudgetExperiment": {
+        "type": "line", "title": "Price the Bond and Call Before Offering Participation",
+        "xAxis": {"type": "value", "name": "Annual volatility (%)", "min": 10, "max": 40},
+        "yAxisName": "Upside participation (%)",
+        "series": {"New-issue participation": np.column_stack([vol_grid, 100*participation]).tolist(),
+                   "Selected terms": [[float(volatility_percent), 100*selected]]},
+        "seriesOptions": {"Selected terms": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Cash rate: {cash_rate_percent:.2f}%; volatility: {volatility_percent:.2f}%\n"
+        f"Bond cost: {bond_cost:.9f} GBP; option budget: {budget:.9f} GBP\n"
+        f"Forward: {forward:.9f} GBP; discount factor: {discount:.9f}; call cost: {calls[selected_index]:.9f} GBP\n"
+        f"Participation: {100*selected:.9f}%; call units: {selected:.9f}\n"
+        f"Payment if final share is GBP 140: {100+40*selected:.9f} GBP; safe cash alternative: {100/discount:.9f} GBP\n"
+        "New one-year issuance, no fees, default-free replication; existing note terms do not reset.")
+
+
 def show_implied_density_echart(spacing=5., quote_change=.03):
     """Expose finite-difference density resolution and one central quote perturbation."""
     for value, low, high in ((spacing, 1, 10), (quote_change, -.05, .05)):

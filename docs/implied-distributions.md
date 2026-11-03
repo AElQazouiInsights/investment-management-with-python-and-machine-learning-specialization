@@ -297,4 +297,4 @@ print(moment_table.to_string(float_format=lambda x:f"{x:.6f}"))
 - Narrow spacing amplifies price noise. Quote-box bounds are not confidence intervals, and negative midpoint curvature is a diagnostic.
 - Missing tail prices allow different complete pricing laws to fit the same observations. Fitting prices does not identify physical forecasts.
 
-Next: [Building Structured Products](./d.0-overview.md#structured-products). Use bonds and options to allocate a fixed investment budget between a maturity payment and conditional participation.
+Next: [Building Structured Products](./structured-products.md). Use bonds and options to allocate a fixed investment budget between a maturity payment and conditional participation.

@@ -101,7 +101,7 @@ def check_controls(page,inspect_axes):
 def check_navigation(page):
     page.evaluate('window.distributionNavigationSentinel=true')
     page.locator('.vp-doc').get_by_role('link',name='Building Structured Products',exact=True).click()
-    page.wait_for_function("location.hash==='#structured-products' && !!document.getElementById('structured-products')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Building Structured Products')")
     assert page.get_by_role('slider').count()==0
     page.locator('.vp-doc').get_by_role('link',name='Butterflies, Implied Distributions, and Tail Pricing',exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Butterflies, Implied Distributions, and Tail Pricing')")
