@@ -2,7 +2,7 @@
 
 ## Scope
 
-Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Building Structured Products. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
+Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portfolio Construction and Analysis lessons and its capstone, and the delivered derivatives sequence through Design, Price, and Explain a Product. Compared visible calculations with toolkit interfaces and executable lesson checks. This review addresses financial definitions, assumptions, timing, and learning-sequence connections; the teaching guide remains the standard for subsequent lessons.
 
 ## Findings and resolutions
 
@@ -97,4 +97,12 @@ Reviewed the four Portfolio Management Fundamentals lessons, four Advanced Portf
 - Repriced the original holdings after six months with new spot, rate, volatility, and remaining life. Original participation stays fixed. The model mark below £100 is compatible with the conditional maturity floor; elapsed cash growth supplies the correct benchmark.
 - Distinguished direct ownership of the replicating portfolio from an unsecured issuer claim. A clearly specified 40%-of-contractual-payment recovery stress reduces the apparent £100 floor to £40. It is a loss scenario, not an inferred default probability, credit-spread model, or claim about universal recovery conventions.
 
-Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with this delivery. The new scientific checks independently integrate lognormal payoffs, use finite differences to verify delta and the PDE, verify global discounted-gains identities for both hedge implementations, and reconcile the portfolio helper conventions. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.
+### Product-design capstone
+
+- An explicit state-contingent investor target determines the choice between two full-floor capped designs. The preference is neither a physical forecast nor a risk-neutral probability. Both constructions use the same initial capital, maturity, fee, and bid/ask convention.
+- Signed entry ledgers reconcile investment as model value plus fee plus quantity-scaled execution cost. Payment and early-sale profit comparisons use the correctly dated safe-cash alternative. Entry charges are not deducted twice.
+- Greeks refer to the investor's long asset and original quantities. Rate sensitivity is to an effective annual rate point, including the bond; one-day carry uses 365-day elapsed time. Analytic option-leg Greeks independently verify numerical sensitivities.
+- The instantaneous delta hedge shorts shares and credits the proceeds to cash. The local gamma approximation is checked against exact model revaluation, without presenting it as a dynamic, costless profit strategy. Issuer liability signs and hypothetical exit deductions are explicit.
+- The editable cap grid reprices new terms while stress marks preserve original holdings. The maximum-fee boundary follows from the minimum 0.8 spread units needed for the target. Default recovery remains a separately labeled contractual-payment stress, not a credit valuation.
+
+Validation commands and results are recorded in `DERIVATIVES_ROADMAP.md` with each delivery. Existing lesson and core suites cover historical examples, covariance, Black–Litterman, risk budgets, CPPI, GBM, CIR, rates, and liability hedges.

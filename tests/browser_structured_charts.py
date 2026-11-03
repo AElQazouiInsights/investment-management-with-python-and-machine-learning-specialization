@@ -93,7 +93,7 @@ def check_controls(page,inspect_axes):
 def check_navigation(page):
     page.evaluate('window.structuredNavigationSentinel=true')
     page.locator('.vp-doc').get_by_role('link',name='Design, Price, and Explain a Product',exact=True).click()
-    page.wait_for_function("location.hash==='#structured-products-capstone' && !!document.getElementById('structured-products-capstone')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Design, Price, and Explain a Product')")
     assert page.get_by_role('slider').count()==0
     page.locator('.vp-doc').get_by_role('link',name='Building Structured Products',exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Building Structured Products')")

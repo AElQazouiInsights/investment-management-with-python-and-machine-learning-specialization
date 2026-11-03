@@ -12,7 +12,7 @@ A **derivative** is a contract whose value depends on something else, called its
 
 Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md), [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md), and [Building Structured Products](./structured-products.md) are available. The final design capstone below is next. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** the teaching sequence and final capstone are available. Follow the chapter links below from [Forward Contracts](./d.1-forwards.md) through [Building Structured Products](./structured-products.md), then complete [Design, Price, and Explain a Product](./product-design-capstone.md). This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -135,9 +135,11 @@ Allocate a £100 budget between a maturity bond and option participation. Compar
 
 ### Design, Price, and Explain a Product
 
-**Planned.** Choose an investment objective, identify every bond and option position, reconcile the initial budget, and calculate maturity payments and pre-maturity risks. Explain the result in ordinary language, including what the investor gives up in exchange for each benefit.
+**Available:** [Design, Price, and Explain a Product](./product-design-capstone.md).
 
-**Exercise:** compare two constructions with the same budget. Support the explanation with a payment table, a payoff graph, and a sensitivity calculation.
+Compare two executable £100-floor products against a stated investor brief. Reconcile the bond, signed option legs, fees, and entry spreads, then calculate maturity payments, fixed-holdings Greeks, six-month exit scenarios, and a locally delta-neutral hedge. Finish with a plain-language investor explanation.
+
+**Exercise:** vary the cap and determine whether the target payment still holds. Derive the largest fee that can fund the promised floor and target, and explain what must change when costs exceed it.
 
 ## How to Study Each Chapter
 
