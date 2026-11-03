@@ -312,4 +312,4 @@ chart("structuredExercise","Reconcile Fees and Execution with the Participation 
 - Separate nominal profit from performance against cash, and new issuance terms from an existing note's early-sale value.
 - Fees, execution costs, issuer performance, and the legal claim affect what the investor actually receives.
 
-Next: [Design, Price, and Explain a Product](./d.0-overview.md#structured-products-capstone). The final capstone will combine these tools into one fully reconciled product design and investor explanation.
+Next: [Design, Price, and Explain a Product](./product-design-capstone.md). Compare two executable designs against an investor brief, reconcile their budgets, and explain their sensitivities and stress outcomes.
