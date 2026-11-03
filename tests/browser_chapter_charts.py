@@ -24,6 +24,12 @@ CHAPTERS = {
     "random-motion-ito": (10, 9),
     "black-scholes": (11, 10),
     "futures-basis": (13, 13),
+    "greeks-hedging": (16, 19),
+    "option-combinations": (14, 15),
+    "implied-volatility-surfaces": (15, 16),
+    "option-movement-range": (8, 7),
+    "implied-distributions": (9, 8),
+    "structured-products": (9, 8),
     "2.1-style-factors": (18, 7),
     "2.2-covariance": (23, 9),
     "2.3-black-litterman": (20, 10),
@@ -71,12 +77,16 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         standalone = {"3.1-ml-fundamentals": "ml-complexity-widget", "d.1-forwards": "forward-value-widget",
                       "d.2-futures": "futures-liquidity-widget", "d.3-options": "options-payoff-widget",
                       "random-motion-ito": "ito-refinement-widget", "black-scholes": "bs-limits-widget",
-                      "futures-basis": "basis-identification-widget"}.get(chapter)
+                      "futures-basis": "basis-identification-widget", "greeks-hedging": "greeks-approximation-widget",
+                      "option-combinations": "combinations-strike-widget", "implied-volatility-surfaces": "iv-input-widget",
+                      "option-movement-range": "movement-range-widget", "implied-distributions": "distribution-resolution-widget",
+                      "structured-products": "structured-budget-widget"}.get(chapter)
         if standalone:
             # Prove the experiment needs no variables from preceding lesson cells.
             page.locator(f'[data-editor-id="{standalone}"] button.run').click()
             page.wait_for_function("id => window.chapterMessages.some(m => m.id === id && m.done)", arg=standalone, timeout=180000)
-            assert not page.evaluate("window.chapterMessages.some(m => m.error)")
+            standalone_errors = page.evaluate("window.chapterMessages.filter(m => m.error)")
+            assert not standalone_errors, standalone_errors
             page.evaluate("window.chapterMessages = []")
         for editor_id in ids:
             page.locator(f'[data-editor-id="{editor_id}"] button.run').click()
@@ -176,6 +186,24 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "futures-basis":
             from browser_futures_basis_charts import check_defaults as check_basis_defaults, check_controls as check_basis_controls, check_navigation as check_basis_navigation
             check_basis_defaults(page, inspect_axes)
+        if chapter == "greeks-hedging":
+            from browser_greeks_charts import check_defaults as check_greeks_defaults, check_controls as check_greeks_controls, check_navigation as check_greeks_navigation
+            check_greeks_defaults(page, inspect_axes)
+        if chapter == "option-combinations":
+            from browser_combination_charts import check_defaults as check_combination_defaults, check_controls as check_combination_controls, check_navigation as check_combination_navigation
+            check_combination_defaults(page, inspect_axes)
+        if chapter == "implied-volatility-surfaces":
+            from browser_iv_charts import check_defaults as check_iv_defaults, check_controls as check_iv_controls, check_navigation as check_iv_navigation
+            check_iv_defaults(page, inspect_axes)
+        if chapter == "option-movement-range":
+            from browser_movement_charts import check_defaults as check_movement_defaults, check_controls as check_movement_controls, check_navigation as check_movement_navigation
+            check_movement_defaults(page, inspect_axes)
+        if chapter == "implied-distributions":
+            from browser_distribution_charts import check_defaults as check_distribution_defaults, check_controls as check_distribution_controls, check_navigation as check_distribution_navigation
+            check_distribution_defaults(page, inspect_axes)
+        if chapter == "structured-products":
+            from browser_structured_charts import check_defaults as check_structured_defaults, check_controls as check_structured_controls, check_navigation as check_structured_navigation
+            check_structured_defaults(page, inspect_axes)
 
         for width in (1920, 1440, 390, 320):
             page.set_viewport_size({"width": width, "height": 1000 if width > 600 else 844})
@@ -259,6 +287,24 @@ def audit(base_url, chapter, screenshots=None, inspect_axes=True, browser_name='
         if chapter == "futures-basis":
             check_basis_controls(page, inspect_axes)
             check_basis_navigation(page)
+        if chapter == "greeks-hedging":
+            check_greeks_controls(page, inspect_axes)
+            check_greeks_navigation(page)
+        if chapter == "option-combinations":
+            check_combination_controls(page, inspect_axes)
+            check_combination_navigation(page)
+        if chapter == "implied-volatility-surfaces":
+            check_iv_controls(page, inspect_axes)
+            check_iv_navigation(page)
+        if chapter == "option-movement-range":
+            check_movement_controls(page, inspect_axes)
+            check_movement_navigation(page)
+        if chapter == "implied-distributions":
+            check_distribution_controls(page, inspect_axes)
+            check_distribution_navigation(page)
+        if chapter == "structured-products":
+            check_structured_controls(page, inspect_axes)
+            check_structured_navigation(page)
         assert not errors, errors
         assert not external, f'Unexpected off-site requests: {external}'
         print(f"PASS: all {len(ids)} cells executed in order without Python or browser errors.", flush=True)

@@ -3509,6 +3509,210 @@ def show_risk_parity_echart(vol_equity=0.20, vol_bond=0.10, correlation=0.25, eq
     _publish_echarts(plots, text)
 
 
+def show_structured_budget_echart(cash_rate_percent=5., volatility_percent=20.):
+    """Design new no-fee £100-floor terms with consistent bond and option inputs."""
+    for value, low, high in ((cash_rate_percent, 0, 8), (volatility_percent, 10, 40)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use cash rate in [0, 8]% and volatility in [10, 40]%")
+    discount = 1/(1+cash_rate_percent/100)
+    forward = 100/discount
+    bond_cost = 100*discount
+    budget = 100-bond_cost
+    vol_grid = np.unique(np.r_[np.linspace(10., 40., 61), volatility_percent])
+    vols = vol_grid/100
+    d1 = np.log(forward/100)/vols+vols/2
+    calls = discount*(forward*scipy.stats.norm.cdf(d1)-100*scipy.stats.norm.cdf(d1-vols))
+    participation = budget/calls
+    selected_index = np.flatnonzero(vol_grid==volatility_percent)[0]
+    selected = float(participation[selected_index])
+    _publish_echarts({"structuredBudgetExperiment": {
+        "type": "line", "title": "Price the Bond and Call Before Offering Participation",
+        "xAxis": {"type": "value", "name": "Annual volatility (%)", "min": 10, "max": 40},
+        "yAxisName": "Upside participation (%)",
+        "series": {"New-issue participation": np.column_stack([vol_grid, 100*participation]).tolist(),
+                   "Selected terms": [[float(volatility_percent), 100*selected]]},
+        "seriesOptions": {"Selected terms": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Cash rate: {cash_rate_percent:.2f}%; volatility: {volatility_percent:.2f}%\n"
+        f"Bond cost: {bond_cost:.9f} GBP; option budget: {budget:.9f} GBP\n"
+        f"Forward: {forward:.9f} GBP; discount factor: {discount:.9f}; call cost: {calls[selected_index]:.9f} GBP\n"
+        f"Participation: {100*selected:.9f}%; call units: {selected:.9f}\n"
+        f"Payment if final share is GBP 140: {100+40*selected:.9f} GBP; safe cash alternative: {100/discount:.9f} GBP\n"
+        "New one-year issuance, no fees, default-free replication; existing note terms do not reset.")
+
+
+def show_implied_density_echart(spacing=5., quote_change=.03):
+    """Expose finite-difference density resolution and one central quote perturbation."""
+    for value, low, high in ((spacing, 1, 10), (quote_change, -.05, .05)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use spacing in [1, 10] and quote change in [-0.05, 0.05]")
+    discount = 1/1.05
+    strikes = 105+spacing*np.arange(-4., 5.)
+    d1 = np.log(105/strikes)/.2+.1
+    clean = discount*(105*scipy.stats.norm.cdf(d1)-strikes*scipy.stats.norm.cdf(d1-.2))
+    changed = clean.copy()
+    changed[4] += quote_change
+    clean_density = np.diff(clean, n=2)/(discount*spacing**2)
+    inferred = np.diff(changed, n=2)/(discount*spacing**2)
+    selected = float(inferred[3])
+    half_width = 4*.05/(discount*spacing**2)
+    _publish_echarts({"densityResolutionExperiment": {
+        "type": "line", "title": "Narrower Strikes Amplify the Same Quote Error",
+        "xAxis": {"type": "value", "name": "Central strike (GBP/share)",
+                  "min": float(strikes[1]), "max": float(strikes[-2])},
+        "yAxisName": "Inferred pricing density (per GBP)",
+        "series": {"Clean price differences": np.column_stack([strikes[1:-1], clean_density]).tolist(),
+                   "Perturbed mid differences": np.column_stack([strikes[1:-1], inferred]).tolist(),
+                   "Selected central reading": [[105., selected]]},
+        "seriesOptions": {"Selected central reading": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+            "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Spacing: {spacing:.2f} GBP; middle quote change: {quote_change:.2f} GBP\n"
+        f"Central density reading: {selected:.9f} per GBP; clean: {clean_density[3]:.9f}\n"
+        f"Quote-box bounds: [{selected-half_width:.9f}, {selected+half_width:.9f}] per GBP\n"
+        "Each call half-spread is GBP 0.05. Negative readings are reported, not clipped.\n"
+        "Bounds express quote resolution, not statistical confidence or physical probabilities.")
+
+
+def show_option_range_echart(half_plateau=5., final_spot=100.):
+    """Reprice equal-width call wings as a butterfly opens into a condor."""
+    for value, low, high in ((half_plateau, 0, 10), (final_spot, 60, 140)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use half-plateau in [0, 10] and final share price in [60, 140]")
+    strikes = np.array([90-half_plateau, 100-half_plateau, 100+half_plateau, 110+half_plateau])
+    quantities = np.array([1., -1., -1., 1.])
+    d1 = (np.log(100/strikes)+np.log1p(.05)+.02)/.2
+    calls = 100*scipy.stats.norm.cdf(d1)-strikes/1.05*scipy.stats.norm.cdf(d1-.2)
+    debit = float(quantities@calls)
+    final = np.unique(np.r_[np.linspace(60., 140., 161), strikes, final_spot])
+    payoff = np.maximum(final[:, None]-strikes, 0)@quantities
+    selected = float(np.maximum(final_spot-strikes, 0)@quantities-debit*1.05)
+    _publish_echarts({"optionRangeExperiment": {
+        "type": "line", "title": "Broaden the Payment and Reprice Its Cost",
+        "xAxis": {"type": "value", "name": "Final share price (GBP/share)", "min": 60, "max": 140},
+        "yAxisName": "GBP per one-share strategy",
+        "series": {"Expiry payoff": np.column_stack([final, payoff]).tolist(),
+                   "Financed profit": np.column_stack([final, payoff-debit*1.05]).tolist(),
+                   "Selected profit": [[float(final_spot), selected]]},
+        "seriesOptions": {"Financed profit": {"lineStyle": {"type": "dashed"}},
+                          "Selected profit": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                              "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Half-plateau: {half_plateau:.2f} GBP; final share: {final_spot:.2f} GBP\n"
+        f"Call strikes: {strikes.tolist()}; quantities: +1, -1, -1, +1\n"
+        f"Entry debit: {debit:.6f} GBP; selected profit: {selected:.6f} GBP\n"
+        f"Maximum profit: {10-debit*1.05:.6f}; maximum loss: {debit*1.05:.6f} GBP\n"
+        f"Financed break-even prices: {strikes[0]+debit*1.05:.6f}, {strikes[-1]-debit*1.05:.6f} GBP")
+
+
+def show_implied_volatility_echart(assumed_forward=105., premium_change=0.):
+    """Fixed-contract IV inversion: separate a quote change from a forward assumption."""
+    from scipy.optimize import brentq
+    for value, low, high in ((assumed_forward, 103, 107), (premium_change, -.5, .5)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use forward in [103, 107] and premium change in [-0.5, 0.5]")
+    def price(forward, vol):
+        d1 = np.log(forward / 105) / vol + vol / 2
+        return (forward * scipy.stats.norm.cdf(d1) - 105 * scipy.stats.norm.cdf(d1-vol)) / 1.05
+    premium = float(price(105., .2) + premium_change)
+    def invert(forward):
+        return brentq(lambda vol: price(forward, vol)-premium, .001, 2., xtol=1e-12)
+    forwards = np.unique(np.r_[np.linspace(103., 107., 41), assumed_forward])
+    vols = np.array([invert(forward) for forward in forwards])
+    selected = float(invert(assumed_forward))
+    _publish_echarts({"ivInputExperiment": {
+        "type": "line", "title": "Several Forward and Volatility Pairs Explain One Premium",
+        "xAxis": {"type": "value", "name": "Assumed forward (GBP/share)", "min": 103, "max": 107},
+        "yAxisName": "Recovered annual IV (%)",
+        "series": {"Quote-consistent pairs": np.column_stack([forwards, 100*vols]).tolist(),
+                   "Selected assumption": [[float(assumed_forward), 100*selected]]},
+        "seriesOptions": {"Quote-consistent pairs": {"lineStyle": {"color": "#2563eb"}, "itemStyle": {"color": "#2563eb"}},
+                          "Selected assumption": {"type": "scatter", "symbol": "diamond", "symbolSize": 18,
+                              "itemStyle": {"color": "#ea580c", "borderColor": "#ffffff", "borderWidth": 2, "opacity": 1}}},
+    }}, f"Forward assumption: {assumed_forward:.2f} GBP; premium change: {premium_change:.2f} GBP\n"
+        f"Selected premium: {premium:.9f} GBP/share; implied volatility: {100*selected:.9f}%\n"
+        f"Repricing error: {price(assumed_forward, selected)-premium:.2e} GBP/share\n"
+        "Fixed strike: 105 GBP; remaining life: 1 year; discount factor: 1/1.05.")
+
+
+def show_option_spread_echart(upper_strike=110., final_spot=120.):
+    """One-share European bull call spread with signed premiums and expiry funding."""
+    for value, low, high in ((upper_strike, 105, 130), (final_spot, 0, 160)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use upper strike in [105, 130] and final spot in [0, 160]")
+    rate, vol, growth = np.log1p(.05), .20, 1.05
+    def call(strike):
+        d1 = (np.log(100 / strike) + rate + vol**2 / 2) / vol
+        return 100 * scipy.stats.norm.cdf(d1) - strike / growth * scipy.stats.norm.cdf(d1-vol)
+    debit = float(call(100) - call(upper_strike))
+    funded = debit * growth
+    prices = np.unique(np.r_[np.linspace(0., 160., 321), upper_strike, final_spot])
+    payoff = np.maximum(prices-100, 0) - np.maximum(prices-upper_strike, 0)
+    selected = float(max(final_spot-100, 0) - max(final_spot-upper_strike, 0))
+    styles = {"Zero": {"lineStyle": {"color": "#64748b", "type": "dashed"}, "itemStyle": {"color": "#64748b"}}}
+    for label, color in (("Payoff", "#2563eb"), ("Financed profit", "#ea580c")):
+        styles[label] = {"lineStyle": {"color": color}, "itemStyle": {"color": color}}
+    for label, color in (("Selected payoff", "#2563eb"), ("Selected profit", "#ea580c")):
+        hollow = label == "Selected payoff"
+        styles[label] = {"type": "scatter", "symbol": "circle" if hollow else "diamond",
+                         "symbolSize": 24 if hollow else 16,
+                         "itemStyle": {"color": "transparent" if hollow else color,
+                                       "borderColor": color if hollow else "#ffffff",
+                                       "borderWidth": 3 if hollow else 2, "opacity": 1}}
+    _publish_echarts({"optionSpread": {
+        "type": "line", "title": "Choose an Upside Cap and Inspect the Funded Outcome",
+        "xAxis": {"type": "value", "name": "Final share price (GBP/share)"},
+        "yAxisName": "GBP per one-share bull call spread",
+        "series": {"Payoff": np.column_stack([prices, payoff]).tolist(),
+                   "Financed profit": np.column_stack([prices, payoff-funded]).tolist(),
+                   "Zero": [[0., 0.], [160., 0.]],
+                   "Selected payoff": [[float(final_spot), selected]],
+                   "Selected profit": [[float(final_spot), selected-funded]]}, "seriesOptions": styles,
+    }}, f"Sold strike: {upper_strike:.2f} GBP; final share: {final_spot:.2f} GBP\n"
+        f"Entry debit: {debit:.9f}; financed cost: {funded:.9f} GBP\n"
+        f"Break-even: {100+funded:.9f}; maximum loss: {funded:.9f}; maximum gain: {upper_strike-100-funded:.9f} GBP\n"
+        f"Selected payoff: {selected:.9f}; financed profit: {selected-funded:.9f} GBP")
+
+
+def show_greeks_hedge_echart(spot_move=5., volatility_percent=20.):
+    """Fixed-time call repricing versus local spot sensitivities; one-share GBP units."""
+    for value, low, high in ((spot_move, -20, 20), (volatility_percent, 10, 60)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)) or not np.isfinite(value) or not low <= value <= high:
+            raise ValueError("Use spot move in [-20, 20] and volatility percent in [10, 60]")
+    vol, rate = volatility_percent / 100, np.log1p(.05)
+    def price(spot):
+        d1 = (np.log(spot / 100) + rate + vol**2 / 2) / vol
+        return spot * scipy.stats.norm.cdf(d1) - 100 * np.exp(-rate) * scipy.stats.norm.cdf(d1-vol)
+    d1 = (rate + vol**2 / 2) / vol
+    delta = scipy.stats.norm.cdf(d1)
+    gamma = scipy.stats.norm.pdf(d1) / (100 * vol)
+    moves = np.linspace(-20., 20., 81)
+    exact = price(100 + moves) - price(100)
+    quadratic = delta * moves + .5 * gamma * moves**2
+    selected_exact = float(price(100 + spot_move) - price(100))
+    selected_estimate = float(delta * spot_move + .5 * gamma * spot_move**2)
+    series = {"Exact repricing": np.column_stack([moves, exact]).tolist(),
+              "Delta": np.column_stack([moves, delta*moves]).tolist(),
+              "Delta + gamma": np.column_stack([moves, quadratic]).tolist(),
+              "Selected exact": [[float(spot_move), selected_exact]],
+              "Selected estimate": [[float(spot_move), selected_estimate]]}
+    styles = {"Delta": {"itemStyle": {"color": "#64748b"}, "lineStyle": {"color": "#64748b", "type": "dashed"}}}
+    for name, color in (("Exact repricing", "#2563eb"), ("Delta + gamma", "#ea580c")):
+        styles[name] = {"itemStyle": {"color": color}, "lineStyle": {"color": color, "type": "solid" if name == "Exact repricing" else "dashed"}}
+    for name, color in (("Selected exact", "#2563eb"), ("Selected estimate", "#ea580c")):
+        styles[name] = {"type": "scatter", "symbol": "circle" if name == "Selected exact" else "diamond",
+                        "symbolSize": 24 if name == "Selected exact" else 16,
+                        "itemStyle": {"color": "transparent" if name == "Selected exact" else color,
+                                      "borderColor": color if name == "Selected exact" else "#ffffff",
+                                      "borderWidth": 3 if name == "Selected exact" else 2, "opacity": 1}}
+    _publish_echarts({"greeksApproximation": {
+        "type": "line", "title": "Compare a Local Hedge Estimate with Exact Repricing",
+        "xAxis": {"type": "value", "name": "Spot change (GBP/share)"},
+        "yAxisName": "One-share call value change (GBP)", "series": series, "seriesOptions": styles,
+    }}, f"Spot move: {spot_move:.2f} GBP; baseline volatility: {volatility_percent:.2f}%\n"
+        f"Delta: {delta:.9f}; gamma: {gamma:.9f}\n"
+        f"Exact change: {selected_exact:.9f}; delta-gamma: {selected_estimate:.9f} GBP\n"
+        f"Approximation error: {selected_estimate-selected_exact:.9f} GBP")
+
+
 def show_basis_identification_echart(financing_percent=5.):
     """Dividend/financing pairs compatible with one fixed three-month quote."""
     if isinstance(financing_percent, (bool, np.bool_)) or not isinstance(financing_percent, (int, float, np.integer, np.floating)) or not np.isfinite(financing_percent) or not 4 <= financing_percent <= 8:

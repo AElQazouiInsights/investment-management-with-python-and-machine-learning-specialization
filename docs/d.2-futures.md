@@ -51,7 +51,7 @@ The quote stays at £105 through day 361. We concentrate its movement in the fin
 
 | Day | Futures settlement price (GBP/unit) | Change | Long's daily settlement (GBP) |
 | ---: | ---: | ---: | ---: |
-| 361 | 105 | — | 0 |
+| 361 | 105 | n/a | 0 |
 | 362 | 100 | −5 | −50 |
 | 363 | 98 | −2 | −20 |
 | 364 | 112 | +14 | +140 |

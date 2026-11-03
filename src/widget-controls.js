@@ -1,5 +1,11 @@
 // One registry drives both control filtering and generated Python calls.
 export const chartHelperParameters = {
+  show_structured_budget_echart: new Set(['cash_rate_percent', 'volatility_percent']),
+  show_implied_density_echart: new Set(['spacing', 'quote_change']),
+  show_option_range_echart: new Set(['half_plateau', 'final_spot']),
+  show_implied_volatility_echart: new Set(['assumed_forward', 'premium_change']),
+  show_option_spread_echart: new Set(['upper_strike', 'final_spot']),
+  show_greeks_hedge_echart: new Set(['spot_move', 'volatility_percent']),
   show_basis_identification_echart: new Set(['financing_percent']),
   show_black_scholes_echart: new Set(['remaining', 'volatility']),
   show_ito_refinement_echart: new Set(['grid_power']),

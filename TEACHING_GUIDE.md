@@ -27,6 +27,8 @@ Repeat this progression for new concepts within a chapter. Build toward a larger
 
 Use plain, precise language and short sections. Avoid promotional wording, unexplained jargon, and phrases such as “obviously” or “simply” that conceal a missing step. Keep explanations as short as understanding allows; do not shorten away the reasoning.
 
+Use full stops, commas, colons, or semicolons instead of em dashes in prose and headings. Explain a desk term in everyday language before using its abbreviation. Translate sensitivities into signed contract quantities, underlying units, and currency outcomes for a small stated move; show a simple hedge before combining several risk targets.
+
 Preserve the existing website design, editable browser-run Python, ECharts, and selective ipywidgets. Link to a prerequisite when needed and briefly recall the part used in the current calculation.
 
 Use chapter names, without chapter numbers, when referring or linking to another lesson. The derivatives track uses named chapters without a separate letter-prefixed numbering scheme.

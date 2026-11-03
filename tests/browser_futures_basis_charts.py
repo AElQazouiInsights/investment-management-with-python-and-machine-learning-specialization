@@ -81,10 +81,8 @@ def check_controls(page, inspect_axes):
 def check_navigation(page):
     page.evaluate('window.basisNavigationSentinel = true')
     page.locator('.vp-doc').get_by_role('link', name='The Greeks and Hedging', exact=True).last.click()
-    page.wait_for_function("location.hash === '#greeks' && !!document.getElementById('greeks')")
+    page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('The Greeks and Hedging')")
     assert page.get_by_role('slider').count() == 0
-    for anchor in ('option-spreads', 'volatility-surfaces', 'implied-distributions'):
-        assert page.locator(f'#{anchor}').count() == 1
     page.locator('.vp-doc').get_by_role('link', name='Futures Basis, Dividends, and Implied Financing', exact=True).first.click()
     page.wait_for_function("document.querySelector('.vp-doc h1')?.textContent.includes('Futures Basis')")
     assert page.evaluate('window.basisNavigationSentinel === true')
@@ -98,4 +96,4 @@ def check_navigation(page):
         .at(-1)?.echart.includes('Financing assumption: 8.00%')""", timeout=30000)
     assert page.locator('.chart-panel').count() == 1
     assert not page.evaluate('window.chapterMessages.some(m => m.error)')
-    print('PASS: planned-topic anchors, named navigation, and remounted widget.', flush=True)
+    print('PASS: named next-chapter navigation and remounted basis widget.', flush=True)

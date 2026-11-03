@@ -10,9 +10,9 @@ description: "Understand forwards, futures, options, Black–Scholes, the Greeks
 
 A **derivative** is a contract whose value depends on something else, called its **underlying**. For example, a contract linked to a share price is a derivative; the share is its underlying. The contract specifies who must pay, how much, and when.
 
-Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. That difference—an obligation versus a choice—will lead us from forwards to options and then to combinations of contracts.
+Start with a future purchase. An investment costs £100 today, but you want to buy it in one year. One arrangement commits you to a purchase price now. Another gives you the choice to buy later. The difference between an obligation and a choice will lead us from forwards to options and then to combinations of contracts.
 
-**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), and [Futures Basis, Dividends, and Implied Financing](./futures-basis.md) are available. The remaining chapters below are planned and will be developed in order. This additional learning track follows Portfolio Management Fundamentals.
+**Track status:** [Forward Contracts](./d.1-forwards.md), [Futures and Forwards Compared](./d.2-futures.md), [Options and Replication](./d.3-options.md), [Random Motion and Itô's Lemma](./random-motion-ito.md), [Deriving and Using Black–Scholes](./black-scholes.md), [Futures Basis, Dividends, and Implied Financing](./futures-basis.md), [The Greeks and Hedging](./greeks-hedging.md), [Spreads and Basic Option Combinations](./option-combinations.md), [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md), [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md), [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md), and [Building Structured Products](./structured-products.md) are available. The final design capstone below is next. This additional learning track follows Portfolio Management Fundamentals.
 
 ## Where to Begin
 
@@ -79,41 +79,59 @@ Derive carry from dated cash flows, distinguish dividend entitlement from paymen
 
 ### The Greeks and Hedging {#greeks}
 
-**Planned.** Explain delta, gamma, theta, vega, and rho as answers to specific questions about changing inputs. Estimate each with a small numerical change before using its analytical formula. State units, including a one-percentage-point volatility change and the chosen day-count convention for theta. Combine sensitivities across positions and examine discrete delta hedging.
+**Available:** [The Greeks and Hedging](./greeks-hedging.md).
 
-**Experiment:** compare exact repricing with delta and delta–gamma approximations. Follow the cash account during hedging and investigate the effect of rebalancing frequency.
+Derive delta, gamma, theta, vega, rho, dividend sensitivity, vanna, volga, charm, speed, zomma, color, veta, and ultima. Translate risk readings into shares and pounds, explain delta neutrality, and build a simple gamma hedge before combining delta/gamma/vega targets. Explain futures delta, delta-one desks, and volatility quoting. Separate carry from discounting and reconcile actual stock trades and funding.
+
+**Experiment:** compare exact repricing with local approximations; expose a same-expiry gamma/vega rank limit and a target-only volatility shock. Follow the cash account and compare hedge errors and costs across shared synthetic paths at different rebalancing frequencies.
 
 <span id="option-spreads"></span>
 
 ### Spreads and Basic Option Combinations
 
-**Planned.** Construct bull and bear spreads, covered calls, protective puts, and collars one position at a time. Explain bought and sold legs, debit and credit, limited gains and losses, and break-even calculations. Price each component before adding the signed values.
+**Available:** [Spreads and Basic Option Combinations](./option-combinations.md).
+
+Construct bull and bear spreads, covered calls, protective puts, and collars one position at a time. Explain signed legs, debit and credit, payoff regions, financing, and break-even calculations. Use parity to build synthetic positions and boxes; add Greeks, reprice early exits, and account for entry bid/ask costs.
 
 **Experiment:** change a strike and explain the change in entry cost, payoff, and aggregate Greeks.
 
 ### Reading the Options Market: Implied Volatility and Surfaces {#volatility-surfaces}
 
-**Planned.** Invert option bid/ask prices into implied-volatility ranges using explicit forward and discount inputs. Explain vega, quote conditioning, log-moneyness, smiles, and total variance before fitting a surface. Reprice the quotes and check price bounds, strike convexity, and cross-maturity consistency. Separate market-implied pricing from realized-volatility forecasts.
+**Available:** [Reading the Options Market: Implied Volatility and Surfaces](./implied-volatility-surfaces.md).
+
+Invert option bid/mid/ask prices using explicit forward and discount inputs. Explain vega, quote conditioning, strike/moneyness/delta coordinates, smiles, and total variance before fitting a bounded surface. Compare weighted-mid, interval-distance, prior-regularized, and anchored joint fits. Reprice held-out and later quotes, check strike and normalized calendar consistency, and distinguish implied pricing from forecasts and executable profit.
 
 **Experiment:** change the forward input and observe the inferred smile. Compare a smooth fit with quote-consistent prices; explain why differences in ATM total variance are not automatically executable forward-variance trades.
 
+<span id="option-volatility-strategies"></span>
+
 ### Straddles, Strangles, Butterflies, and Condors
 
-**Planned.** Build strategies related to the size and location of price movements. Distinguish expiry payoffs from pre-expiry values and sensitivities. For a call butterfly, buy one lower-strike call, sell two middle-strike calls, and buy one upper-strike call; verify every region of the payoff before using the combined graph.
+**Available:** [Straddles, Strangles, Butterflies, and Condors](./option-movement-range.md).
 
-**Experiment:** vary strike spacing and time remaining. Compare the price of the ingredients, financed profit, and the position's sensitivity to volatility.
+A short application of the existing signed-leg tools: compare the movement required by a straddle or strangle with the finishing range purchased by a butterfly or condor. Work through each payoff region and financed break-even, then compare local exposures and a six-month exit. One shared exercise applies execution costs to all four positions.
+
+**Experiment:** open a butterfly into a condor by widening its plateau, reprice the premium, and select a final share price to explain the trade-off.
 
 ### Butterflies, Implied Distributions, and Tail Pricing {#implied-distributions}
 
-**Planned.** Build on the preceding butterfly payoffs and volatility surfaces to relate strike-price curvature to a pricing distribution. Derive finite-strike approximations before estimating tail probabilities or moments. Explain truncation, quote noise, discounting, and the distinction between pricing and physical probabilities.
+**Available:** [Butterflies, Implied Distributions, and Tail Pricing](./implied-distributions.md).
 
-**Experiment:** narrow a butterfly's strikes and inspect local distribution information. Show why a risk reversal is not statistical skewness and a smile butterfly is not kurtosis.
+Read pricing tail probabilities from call-spread ramps and recover discrete masses from butterflies. Distinguish mass from smooth density, check total probability, the forward mean, and repricing, then expose quote-noise amplification and nonunique missing tails. An optional moments extension separates terminal-price skewness/kurtosis from volatility-quote conventions.
+
+**Experiment:** narrow the strike spacing while perturbing one premium. Compare negative midpoint readings and quote-box bounds, then construct two tail laws that reproduce all observed prices but disagree about unobserved outcomes.
+
+<span id="structured-products"></span>
 
 ### Building Structured Products
 
-**Planned.** Combine bonds and options into a funded investment. Allocate a £100 budget between a maturity payment and upside participation, then add caps or exchange downside exposure for premium income. Explain issuer credit exposure, early-sale value, fees, and which promises apply only at maturity.
+**Available:** [Building Structured Products](./structured-products.md).
 
-**Experiment:** change the funding rate or option cost and calculate the participation rate the budget can actually buy.
+Allocate a £100 budget between a maturity bond and option participation. Compare uncapped and capped designs with downside-funded income, then reconcile fees, an early sale with fixed original holdings, and an explicit issuer-recovery stress. Distinguish nominal gains from performance against safe cash and contractual maturity promises from current resale value.
+
+**Experiment:** change the safe cash rate and volatility for a new issuance, repricing bond, forward, and option inputs consistently. Complete an executable capped-product budget with fees and bid/ask costs.
+
+<span id="structured-products-capstone"></span>
 
 ### Design, Price, and Explain a Product
 
